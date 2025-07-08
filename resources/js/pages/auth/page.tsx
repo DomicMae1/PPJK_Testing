@@ -1,0 +1,200 @@
+// Users/ManageUsers.tsx
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
+import { Role, User, type BreadcrumbItem } from '@/types';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { columns } from './table/columns';
+import { DataTable } from './table/data-table';
+
+const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Manage Users',
+        href: '/users',
+    },
+];
+
+export default function ManageUsers() {
+    const { users, roles } = usePage().props as unknown as { users: User[]; roles: Role[] };
+    const [openDelete, setOpenDelete] = useState(false);
+    const [userIdToDelete, setUserIdToDelete] = useState<number | null>(null); // Ubah tipe menjadi number
+    const [openEdit, setOpenEdit] = useState(false);
+    const [userIdToEdit, setUserIdToEdit] = useState<number | null>(null); // Ubah tipe menjadi number
+    const [editName, setEditName] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [editRole, setEditRole] = useState<string>('');
+
+    const userToDelete = users.find((u) => u.id === userIdToDelete);
+    // const userToEdit = users.find((u) => u.id === userIdToEdit);
+
+    const onEditClick = (id: number) => {
+        // Ubah tipe parameter menjadi number
+        const user = users.find((u) => u.id === id);
+        if (user) {
+            setUserIdToEdit(id);
+            setEditName(user.name);
+            setEditEmail(user.email);
+            setEditRole(user.roles && user.roles.length > 0 ? String(user.roles[0].id) : '');
+            setOpenEdit(true);
+        }
+    };
+
+    const onDeleteClick = (id: number) => {
+        // Ubah tipe parameter menjadi number
+        setUserIdToDelete(id);
+        setOpenDelete(true);
+    };
+
+    const onConfirmDelete = () => {
+        if (userIdToDelete !== null) {
+            // Ubah pengecekan karena userIdToDelete sekarang number
+            router.delete(`/users/${userIdToDelete}`, {
+                onSuccess: () => {
+                    setOpenDelete(false);
+                    setUserIdToDelete(null);
+                    toast.success('User deleted successfully!');
+                },
+                onError: (errors) => {
+                    console.error('❌ Error saat menghapus user:', errors);
+                    toast.error('Failed to delete user.');
+                },
+            });
+        }
+    };
+
+    const onConfirmEdit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!editName || !editEmail || !editRole) {
+            toast.error('All fields are required.');
+            return;
+        }
+
+        const data = {
+            name: editName,
+            email: editEmail,
+            role: editRole,
+        };
+
+        if (userIdToEdit !== null) {
+            // Ubah pengecekan karena userIdToEdit sekarang number
+            router.put(`/users/${userIdToEdit}`, data, {
+                onSuccess: () => {
+                    setOpenEdit(false);
+                    setUserIdToEdit(null);
+                    setEditName('');
+                    setEditEmail('');
+                    setEditRole('');
+                    toast.success('User updated successfully!');
+                },
+                onError: (errors) => {
+                    console.error('❌ Error saat mengedit user:', errors);
+                    if (errors.email) {
+                        toast.error('Email error: ' + errors.email);
+                    } else if (errors.role) {
+                        toast.error('Role error: ' + errors.role);
+                    } else {
+                        toast.error('Failed to update user.');
+                    }
+                },
+            });
+        }
+    };
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title="Manage Users" />
+            <div className="p-4">
+                <DataTable columns={columns(onDeleteClick, onEditClick)} data={users} />
+            </div>
+
+            {/* Dialog untuk menghapus user */}
+            <Dialog open={openDelete} onOpenChange={setOpenDelete}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Hapus Data</DialogTitle>
+                        <div className="mt-2">
+                            Data <span className="font-bold text-white">{userToDelete?.email ?? 'Tidak ditemukan'}</span> akan dihapus. Apakah Anda
+                            yakin?
+                        </div>
+                    </DialogHeader>
+                    <DialogFooter className="sm:justify-start">
+                        <Button type="button" variant="destructive" onClick={onConfirmDelete}>
+                            Hapus
+                        </Button>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">
+                                Close
+                            </Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog untuk mengedit user */}
+            <Dialog
+                open={openEdit}
+                onOpenChange={(open) => {
+                    setOpenEdit(open);
+                    if (!open) {
+                        setUserIdToEdit(null);
+                        setEditName('');
+                        setEditEmail('');
+                        setEditRole('');
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogDescription>Update the details of the user.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={onConfirmEdit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="edit_name">Name</Label>
+                            <Input id="edit_name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Enter name" />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit_email">Email</Label>
+                            <Input
+                                id="edit_email"
+                                type="email"
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                placeholder="Enter email"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit_role">Role</Label>
+                            <Select onValueChange={setEditRole} value={editRole}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select a role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {roles.map((role) => (
+                                        <SelectItem key={role.id} value={String(role.id)}>
+                                            {role.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <DialogFooter className="sm:justify-start">
+                            <Button type="submit">Save</Button>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary">
+                                    Cancel
+                                </Button>
+                            </DialogClose>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </AppLayout>
+    );
+}
