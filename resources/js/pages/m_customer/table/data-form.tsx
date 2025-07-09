@@ -6,13 +6,23 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { Auth, MasterCustomer } from '@/types';
+import { Attachment, Auth, MasterCustomer } from '@/types';
 import { router, useForm } from '@inertiajs/react';
 import { CloudUploadIcon, Trash2Icon } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
 import { NumericFormat } from 'react-number-format';
 
-export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth; customer?: MasterCustomer; onSuccess?: () => void }) {
+export default function CustomerForm({
+    auth,
+    customer,
+    attachment,
+    onSuccess,
+}: {
+    auth: Auth;
+    customer?: MasterCustomer;
+    attachment?: Attachment;
+    onSuccess?: () => void;
+}) {
     const { data, setData, post, put, processing, errors } = useForm<MasterCustomer>({
         id: customer?.id || null,
         kategori_usaha: customer?.kategori_usaha || '',
@@ -48,6 +58,7 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
         tgl_customer: customer?.tgl_customer || null,
         attachments: customer?.attachments || [],
     });
+
     const [lainKategori, setLainKategori] = useState(customer?.kategori_usaha === 'lain2' ? '' : '');
     const [errors_kategori, setErrors] = useState<{ kategori_usaha?: string; lain_kategori?: string }>({});
 
@@ -106,8 +117,6 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
         },
     });
 
-    // const [open, setOpen] = useState(false);
-
     const handleSubmit: FormEventHandler = (e) => {
         e.preventDefault();
 
@@ -138,7 +147,6 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
                     console.log('Update error:', errors);
                 },
             });
-        } else {
             post(route('customer.store'), {
                 onSuccess: () => {
                     onSuccess?.();
@@ -282,9 +290,7 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
                         </div>
 
                         <div className="w-full">
-                            <Label htmlFor="no_fax">
-                                Nomor Fax <span className="text-red-500">*</span>
-                            </Label>
+                            <Label htmlFor="no_fax">Nomor Fax</Label>
                             <NumericFormat
                                 required
                                 id="no_fax"
@@ -616,7 +622,7 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
                                         </div>
                                     </div>
                                 )}
-                                <InputError message={errors.file_npwp} />
+                                <InputError message={errors.attachments} />
                             </div>
 
                             {/* SPPKP */}
@@ -686,7 +692,7 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
                                         </div>
                                     </div>
                                 )}
-                                <InputError message={errors.file_sppkp} />
+                                <InputError message={errors.attachments} />
                             </div>
 
                             {/* KTP */}
@@ -756,7 +762,7 @@ export default function CustomerForm({ auth, customer, onSuccess }: { auth: Auth
                                         </div>
                                     </div>
                                 )}
-                                <InputError message={errors.file_ktp} />
+                                <InputError message={errors.attachments} />
                             </div>
                         </div>
                     </div>
