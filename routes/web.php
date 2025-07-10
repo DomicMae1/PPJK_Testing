@@ -3,6 +3,8 @@
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserNoteController;
+use App\Models\CustomerAttach;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -16,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('dashboard');
     Route::get('customer/share', [CustomerController::class, 'share'])->name('customer.share');
     Route::resource('customer', CustomerController::class);
+    Route::resource('customer-attachments', CustomerAttach::class);
 
     Route::resource('users', UserController::class);
     Route::resource('role-manager', RoleController::class);
