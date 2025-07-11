@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'tako-perusahaan'),
 
     /*
     |--------------------------------------------------------------------------
@@ -88,9 +88,37 @@ return [
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
+            'username' => env('DB_USERNAME', 'root'), // <- sekarang sudah di-override dari .env
             'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
+        'tako-perusahaan' => [
+            'driver' => 'pgsql',
+            'host' => env('DB_TAKO_HOST', '127.0.0.1'),
+            'port' => env('DB_TAKO_PORT', '5432'),
+            'database' => env('DB_TAKO_DATABASE', 'tako-perusahaan'),
+            'username' => env('DB_TAKO_USERNAME', 'ardon'),
+            'password' => env('DB_TAKO_PASSWORD', '1234'),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
+        'tako-customer' => [
+            'driver' => 'pgsql',
+            'host' => env('DB_SECOND_HOST', '127.0.0.1'),
+            'port' => env('DB_SECOND_PORT', '5432'),
+            'database' => env('DB_SECOND_DATABASE', 'tako-customer'),
+            'username' => env('DB_SECOND_USERNAME', 'ardon'),
+            'password' => env('DB_SECOND_PASSWORD', '1234'),
+            'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
@@ -147,7 +175,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_') . '_database_'),
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 
