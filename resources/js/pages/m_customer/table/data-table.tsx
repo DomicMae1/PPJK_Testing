@@ -54,7 +54,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
 
     // Sinkronkan filterValue dengan columnFilters
     React.useEffect(() => {
-        table.getColumn('nama_cust')?.setFilterValue(filterValue);
+        table.getColumn('nama_perusahaan')?.setFilterValue(filterValue);
     }, [filterValue, table]);
 
     return (
