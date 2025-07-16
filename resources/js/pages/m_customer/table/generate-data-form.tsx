@@ -1,7 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { Auth, type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
-import CustomerFormGenerate from './data-public-form';
+import CustomerFormGenerate from './generate-link';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

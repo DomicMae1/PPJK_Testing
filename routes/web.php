@@ -24,5 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('role-manager', RoleController::class);
 });
 
+Route::get('/form/{token}', [CustomerController::class, 'showPublicForm'])->name('customer.form.show');
+Route::post('/form/{token}', [CustomerController::class, 'submitPublicForm'])->name('customer.form.submit');
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
