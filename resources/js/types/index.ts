@@ -80,7 +80,6 @@ export type MasterCustomer = {
     jabatan_personal: string;
     no_telp_personal: string;
     email_personal: string;
-    status_approval: 'pending' | 'approved' | 'rejected';
     keterangan_reject: string | null;
     user_id: number;
     approved_1_by: number | null;

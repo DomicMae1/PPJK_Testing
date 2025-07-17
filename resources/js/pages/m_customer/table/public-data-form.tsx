@@ -14,7 +14,7 @@ import { CloudUploadIcon, File, Trash2Icon } from 'lucide-react';
 // import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // import { AlertCircle } from "lucide-react"
 import axios from 'axios';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, useState } from 'react';
 import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import { NumericFormat } from 'react-number-format';
@@ -52,7 +52,7 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
         no_telp_personal: customer?.no_telp_personal || '',
         email_personal: customer?.email_personal || '',
         keterangan_reject: customer?.keterangan_reject || '',
-        user_id: user_id || 0,
+        user_id: user_id,
         approved_1_by: customer?.approved_1_by ?? null,
         approved_2_by: customer?.approved_2_by ?? null,
         rejected_1_by: customer?.rejected_1_by ?? null,
@@ -66,7 +66,13 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
 
     const [lainKategori, setLainKategori] = useState(customer?.kategori_usaha === 'lain2' ? '' : '');
 
-    const [errors_kategori, setErrors] = useState<{ kategori_usaha?: string; lain_kategori?: string }>({});
+    const [errors_kategori, setErrors] = useState<{
+        kategori_usaha?: string;
+        lain_kategori?: string;
+        bentuk_badan_usaha?: string;
+        status_perpajakan?: string;
+        attachments?: string;
+    }>({});
 
     const [npwpFile, setNpwpFile] = useState<File | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,54 +105,6 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
             })
             .join('');
     }
-
-    useEffect(() => {
-        const existingNpwp = customer?.attachments?.find((a) => a.type === 'npwp');
-        const existingNib = customer?.attachments?.find((a) => a.type === 'nib');
-        const existingSppkp = customer?.attachments?.find((a) => a.type === 'sppkp');
-        const existingKtp = customer?.attachments?.find((a) => a.type === 'ktp');
-
-        if (existingNpwp) {
-            setNpwpFileStatuses([
-                {
-                    id: 'existing-npwp',
-                    status: 'success',
-                    fileName: existingNpwp.nama_file,
-                    result: existingNpwp.path,
-                },
-            ]);
-        }
-        if (existingNib) {
-            setNibFileStatuses([
-                {
-                    id: 'existing-nib',
-                    status: 'success',
-                    fileName: existingNib.nama_file,
-                    result: existingNib.path,
-                },
-            ]);
-        }
-        if (existingSppkp) {
-            setSppkpFileStatuses([
-                {
-                    id: 'existing-sppkp',
-                    status: 'success',
-                    fileName: existingSppkp.nama_file,
-                    result: existingSppkp.path,
-                },
-            ]);
-        }
-        if (existingKtp) {
-            setKtpFileStatuses([
-                {
-                    id: 'existing-ktp',
-                    status: 'success',
-                    fileName: existingKtp.nama_file,
-                    result: existingKtp.path,
-                },
-            ]);
-        }
-    }, [customer]);
 
     // State untuk masing-masing dropzone
     const dropzoneNpwp = useDropzone({
@@ -263,20 +221,40 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
             newErrors.kategori_usaha = 'Kategori usaha wajib dipilih.';
         }
 
+        if (!data.bentuk_badan_usaha) {
+            newErrors.bentuk_badan_usaha = 'Bentuk badan usaha wajib dipilih';
+        }
+
+        if (!data.status_perpajakan) {
+            newErrors.status_perpajakan = 'Status perpajakan wajib dipilih';
+        }
+
         if (data.kategori_usaha === 'lain2' && !lainKategori.trim()) {
             newErrors.lain_kategori = 'Kategori lainnya wajib diisi.';
         }
 
-        if (!npwpFileStatuses) {
-            alert('Mohon upload dokumen NPWP sebelum melanjutkan.');
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return; // ⛔ STOP proses di sini!
+        }
+
+        // 🔒 Cek wajib upload file PDF
+        if (!npwpFileStatuses || npwpFileStatuses.length === 0) {
+            const message = 'Dokumen NPWP wajib diunggah.';
+            setErrors((prev) => ({ ...prev, attachments: message }));
+            alert(message); // ⬅️ alert ditambahkan
             return;
         }
-        if (!nibFileStatuses) {
-            alert('Mohon upload dokumen NIB sebelum melanjutkan.');
+        if (!nibFileStatuses || nibFileStatuses.length === 0) {
+            const message = 'Dokumen NIB wajib diunggah.';
+            setErrors((prev) => ({ ...prev, attachments: message }));
+            alert(message);
             return;
         }
-        if (!ktpFileStatuses) {
-            alert('Mohon upload dokumen KTP sebelum melanjutkan.');
+        if (!ktpFileStatuses || ktpFileStatuses.length === 0) {
+            const message = 'Dokumen KTP wajib diunggah.';
+            setErrors((prev) => ({ ...prev, attachments: message }));
+            alert(message);
             return;
         }
 
@@ -286,71 +264,64 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
             const uploadedAttachments = [];
 
             // ✅ Upload NPWP
-            if (!npwpFileStatuses) {
-                if (npwpFile) {
-                    const formDataNpwp = new FormData();
-                    formDataNpwp.append('file', npwpFile);
-                    const resNpwp = await axios.post('/customer/upload-temp', formDataNpwp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resNpwp.data.nama_file,
-                        path: resNpwp.data.path,
-                        type: 'npwp',
-                    });
-                }
+            if (npwpFile) {
+                const formDataNpwp = new FormData();
+                formDataNpwp.append('file', npwpFile);
+                const resNpwp = await axios.post('/customer/upload-temp', formDataNpwp);
+                uploadedAttachments.push({
+                    id: 0,
+                    customer_id: customer?.id ?? 0,
+                    nama_file: resNpwp.data.nama_file,
+                    path: resNpwp.data.path,
+                    type: 'npwp',
+                });
             }
 
             // ✅ Upload NIB
-            if (!nibFileStatuses) {
-                if (nibFile) {
-                    const formDataNib = new FormData();
-                    formDataNib.append('file', nibFile);
-                    const resNib = await axios.post('/customer/upload-temp', formDataNib);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resNib.data.nama_file,
-                        path: resNib.data.path,
-                        type: 'nib',
-                    });
-                }
+            if (nibFile) {
+                const formDataNib = new FormData();
+                formDataNib.append('file', nibFile);
+                const resNib = await axios.post('/customer/upload-temp', formDataNib);
+                uploadedAttachments.push({
+                    id: 0,
+                    customer_id: customer?.id ?? 0,
+                    nama_file: resNib.data.nama_file,
+                    path: resNib.data.path,
+                    type: 'nib',
+                });
             }
 
             // ✅ Upload SPPKP (opsional)
-            if (!sppkpFileStatuses) {
-                if (sppkpFile) {
-                    const formDataSppkp = new FormData();
-                    formDataSppkp.append('file', sppkpFile);
-                    const resSppkp = await axios.post('/customer/upload-temp', formDataSppkp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resSppkp.data.nama_file,
-                        path: resSppkp.data.path,
-                        type: 'sppkp',
-                    });
-                }
+            if (sppkpFile) {
+                const formDataSppkp = new FormData();
+                formDataSppkp.append('file', sppkpFile);
+                const resSppkp = await axios.post('/customer/upload-temp', formDataSppkp);
+                uploadedAttachments.push({
+                    id: 0,
+                    customer_id: customer?.id ?? 0,
+                    nama_file: resSppkp.data.nama_file,
+                    path: resSppkp.data.path,
+                    type: 'sppkp',
+                });
             }
 
             // ✅ Upload KTP
-            if (!ktpFileStatuses) {
-                if (ktpFile) {
-                    const formDataKtp = new FormData();
-                    formDataKtp.append('file', ktpFile);
-                    const resKtp = await axios.post('/customer/upload-temp', formDataKtp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resKtp.data.nama_file,
-                        path: resKtp.data.path,
-                        type: 'ktp',
-                    });
-                }
+            if (ktpFile) {
+                const formDataKtp = new FormData();
+                formDataKtp.append('file', ktpFile);
+                const resKtp = await axios.post('/customer/upload-temp', formDataKtp);
+                uploadedAttachments.push({
+                    id: 0,
+                    customer_id: customer?.id ?? 0,
+                    nama_file: resKtp.data.nama_file,
+                    path: resKtp.data.path,
+                    type: 'ktp',
+                });
             }
 
             // ✅ Merge existing + uploaded
             const allAttachmentObjects = [
+                ...uploadedAttachments,
                 extractAttachmentFromStatus(npwpFileStatuses, 'npwp'),
                 extractAttachmentFromStatus(nibFileStatuses, 'nib'),
                 extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp'),
@@ -363,26 +334,22 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                 ...data,
                 attachments: updatedAttachments,
             };
-            if (customer?.id) {
-                // 🔁 UPDATE
-                router.put(route('customer.update', customer.id), finalPayload, {
-                    onSuccess: () => {
-                        console.log('✅ Berhasil update data!');
-                        onSuccess?.();
-                    },
-                    onError: (errors: unknown) => {
-                        console.log('Update error:', errors);
-                    },
-                });
-            } else {
+            if (!customer || !customer.id) {
                 // 🆕 CREATE
-                router.post(route('customer.store'), finalPayload, {
+                router.post(route('customer.public.submit'), finalPayload, {
                     onSuccess: () => {
                         console.log('✅ Berhasil simpan data!');
-                        onSuccess?.();
+                        alert('data berhasil dimasukkan');
+                        onSuccess?.(); // Menjalankan fungsi onSuccess lain jika ada
                     },
-                    onError: (errors: unknown) => {
-                        console.log('Create error:', errors);
+                    onError: (errors) => {
+                        console.error('Create error:', errors);
+                        // Menampilkan error dari server jika ada
+                        if (errors.error) {
+                            alert(`Gagal menyimpan: ${errors.error}`);
+                        } else {
+                            alert('Terjadi kesalahan saat menyimpan data.');
+                        }
                     },
                 });
             }
@@ -705,9 +672,10 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                     No. Telp. Direktur <span className="text-red-500">*</span>
                                 </Label>
                                 <PhoneInput
+                                    required
                                     defaultCountry="id" // kode negara default: Indonesia
                                     value={data.no_telp_pj?.toString() || ''}
-                                    onChange={(phone) => setData('no_telp', phone)}
+                                    onChange={(phone) => setData('no_telp_pj', phone)}
                                     inputClassName={cn(
                                         'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
                                         'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
@@ -756,7 +724,7 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                 <PhoneInput
                                     defaultCountry="id" // kode negara default: Indonesia
                                     value={data.no_telp_personal?.toString() || ''}
-                                    onChange={(phone) => setData('no_telp', phone)}
+                                    onChange={(phone) => setData('no_telp_personal', phone)}
                                     inputClassName={cn(
                                         'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
                                         'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
@@ -835,27 +803,6 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                         )}
                                     </DropZoneArea>
                                 </Dropzone>
-                                {/* {isModalOpen && previewImageNPWP && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                                        <div className="relative mx-4 w-full max-w-4xl rounded-lg bg-white p-4 shadow-lg">
-                                            <p className="mb-2 text-sm text-white">Previewing: {previewImageNPWP}</p>
-                                            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                                                <Viewer fileUrl={previewImageNPWP} plugins={[defaultLayoutPlugin()]} />
-                                            </Worker>
-                                            <div className="mt-4 flex justify-end">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsModalOpen(false);
-                                                        setPreviewImageNPWP(null);
-                                                    }}
-                                                    className="rounded-md bg-gray-300 px-4 py-2 hover:bg-gray-400"
-                                                >
-                                                    Tutup
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )} */}
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah NPWP dalam format PDF</p>
                                 <InputError message={errors.attachments} />
                             </div>
@@ -909,26 +856,6 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                         )}
                                     </DropZoneArea>
                                 </Dropzone>
-                                {/* {isModalOpen && previewImageNIB && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                                        <div className="relative mx-4 w-full max-w-4xl rounded-lg bg-white p-4 shadow-lg">
-                                            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                                                <Viewer fileUrl={previewImageNIB} plugins={[defaultLayoutPlugin()]} />
-                                            </Worker>
-                                            <div className="mt-4 flex justify-end">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsModalOpen(false);
-                                                        setPreviewImageNIB(null);
-                                                    }}
-                                                    className="rounded-md bg-gray-300 px-4 py-2 hover:bg-gray-400"
-                                                >
-                                                    Tutup
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )} */}
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah NIB dalam format PDF</p>
                                 <InputError message={errors.attachments} />
                             </div>
@@ -982,26 +909,6 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                         )}
                                     </DropZoneArea>
                                 </Dropzone>
-                                {/* {isModalOpen && previewImageSPPKP && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                                        <div className="relative mx-4 w-full max-w-4xl rounded-lg bg-white p-4 shadow-lg">
-                                            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                                                <Viewer fileUrl={previewImageSPPKP} plugins={[defaultLayoutPlugin()]} />
-                                            </Worker>
-                                            <div className="mt-4 flex justify-end">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsModalOpen(false);
-                                                        setPreviewImageSPPKP(null);
-                                                    }}
-                                                    className="rounded-md bg-gray-300 px-4 py-2 hover:bg-gray-400"
-                                                >
-                                                    Tutup
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )} */}
                                 <InputError message={errors.attachments} />
                             </div>
 
@@ -1054,26 +961,6 @@ export default function PublicCustomerForm({ customer, onSuccess }: { customer?:
                                         )}
                                     </DropZoneArea>
                                 </Dropzone>
-                                {/* {isModalOpen && previewImageKTP && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-                                        <div className="relative mx-4 w-full max-w-4xl rounded-lg bg-white p-4 shadow-lg">
-                                            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                                                <Viewer fileUrl={previewImageKTP} plugins={[defaultLayoutPlugin()]} />
-                                            </Worker>
-                                            <div className="mt-4 flex justify-end">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsModalOpen(false);
-                                                        setPreviewImageKTP(null);
-                                                    }}
-                                                    className="rounded-md bg-gray-300 px-4 py-2 hover:bg-gray-400"
-                                                >
-                                                    Tutup
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )} */}
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah KTP dalam format PDF</p>
                                 <InputError message={errors.attachments} />
                             </div>

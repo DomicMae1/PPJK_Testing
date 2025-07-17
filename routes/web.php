@@ -29,5 +29,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::post('customer/upload-temp', [CustomerController::class, 'upload'])->name('customer.upload');
 Route::get('/form/{token}', [CustomerController::class, 'showPublicForm'])->name('customer.form.show');
 Route::post('/form/{token}', [CustomerController::class, 'submitPublicForm'])->name('customer.form.submit');
+Route::post('customer/store-public', [CustomerController::class, 'storePublic'])->name('customer.public.submit');
+
+
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
