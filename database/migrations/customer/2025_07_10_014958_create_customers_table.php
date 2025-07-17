@@ -35,12 +35,12 @@ return new class extends Migration
             // data penanggung jawab / direktur
             $table->string('nama_pj');
             $table->string('no_ktp_pj');
-            $table->string('no_telp_pj');
+            $table->string('no_telp_pj')->nullable();
 
             // personal yg dihubungi
             $table->string('nama_personal');
             $table->string('jabatan_personal');
-            $table->string('no_telp_personal');
+            $table->string('no_telp_personal')->nullable();
             $table->string('email_personal');
             $table->softDeletes();
             $table->timestamps();
