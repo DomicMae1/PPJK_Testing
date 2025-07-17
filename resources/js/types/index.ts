@@ -99,5 +99,14 @@ export type Attachment = {
     customer_id: number;
     nama_file: string;
     path: string;
-    type: string;
+    type: 'npwp' | 'nib' | 'sppkp' | 'ktp' | 'note';
+};
+
+export type DropzoneFileStatus = {
+  id: string;
+  fileName: string;
+  file: File;
+  tries: number;
+  status: 'success';
+  result: string;
 };

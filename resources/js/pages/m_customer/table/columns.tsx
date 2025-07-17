@@ -5,6 +5,23 @@ import { Link } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal } from 'lucide-react';
 
+const downloadPdf = async (id: number) => {
+    const response = await fetch(`/customer/${id}/pdf`, {
+        method: 'GET',
+    });
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `customer_${id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+};
+
 export const columns = (): ColumnDef<MasterCustomer>[] => [
     {
         accessorKey: 'no_npwp',
@@ -44,6 +61,9 @@ export const columns = (): ColumnDef<MasterCustomer>[] => [
                         </Link>
                         <Link href={`/customer/${supplier.id}/edit`}>
                             <DropdownMenuItem>Edit Customer</DropdownMenuItem>
+                        </Link>
+                        <Link href={`/customer/${supplier.id}/pdf`}>
+                            <DropdownMenuItem onClick={() => supplier.id != null && downloadPdf(supplier.id)}>Download PDF</DropdownMenuItem>
                         </Link>
                         {/* <DropdownMenuItem onClick={() => onDeleteClick(supplier.id)}>Delete Customer</DropdownMenuItem> */}
                     </DropdownMenuContent>

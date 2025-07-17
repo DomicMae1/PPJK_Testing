@@ -99,6 +99,26 @@ class CustomerController extends Controller
         return redirect()->route('customer.index')->with('success', 'Data Customer berhasil dibuat!');
     }
 
+    public function upload(Request $request)
+    {
+        $file = $request->file('file');
+
+        // Buat nama file unik
+        $filename = time() . '_' . $file->getClientOriginalName();
+
+        // Simpan ke folder 'customers' di disk 'public'
+        $path = $file->storeAs('customers', $filename, 'public');
+
+        // URL akses publik
+        $url = url(Storage::url($path)); // hasil: /storage/customers/filename.pdf
+
+        return response()->json([
+            'path' => $url,            // untuk diakses di frontend (misal window.open)
+            'nama_file' => $filename,  // untuk ditampilkan di UI
+        ]);
+    }
+
+
     /**
      * Display the specified resource.
      */
