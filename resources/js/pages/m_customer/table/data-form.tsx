@@ -816,7 +816,7 @@ export default function CustomerForm({
                         <h1 className="mb-2 text-xl font-semibold">Lampiran</h1>
 
                         {/* 3 Dropzone Kolom */}
-                        <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="col-span-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                             {/* NPWP */}
                             <div className="w-full">
                                 <Label htmlFor="file_npwp" className="mb-1 block">
@@ -849,7 +849,7 @@ export default function CustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setNpwpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -902,7 +902,7 @@ export default function CustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setNibFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -955,7 +955,7 @@ export default function CustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setSppkpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -1007,7 +1007,7 @@ export default function CustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setKtpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
