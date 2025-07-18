@@ -84,8 +84,6 @@ class CustomerController extends Controller
 
         DB::beginTransaction();
 
-        dd($request->all());
-
         $validated = $request->validate([
             'kategori_usaha' => 'required|string',
             'nama_perusahaan' => 'required|string',
@@ -250,6 +248,18 @@ class CustomerController extends Controller
                 'updated_at' => now(),
             ]);
 
+            // ✅ UPDATE customer_links (tako-perusahaan)
+            CustomerLink::on('tako-perusahaan')
+                ->where('id_user', $userId)
+                ->whereNull('id_customer')
+                ->where('is_filled', false)
+                ->latest('id_link')
+                ->first()?->update([
+                    'id_customer' => $customer->id,
+                    'is_filled' => true,
+                    'filled_at' => now(),
+                ]);
+
 
             DB::commit();
 
@@ -258,7 +268,7 @@ class CustomerController extends Controller
             ], 200);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()]);
+            return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()], 500);
         }
 
         // Customer::create($validated);

@@ -59,6 +59,11 @@ class Customers_Status extends Model
         return $this->belongsTo(Customer::class, 'id_Customer');
     }
 
+    public function submit1By()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
+
     // Relasi ke user yang menyetujui status 1
     public function status1Approver()
     {

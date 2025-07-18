@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\CustomerAttachController;
+use App\Http\Controllers\CustomerLinkController;
 use App\Http\Controllers\CustomersStatusController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\RoleController;
@@ -19,6 +21,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('customer/share', [CustomerController::class, 'share'])->name('customer.share');
     // Di routes/web.php
     Route::post('/submit-customer-status', [CustomersStatusController::class, 'submit'])->name('customer-status.submit');
+
+    Route::get('/customer-status-check', [CustomersStatusController::class, 'index']);
+
     Route::resource('customer', CustomerController::class);
     Route::resource('customer-attachments', CustomerAttachController::class);
     // web.php
