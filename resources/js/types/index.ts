@@ -64,7 +64,7 @@ export type MasterCustomer = {
     bentuk_badan_usaha: string;
     alamat_lengkap: string;
     kota: string;
-    no_telp: number | null | string;
+    no_telp: string;
     no_fax: number | null | string;
     alamat_penagihan: string;
     email: string;

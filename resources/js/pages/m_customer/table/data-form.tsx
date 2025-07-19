@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Dropzone, DropZoneArea, DropzoneFileListItem, DropzoneRemoveFile, DropzoneTrigger, useDropzone } from '@/components/dropzone';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -70,8 +71,24 @@ export default function CustomerForm({
     const [errors_kategori, setErrors] = useState<{
         kategori_usaha?: string;
         lain_kategori?: string;
+        nama_perusahaan?: string;
         bentuk_badan_usaha?: string;
         status_perpajakan?: string;
+        alamat_lengkap?: string;
+        kota?: string;
+        no_telp?: string;
+        alamat_penagihan?: string;
+        email?: string;
+        top?: string;
+        no_npwp?: string;
+        no_npwp_16?: string;
+        nama_pj?: string;
+        no_ktp_pj?: string;
+        no_telp_pj?: string;
+        nama_personal?: string;
+        jabatan_personal?: string;
+        no_telp_personal?: string;
+        email_personal?: string;
         attachments?: string;
     }>({});
 
@@ -267,19 +284,143 @@ export default function CustomerForm({
         const newErrors: typeof errors_kategori = {};
 
         if (!data.kategori_usaha) {
-            newErrors.kategori_usaha = 'Kategori usaha wajib dipilih.';
-        }
-
-        if (!data.bentuk_badan_usaha) {
-            newErrors.bentuk_badan_usaha = 'Bentuk badan usaha wajib dipilih';
-        }
-
-        if (!data.status_perpajakan) {
-            newErrors.status_perpajakan = 'Status perpajakan wajib dipilih';
+            const message = 'Kategori usaha wajib dipilih';
+            setErrors((prev) => ({ ...prev, kategori_usaha: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
         }
 
         if (data.kategori_usaha === 'lain2' && !lainKategori.trim()) {
-            newErrors.lain_kategori = 'Kategori lainnya wajib diisi.';
+            const message = 'Kategori lainnya wajib diisi';
+            setErrors((prev) => ({ ...prev, lain_kategori: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.nama_perusahaan) {
+            const message = 'Nama Perusahaan wajib diisi';
+            setErrors((prev) => ({ ...prev, nama_perusahaan: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.bentuk_badan_usaha) {
+            const message = 'Bentuk badan usaha wajib dipilih';
+            setErrors((prev) => ({ ...prev, bentuk_badan_usaha: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.alamat_lengkap || !data.alamat_lengkap.trim()) {
+            const message = 'Alamat lengkap wajib diisi';
+            setErrors((prev) => ({ ...prev, alamat_lengkap: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.kota || !data.kota.trim()) {
+            const message = 'Kota wajib diisi';
+            setErrors((prev) => ({ ...prev, kota: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_telp || data.no_telp.trim().length <= 3) {
+            const message = 'No Telpon Perusahaan wajib diisi';
+            setErrors((prev) => ({ ...prev, no_telp: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.alamat_penagihan || !data.alamat_penagihan.trim()) {
+            const message = 'Alamat Perusahaan wajib diisi';
+            setErrors((prev) => ({ ...prev, alamat_penagihan: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.email || !data.email.trim()) {
+            const message = 'Email Perusahaan wajib diisi';
+            setErrors((prev) => ({ ...prev, email: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.top || !data.top.trim()) {
+            const message = 'Term of Payment wajib diisi';
+            setErrors((prev) => ({ ...prev, top: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.status_perpajakan) {
+            const message = 'Status perpajakan wajib dipilih';
+            setErrors((prev) => ({ ...prev, status_perpajakan: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_npwp || !data.no_npwp.trim()) {
+            const message = 'Nomer NPWP wajib diisi';
+            setErrors((prev) => ({ ...prev, no_npwp: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_npwp_16 || !data.no_npwp_16.trim()) {
+            const message = 'Nomer NPWP 16 wajib diisi';
+            setErrors((prev) => ({ ...prev, no_npwp_16: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.nama_pj || !data.nama_pj.trim()) {
+            const message = 'Nama Direktur wajib diisi';
+            setErrors((prev) => ({ ...prev, nama_pj: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_ktp_pj || !data.no_ktp_pj.trim()) {
+            const message = 'NIK Direktur wajib diisi';
+            setErrors((prev) => ({ ...prev, no_ktp_pj: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_telp_pj || data.no_telp_pj.trim().length <= 3) {
+            const message = 'No Telp Direktur wajib diisi';
+            setErrors((prev) => ({ ...prev, no_telp_pj: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.nama_personal || !data.nama_personal.trim()) {
+            const message = 'Nama Personal wajib diisi';
+            setErrors((prev) => ({ ...prev, nama_personal: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.jabatan_personal || !data.jabatan_personal.trim()) {
+            const message = 'Jabatan Personal wajib diisi';
+            setErrors((prev) => ({ ...prev, jabatan_personal: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.no_telp_personal || data.no_telp_personal.trim().length <= 3) {
+            const message = 'No Telp Personal wajib diisi';
+            setErrors((prev) => ({ ...prev, no_telp_personal: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
+        }
+
+        if (!data.email_personal || !data.email_personal.trim()) {
+            const message = 'Email Personal wajib diisi';
+            setErrors((prev) => ({ ...prev, email_personal: message }));
+            alert(message); // ⬅️ alert ditambahkan
+            return;
         }
 
         if (Object.keys(newErrors).length > 0) {
@@ -431,7 +572,6 @@ export default function CustomerForm({
                                 Kategori Usaha <span className="text-red-500">*</span>
                             </Label>
                             <Select
-                                required
                                 value={data.kategori_usaha}
                                 onValueChange={(value) => {
                                     setData('kategori_usaha', value);
@@ -456,7 +596,6 @@ export default function CustomerForm({
                                     <SelectItem value="lain2">Lain-Lain</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {errors_kategori.kategori_usaha && <InputError message={errors_kategori.kategori_usaha} />}
 
                             {/* Input tambahan muncul hanya jika pilih "lain-lain" */}
                             {data.kategori_usaha === 'lain2' && (
@@ -465,7 +604,6 @@ export default function CustomerForm({
                                     <input
                                         type="text"
                                         id="lain_kategori"
-                                        required
                                         value={lainKategori}
                                         onChange={(e) => {
                                             setLainKategori(e.target.value);
@@ -474,7 +612,6 @@ export default function CustomerForm({
                                         className="focus:border-primary mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:ring"
                                         placeholder="Isi kategori usaha lainnya"
                                     />
-                                    {errors_kategori.kategori_usaha && <InputError message={errors_kategori.kategori_usaha} />}
                                 </div>
                             )}
                         </div>
@@ -483,13 +620,11 @@ export default function CustomerForm({
                                 Nama Perusahaan <span className="text-red-500">*</span>
                             </Label>
                             <Input
-                                required
                                 id="nama_perusahaan"
                                 value={data.nama_perusahaan}
                                 onChange={(e) => setData('nama_perusahaan', e.target.value)}
                                 placeholder="Masukkan nama perusahaan"
                             />
-                            <InputError message={errors.nama_perusahaan} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="bentuk_badan_usaha">
@@ -505,7 +640,6 @@ export default function CustomerForm({
                                         bentuk_badan_usaha: undefined,
                                     }));
                                 }}
-                                required
                             >
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Pilih Bentuk Badan Usaha" />
@@ -519,40 +653,29 @@ export default function CustomerForm({
                                     <SelectItem value="po">Perusahaan Perorangan (PO)</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {errors_kategori && <InputError message={errors_kategori.bentuk_badan_usaha} />}
                         </div>
                         <div className="w-full">
                             <Label htmlFor="alamat_lengkap">
                                 Alamat Lengkap <span className="text-red-500">*</span>
                             </Label>
                             <Textarea
-                                required
                                 id="alamat_lengkap"
                                 value={data.alamat_lengkap}
                                 onChange={(e) => setData('alamat_lengkap', e.target.value)}
                                 placeholder="Masukkan Alamat Lengkap"
                             />
-                            <InputError message={errors.alamat_lengkap} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="kota">
                                 Kota <span className="text-red-500">*</span>
                             </Label>
-                            <Input
-                                required
-                                id="kota"
-                                value={data.kota}
-                                onChange={(e) => setData('kota', e.target.value)}
-                                placeholder="Masukkan Kota"
-                            />
-                            <InputError message={errors.kota} />
+                            <Input id="kota" value={data.kota} onChange={(e) => setData('kota', e.target.value)} placeholder="Masukkan Kota" />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="no_telp">
                                 Nomor Telp Perusahaan <span className="text-red-500">*</span>
                             </Label>
                             <PhoneInput
-                                required
                                 defaultCountry="id"
                                 value={data.no_telp?.toString() || ''}
                                 onChange={(phone) => setData('no_telp', phone)}
@@ -563,7 +686,6 @@ export default function CustomerForm({
                                 )}
                                 placeholder="Enter No. Perusahaan"
                             />
-                            <InputError message={errors.no_telp} />
                         </div>
 
                         <div className="w-full">
@@ -581,34 +703,29 @@ export default function CustomerForm({
                                 allowNegative={false}
                                 decimalScale={0}
                             />
-                            <InputError message={errors.no_fax} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="alamat_penagihan">
                                 Alamat Penagihan <span className="text-red-500">*</span>
                             </Label>
                             <Textarea
-                                required
                                 id="alamat_penagihan"
                                 value={data.alamat_penagihan}
                                 onChange={(e) => setData('alamat_penagihan', e.target.value)}
                                 placeholder="Masukkan Alamat Lengkap"
                             />
-                            <InputError message={errors.alamat_penagihan} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="email">
                                 Email <span className="text-red-500">*</span>
                             </Label>
                             <Input
-                                required
                                 id="email"
                                 type="email"
                                 value={data.email}
                                 onChange={(e) => setData('email', e.target.value)}
                                 placeholder="Masukkan email"
                             />
-                            <InputError message={errors.email} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="website">Alamat Website</Label>
@@ -618,27 +735,24 @@ export default function CustomerForm({
                                 onChange={(e) => setData('website', e.target.value)}
                                 placeholder="Masukkan website (optional)"
                             />
-                            <InputError message={errors.website} />
                         </div>
                         <div className="w-full">
                             <Label htmlFor="top">
                                 Terms of Payment <span className="text-red-500">*</span>
                             </Label>
                             <Input
-                                required
                                 id="top"
                                 value={data.top}
                                 onChange={(e) => setData('top', e.target.value)}
                                 placeholder="Masukkan Terms of Payment"
                             />
-                            <InputError message={errors.top} />
                         </div>
 
                         <div className="w-full">
                             <Label htmlFor="status_perpajakan">
                                 Status Perpajakan <span className="text-red-500">*</span>
                             </Label>
-                            <Select required value={data.status_perpajakan} onValueChange={(value) => setData('status_perpajakan', value)}>
+                            <Select value={data.status_perpajakan} onValueChange={(value) => setData('status_perpajakan', value)}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Pilih Status Perpajakan" />
                                 </SelectTrigger>
@@ -647,14 +761,12 @@ export default function CustomerForm({
                                     <SelectItem value="non-pkp">NON PKP</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {errors_kategori && <InputError message={errors_kategori.status_perpajakan} />}
                         </div>
                         <div className="w-full">
                             <Label htmlFor="no_npwp">
                                 Nomor NPWP <span className="text-red-500">*</span>
                             </Label>
                             <input
-                                required
                                 type="text"
                                 id="no_npwp"
                                 value={data.no_npwp}
@@ -666,8 +778,6 @@ export default function CustomerForm({
                                     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
                                 )}
                             />
-
-                            <InputError message={errors.no_npwp} />
                         </div>
 
                         <div className="w-full">
@@ -675,7 +785,6 @@ export default function CustomerForm({
                                 Nomor NPWP (16 Digit) <span className="text-red-500">*</span>
                             </Label>
                             <input
-                                required
                                 type="text"
                                 inputMode="numeric"
                                 maxLength={19} // karena spasi: 4 + 1 + 4 + 1 + 4 + 1 + 4 = 19 total karakter
@@ -689,7 +798,6 @@ export default function CustomerForm({
                                     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
                                 )}
                             />
-                            <InputError message={errors.no_npwp_16} />
                         </div>
                     </div>
                     <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -701,20 +809,17 @@ export default function CustomerForm({
                                     Nama <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    required
                                     id="nama_pj"
                                     value={data.nama_pj}
                                     onChange={(e) => setData('nama_pj', e.target.value)}
                                     placeholder="Masukkan Nama"
                                 />
-                                <InputError message={errors.nama_pj} />
                             </div>
                             <div className="w-full">
                                 <Label htmlFor="no_ktp_pj">
                                     Nik Direktur <span className="text-red-500">*</span>
                                 </Label>
                                 <NumericFormat
-                                    required
                                     id="no_ktp_pj"
                                     value={data.no_ktp_pj}
                                     onChange={(e) => setData('no_ktp_pj', e.target.value)}
@@ -727,14 +832,12 @@ export default function CustomerForm({
                                     allowNegative={false}
                                     decimalScale={0}
                                 />
-                                <InputError message={errors.no_ktp_pj} />
                             </div>
                             <div className="w-full">
                                 <Label htmlFor="no_telp_pj">
                                     No. Telp. Direktur <span className="text-red-500">*</span>
                                 </Label>
                                 <PhoneInput
-                                    required
                                     defaultCountry="id"
                                     value={data.no_telp_pj?.toString() || ''}
                                     onChange={(phone) => setData('no_telp_pj', phone)}
@@ -745,7 +848,6 @@ export default function CustomerForm({
                                     )}
                                     placeholder="Enter No. Telp. Direktur"
                                 />
-                                <InputError message={errors.no_telp_pj} />
                             </div>
                         </div>
                     </div>
@@ -758,33 +860,28 @@ export default function CustomerForm({
                                     Nama <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    required
                                     id="nama_personal"
                                     value={data.nama_personal}
                                     onChange={(e) => setData('nama_personal', e.target.value)}
                                     placeholder="Masukkan nama personal"
                                 />
-                                <InputError message={errors.nama_personal} />
                             </div>
                             <div className="w-full">
                                 <Label htmlFor="jabatan_personal">
                                     Jabatan <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    required
                                     id="jabatan_personal"
                                     value={data.jabatan_personal}
                                     onChange={(e) => setData('jabatan_personal', e.target.value)}
                                     placeholder="Masukkan jabatan personal"
                                 />
-                                <InputError message={errors.jabatan_personal} />
                             </div>
                             <div className="w-full">
                                 <Label htmlFor="no_telp_personal">
                                     No. Telp. <span className="text-red-500">*</span>
                                 </Label>
                                 <PhoneInput
-                                    required
                                     defaultCountry="id"
                                     value={data.no_telp_personal?.toString() || ''}
                                     onChange={(phone) => setData('no_telp_personal', phone)}
@@ -795,20 +892,17 @@ export default function CustomerForm({
                                     )}
                                     placeholder="Masukkan no. telp personal"
                                 />
-                                <InputError message={errors.no_telp_personal} />
                             </div>
                             <div className="w-full">
                                 <Label htmlFor="email_personal">
                                     Email <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    required
                                     id="email_personal"
                                     value={data.email_personal}
                                     onChange={(e) => setData('email_personal', e.target.value)}
                                     placeholder="Masukkan email personal"
                                 />
-                                <InputError message={errors.email_personal} />
                             </div>
                         </div>
                     </div>
