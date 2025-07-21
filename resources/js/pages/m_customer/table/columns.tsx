@@ -1,7 +1,8 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MasterCustomer } from '@/types';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal } from 'lucide-react';
 
@@ -23,6 +24,9 @@ const downloadPdf = async (id: number) => {
 };
 
 export const columns = (): ColumnDef<MasterCustomer>[] => {
+    const { props } = usePage();
+    const userRole = props.auth?.user?.roles?.[0]?.name ?? '';
+
     if (typeof window !== 'undefined') {
         const hasReloaded = localStorage.getItem('hasReloadedCustomerPage');
 
@@ -92,7 +96,7 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                             <Link href={`/customer/${supplier.id}`}>
                                 <DropdownMenuItem>View Customer</DropdownMenuItem>
                             </Link>
-                            {supplier.creator?.role === 'user' && (
+                            {userRole === 'user' && supplier.submit_1_timestamps === null && (
                                 <Link href={`/customer/${supplier.id}/edit`}>
                                     <DropdownMenuItem>Edit Customer</DropdownMenuItem>
                                 </Link>

@@ -85,6 +85,7 @@ class CustomerController extends Controller
                 'creator' => [
                     'name' => $customer->creator->name ?? null,
                 ],
+                'submit_1_timestamps' => $status->submit_1_timestamps,
             ];
         });
 
