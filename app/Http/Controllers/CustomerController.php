@@ -408,68 +408,104 @@ class CustomerController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Customer $customer, $id)
+    public function edit(Customer $customer)
     {
         $user = auth('web')->user();
-        $payment = Customer::findOrFail($id);
 
-        // Konversi tanggal ke format Y-m-d untuk perbandingan tanggal saja
-        $createdDate = Carbon::parse($payment->created_at)->toDateString();
-        $today = now()->toDateString();
-
-        $canEditToday = $createdDate === $today && $user->hasPermissionTo('update-master-customer');
-        $canReEdit = $user->hasPermissionTo('reupdate-master-customer');
-
-        if (! $canEditToday && ! $canReEdit) {
-            throw UnauthorizedException::forPermissions(['update-master-customer', 'reupdate-master-customer']);
+        if (! $user->hasPermissionTo('update-master-customer')) {
+            throw UnauthorizedException::forPermissions(['update-master-customer']);
         }
 
-        // $ledger = PerkiraanJurnal::all();
+        $customer->load('attachments');
+
+        // $attachment = $customer->attachments;
 
         return Inertia::render('m_customer/table/edit-data-form', [
-            'customer' => $payment,
-            // 'ledger' => $ledger,
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error')
-            ]
+            'customer' => $customer->load('attachments'),
+            // 'attachments' => $attachment,
         ]);
     }
+
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Customer $customer, $id)
+    public function update(Request $request, Customer $customer)
     {
         $user = auth('web')->user();
-        $m_customer = Customer::findOrFail($id);
 
-        // Konversi tanggal ke format Y-m-d untuk perbandingan tanggal saja
-        $createdDate = Carbon::parse($m_customer->created_at)->toDateString();
+        $createdDate = \Carbon\Carbon::parse($customer->created_at)->toDateString();
         $today = now()->toDateString();
 
         $canEditToday = $createdDate === $today && $user->hasPermissionTo('update-master-customer');
-        $canReEdit = $user->hasPermissionTo('reupdate-master-customer');
 
-        if (! $canEditToday && ! $canReEdit) {
-            throw UnauthorizedException::forPermissions(['update-master-customer', 'reupdate-master-customer']);
+        if (! $canEditToday) {
+            throw \Spatie\Permission\Exceptions\UnauthorizedException::forPermissions(['update-master-customer']);
         }
 
         $validated = $request->validate([
-            'nama_cust' => 'required',
-            'no_npwp' => 'nullable',
-            'alamat_npwp' => 'nullable',
-            'alamat_penagihan' => 'nullable',
-            'nama_pic' => 'nullable',
-            'no_telp_pic' => 'nullable',
-            'pph_info' => 'required',
-            'user' => 'required',
-            'ledger_id' => 'required'
+            'kategori_usaha' => 'required|string',
+            'nama_perusahaan' => 'required|string',
+            'bentuk_badan_usaha' => 'required|string',
+            'alamat_lengkap' => 'required|string',
+            'kota' => 'required|string',
+            'no_telp' => 'nullable|string',
+            'no_fax' => 'nullable|string',
+            'alamat_penagihan' => 'required|string',
+            'email' => 'required|email',
+            'website' => 'nullable|string',
+            'top' => 'nullable|string',
+            'status_perpajakan' => 'nullable|string',
+            'no_npwp' => 'nullable|string',
+            'no_npwp_16' => 'nullable|string',
+            'nama_pj' => 'nullable|string',
+            'no_ktp_pj' => 'nullable|string',
+            'no_telp_pj' => 'nullable|string',
+            'nama_personal' => 'nullable|string',
+            'jabatan_personal' => 'nullable|string',
+            'no_telp_personal' => 'nullable|string',
+            'email_personal' => 'nullable|email',
+            'keterangan_reject' => 'nullable|string',
+            'user_id' => 'required|exists:users,id',
+            'approved_1_by' => 'nullable|integer',
+            'approved_2_by' => 'nullable|integer',
+            'rejected_1_by' => 'nullable|integer',
+            'rejected_2_by' => 'nullable|integer',
+            'keterangan' => 'nullable|string',
+            'tgl_approval_1' => 'nullable|date',
+            'tgl_approval_2' => 'nullable|date',
+            'tgl_customer' => 'nullable|date',
+
+            'attachments' => 'required|array',
+            'attachments.*.nama_file' => 'required|string',
+            'attachments.*.path' => 'required|string',
+            'attachments.*.type' => 'required|in:npwp,sppkp,ktp,nib',
         ]);
 
-        $m_customer->update($validated);
+        try {
+            DB::beginTransaction();
 
-        return redirect()->route('customer.index')->with('success', 'Data Customer berhasil diperbarui!');
+            $customer->update($validated);
+
+            // Hapus attachment lama
+            CustomerAttach::where('customer_id', $customer->id)->delete();
+
+            // Tambahkan attachment baru
+            foreach ($validated['attachments'] as $attachment) {
+                CustomerAttach::create([
+                    'customer_id' => $customer->id,
+                    'nama_file' => $attachment['nama_file'],
+                    'path' => $attachment['path'],
+                    'type' => $attachment['type'],
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->route('customer.index')->with('success', 'Data Customer berhasil diperbarui!');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()]);
+        }
     }
 
     /**
