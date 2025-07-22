@@ -70,4 +70,9 @@ class Customer extends Model
     {
         return $this->hasOne(Customers_Status::class, 'id_Customer');
     }
+
+    public function customer_links()
+    {
+        return $this->hasOne(CustomerLink::class, 'id_customer');
+    }
 }

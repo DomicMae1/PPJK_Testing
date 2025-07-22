@@ -25,7 +25,7 @@ return new class extends Migration
             $table->unsignedBigInteger('id_customer')->nullable();
 
             $table->string('token')->unique(); // token acak (hash, unik)
-            $table->string('url')->nullable(); // token acak (hash, unik)
+            $table->string('url')->nullable();
             $table->string('nama_customer');   // nama input dari marketing
 
             $table->boolean('is_filled')->default(false);  // status apakah sudah diisi

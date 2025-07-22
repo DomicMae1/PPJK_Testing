@@ -16,6 +16,7 @@ class CustomerLink extends Model
         'id_user',
         'id_customer',       // ✅ kolom relasi ke tabel customers
         'token',             // ✅ token acak, unik
+        'url',             // ✅ url
         'nama_customer',     // ✅ input dari marketing
         'is_filled',         // ✅ boolean apakah sudah diisi
         'filled_at',         // ✅ waktu saat diisi

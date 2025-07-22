@@ -36,7 +36,8 @@ class CustomerController extends Controller
             'status.submit1By',
             'status.status1Approver',
             'status.status2Approver',
-            'status.status3Approver'
+            'status.status3Approver',
+            'customer_links'
         ]);
 
         if ($user->hasRole('user')) {
@@ -104,6 +105,9 @@ class CustomerController extends Controller
                     'name' => $customer->creator->name ?? null,
                 ],
                 'submit_1_timestamps' => $status->submit_1_timestamps,
+                'customer_link' => [
+                    'url' => $customer->customer_links->url ?? null,
+                ],
             ];
         });
 

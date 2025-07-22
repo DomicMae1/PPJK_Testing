@@ -893,7 +893,7 @@ export default function PublicCustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setNpwpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -946,7 +946,7 @@ export default function PublicCustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setNibFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -999,7 +999,7 @@ export default function PublicCustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setSppkpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
@@ -1051,7 +1051,7 @@ export default function PublicCustomerForm({
                                                     <div className="absolute top-2 right-2 z-20">
                                                         <DropzoneRemoveFile>
                                                             <span onClick={() => setKtpFileStatuses([])} className="rounded-full bg-white p-1">
-                                                                <Trash2Icon className="size-4" />
+                                                                <Trash2Icon className="size-4 text-black" />
                                                             </span>
                                                         </DropzoneRemoveFile>
                                                     </div>
