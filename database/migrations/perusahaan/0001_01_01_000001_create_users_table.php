@@ -14,10 +14,14 @@ return new class extends Migration
         Schema::connection('tako-perusahaan')->create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            // $table->string('NIK');
+            $table->string('NIK')->nullable();
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+
+            $table->unsignedBigInteger('id_perusahaan')->nullable();
+            $table->string('nama_perusahaan')->nullable();
+
             $table->rememberToken();
             $table->timestamps();
         });
@@ -30,8 +34,7 @@ return new class extends Migration
 
         Schema::connection('tako-perusahaan')->create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->unsignedBigInteger('user_id')->nullable(); // Tambahkan kolom terlebih dahulu
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->unsignedBigInteger('user_id')->nullable();
 
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
