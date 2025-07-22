@@ -62,8 +62,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const { attachments } = props;
     console.log('hasil data', props);
 
-    const user = props.auth.user;
-    const userRole = props.auth.user.roles?.[0]?.name?.toLowerCase() ?? '';
+    const rawRole = props.auth.user.roles?.[0]?.name;
+    const userRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
     const allowedRoles = ['manager', 'direktur', 'lawyer'];
     const showExtraFields = allowedRoles.includes(userRole);
 
@@ -158,7 +158,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         const formData = new FormData();
         formData.append('customer_id', customer.id.toString());
         formData.append('status_1_by', String(props.auth.user.id));
-        console.log('Hasil apaytuh ', props.auth.user.name);
+        formData.append('id_perusahaan', String(props.auth.user.perusahaan.id_Perusahaan));
 
         if (userRole === 'user' && attachFileUser) {
             formData.append('attach', attachFileUser);
@@ -183,7 +183,10 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 alert('✅ Data berhasil disubmit!');
                 setAttachFile(null);
                 setAttachFileStatuses([]);
-                router.visit('/customer');
+                router.visit('/customer', {
+                    replace: true,
+                    preserveState: false,
+                });
             },
             onError: (errors) => {
                 const firstError = errors[Object.keys(errors)[0]];
@@ -290,7 +293,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     <h2 className="mb-2 text-xl font-bold">Lampiran Dokumen</h2>
                     <div className="grid grid-cols-3 gap-4">
                         {attachments.map((file) => {
-                            console.log('file', attachments);
                             return (
                                 <div key={file.id} className="rounded border border-black p-2">
                                     <div className="mb-1 font-medium capitalize">{file.type.toUpperCase()}</div>
@@ -360,81 +362,80 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 </>
             )}
 
-            {!isAllStatusSubmitted && (
-                <>
-                    {showExtraFields && (
-                        <div className="mt-6">
-                            <h2 className="text-xl font-bold">Masukkan Data Review</h2>
-                            <div className="mt-4 flex flex-col gap-4 md:flex-row">
-                                {/* Keterangan */}
-                                <div className="h-fulll w-full md:w-1/2">
-                                    <Label htmlFor="attach" className="mb-1 block">
-                                        Masukkan Keterangan
-                                    </Label>
-                                    <textarea
-                                        className="h-full w-full rounded border p-2"
-                                        placeholder="Masukkan keterangan"
-                                        value={keterangan}
-                                        onChange={(e) => setKeterangan(e.target.value)}
-                                        rows={5}
-                                    />
-                                </div>
-
-                                {/* Dropzone */}
-                                <div className="w-full md:w-1/2">
-                                    <Label htmlFor="attach" className="mb-1 block">
-                                        Upload Lampiran (PDF)
-                                    </Label>
-                                    <Dropzone {...dropzoneAttach}>
-                                        <DropZoneArea>
-                                            {attachFileStatuses.length > 0 ? (
-                                                attachFileStatuses.map((file) => (
-                                                    <DropzoneFileListItem
-                                                        key={file.id}
-                                                        file={file}
-                                                        className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
-                                                    >
-                                                        {file.status === 'success' && (
-                                                            <div
-                                                                onClick={() => file.result && window.open(file.result, '_blank')}
-                                                                className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
-                                                            >
-                                                                <File className="mr-2 size-6" />
-                                                                {file.fileName}
-                                                            </div>
-                                                        )}
-                                                        <div className="absolute top-2 right-2 z-20">
-                                                            <DropzoneRemoveFile>
-                                                                <span
-                                                                    onClick={() => {
-                                                                        setAttachFile(null);
-                                                                        setAttachFileStatuses([]);
-                                                                    }}
-                                                                    className="rounded-full bg-white p-1"
-                                                                >
-                                                                    <Trash2Icon className="size-4 text-black" />
-                                                                </span>
-                                                            </DropzoneRemoveFile>
-                                                        </div>
-                                                    </DropzoneFileListItem>
-                                                ))
-                                            ) : (
-                                                <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
-                                                    <CloudUploadIcon className="size-8" />
-                                                    <div>
-                                                        <p className="font-semibold">Upload PDF</p>
-                                                        <p className="text-muted-foreground text-sm">Click atau drag file .pdf ke sini</p>
-                                                    </div>
-                                                </DropzoneTrigger>
-                                            )}
-                                        </DropZoneArea>
-                                    </Dropzone>
-                                    <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
-                                </div>
-                            </div>
+            {showExtraFields && !isAllStatusSubmitted && (
+                // ((userRole === 'manager' && !statusData?.status_1_timestamps) ||
+                //     (userRole === 'direktur' && !statusData?.status_2_timestamps) ||
+                //     (userRole === 'lawyer' && !statusData?.status_3_timestamps)) && (
+                <div className="mt-6">
+                    <h2 className="text-xl font-bold">Masukkan Data Review</h2>
+                    <div className="mt-4 flex flex-col gap-4 md:flex-row">
+                        {/* Keterangan */}
+                        <div className="h-fulll w-full md:w-1/2">
+                            <Label htmlFor="attach" className="mb-1 block">
+                                Masukkan Keterangan
+                            </Label>
+                            <textarea
+                                className="h-full w-full rounded border p-2"
+                                placeholder="Masukkan keterangan"
+                                value={keterangan}
+                                onChange={(e) => setKeterangan(e.target.value)}
+                                rows={5}
+                            />
                         </div>
-                    )}
-                </>
+
+                        {/* Dropzone */}
+                        <div className="w-full md:w-1/2">
+                            <Label htmlFor="attach" className="mb-1 block">
+                                Upload Lampiran (PDF)
+                            </Label>
+                            <Dropzone {...dropzoneAttach}>
+                                <DropZoneArea>
+                                    {attachFileStatuses.length > 0 ? (
+                                        attachFileStatuses.map((file) => (
+                                            <DropzoneFileListItem
+                                                key={file.id}
+                                                file={file}
+                                                className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
+                                            >
+                                                {file.status === 'success' && (
+                                                    <div
+                                                        onClick={() => file.result && window.open(file.result, '_blank')}
+                                                        className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
+                                                    >
+                                                        <File className="mr-2 size-6" />
+                                                        {file.fileName}
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-2 right-2 z-20">
+                                                    <DropzoneRemoveFile>
+                                                        <span
+                                                            onClick={() => {
+                                                                setAttachFile(null);
+                                                                setAttachFileStatuses([]);
+                                                            }}
+                                                            className="rounded-full bg-white p-1"
+                                                        >
+                                                            <Trash2Icon className="size-4 text-black" />
+                                                        </span>
+                                                    </DropzoneRemoveFile>
+                                                </div>
+                                            </DropzoneFileListItem>
+                                        ))
+                                    ) : (
+                                        <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
+                                            <CloudUploadIcon className="size-8" />
+                                            <div>
+                                                <p className="font-semibold">Upload PDF</p>
+                                                <p className="text-muted-foreground text-sm">Click atau drag file .pdf ke sini</p>
+                                            </div>
+                                        </DropzoneTrigger>
+                                    )}
+                                </DropZoneArea>
+                            </Dropzone>
+                            <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <div className="mt-12 mb-6 space-x-3">
@@ -508,20 +509,22 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    {statusData?.submit_1_nama_file && (
-                        <div className="border-r border-b border-l border-black p-2">
-                            <h4 className="text-muted-foreground text-sm">Keterangan file Marketing</h4>
-                            <a
-                                href={`/storage/attachments/${statusData.submit_1_nama_file}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
-                            >
-                                <File className="h-4 w-4" />
-                                Lihat Dokumen Keterangan
-                            </a>
-                        </div>
-                    )}
+                    <div className="border-r border-b border-l border-black p-2">
+                        {statusData?.submit_1_nama_file && (
+                            <div className="">
+                                <h4 className="text-muted-foreground text-sm">Keterangan file Marketing</h4>
+                                <a
+                                    href={`/storage/attachments/${statusData.submit_1_nama_file}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
+                                >
+                                    <File className="h-4 w-4" />
+                                    Lihat Dokumen Keterangan
+                                </a>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div>
                     <div className="border-t border-r border-b border-l border-black p-2">
@@ -555,30 +558,30 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    <div className="border-r border-l border-black p-2">
+                    <div className="border-r border-b border-l border-black p-2">
                         {statusData?.status_1_timestamps && (
-                            <div className="text-muted-foreground mt-1 text-sm">
-                                <p>
-                                    <strong>Keterangan</strong>
-                                </p>
-                                <p>{statusData.status_1_keterangan}</p>
-                            </div>
+                            <>
+                                <div className="text-muted-foreground mt-1 text-sm">
+                                    <p>
+                                        <strong>Keterangan</strong>
+                                    </p>
+                                    <p>{statusData.status_1_keterangan}</p>
+                                </div>
+                                <div className="border-black p-2">
+                                    <h4 className="text-muted-foreground text-sm">Keterangan file Manager</h4>
+                                    <a
+                                        href={`/storage/attachments/${statusData.status_1_nama_file}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
+                                    >
+                                        <File className="h-4 w-4" />
+                                        Lihat Dokumen Keterangan
+                                    </a>
+                                </div>
+                            </>
                         )}
                     </div>
-                    {statusData?.status_1_nama_file && (
-                        <div className="border-r border-b border-l border-black p-2">
-                            <h4 className="text-muted-foreground text-sm">Keterangan file Manager</h4>
-                            <a
-                                href={`/storage/attachments/${statusData.status_1_nama_file}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
-                            >
-                                <File className="h-4 w-4" />
-                                Lihat Dokumen Keterangan
-                            </a>
-                        </div>
-                    )}
                 </div>
                 <div>
                     <div className="border-t border-r border-b border-l border-black p-2">
@@ -612,30 +615,30 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    <div className="border-r border-l border-black p-2">
+                    <div className="border-r border-b border-l border-black p-2">
                         {statusData?.status_2_timestamps && (
-                            <div className="text-muted-foreground mt-1 text-sm">
-                                <p>
-                                    <strong>Keterangan</strong>
-                                </p>
-                                <p>{statusData.status_2_keterangan}</p>
-                            </div>
+                            <>
+                                <div className="text-muted-foreground mt-1 text-sm">
+                                    <p>
+                                        <strong>Keterangan</strong>
+                                    </p>
+                                    <p>{statusData.status_2_keterangan}</p>
+                                </div>
+                                <div className="border-black p-2">
+                                    <h4 className="text-muted-foreground text-sm">Keterangan file Direktur</h4>
+                                    <a
+                                        href={`/storage/attachments/${statusData.status_2_nama_file}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
+                                    >
+                                        <File className="h-4 w-4" />
+                                        Lihat Dokumen Keterangan
+                                    </a>
+                                </div>
+                            </>
                         )}
                     </div>
-                    {statusData?.status_2_nama_file && (
-                        <div className="border-r border-b border-l border-black p-2">
-                            <h4 className="text-muted-foreground text-sm">Keterangan file Direktur</h4>
-                            <a
-                                href={`/storage/attachments/${statusData.status_2_nama_file}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
-                            >
-                                <File className="h-4 w-4" />
-                                Lihat Dokumen Keterangan
-                            </a>
-                        </div>
-                    )}
                 </div>
                 <div>
                     <div className="border-t border-r border-b border-l border-black p-2">
@@ -687,26 +690,26 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     </div>
                     <div className="border-r border-b border-l border-black p-2">
                         {statusData?.status_3_timestamps && (
-                            <div className="text-muted-foreground text-sm">
-                                <p>
-                                    <strong>Keterangan</strong>
-                                </p>
-                                <p>{statusData.status_3_keterangan}</p>
-                            </div>
-                        )}
-                        {statusData?.submit_3_nama_file && (
-                            <div className="mt-2">
-                                <h4 className="text-muted-foreground text-sm">Keterangan Lawyer</h4>
-                                <a
-                                    href={`/storage/attachments/${statusData.submit_3_nama_file}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
-                                >
-                                    <File className="h-4 w-4" />
-                                    Lihat Dokumen Keterangan
-                                </a>
-                            </div>
+                            <>
+                                <div className="text-muted-foreground text-sm">
+                                    <p>
+                                        <strong>Keterangan</strong>
+                                    </p>
+                                    <p>{statusData.status_3_keterangan}</p>
+                                </div>
+                                <div className="mt-2">
+                                    <h4 className="text-muted-foreground text-sm">Keterangan Lawyer</h4>
+                                    <a
+                                        href={`/storage/attachments/${statusData.submit_3_nama_file}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
+                                    >
+                                        <File className="h-4 w-4" />
+                                        Lihat Dokumen Keterangan
+                                    </a>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
