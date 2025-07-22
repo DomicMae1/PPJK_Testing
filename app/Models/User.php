@@ -25,6 +25,8 @@ class User extends Authenticatable
         'NIK',
         'email',
         'password',
+        'id_perusahaan',
+        'nama_perusahaan'
     ];
 
     /**
@@ -48,5 +50,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function perusahaan()
+    {
+        return $this->belongsTo(Perusahaan::class, 'id_perusahaan');
     }
 }

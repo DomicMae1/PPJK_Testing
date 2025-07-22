@@ -9,7 +9,7 @@ class Perusahaan extends Model
     protected $connection = 'tako-perusahaan';
 
     protected $table = 'perusahaan';
-    protected $primaryKey = 'Id_Perusahaan';
+    protected $primaryKey = 'id_Perusahaan';
 
     protected $fillable = [
         'nama_perusahaan',
@@ -21,6 +21,18 @@ class Perusahaan extends Model
         'Notify_2',
     ];
 
+    public function user1()
+    {
+        return $this->belongsTo(User::class, 'id_User_1');
+    }
+    public function user2()
+    {
+        return $this->belongsTo(User::class, 'id_User_2');
+    }
+    public function user3()
+    {
+        return $this->belongsTo(User::class, 'id_User_3');
+    }
     // Relasi ke user utama
     public function user()
     {
