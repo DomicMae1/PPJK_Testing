@@ -25,6 +25,7 @@ const downloadPdf = async (id: number) => {
 
 export const columns = (): ColumnDef<MasterCustomer>[] => {
     const { props } = usePage();
+    console.log('Tes', usePage().props);
     const userRole = props.auth?.user?.roles?.[0]?.name ?? '';
 
     if (typeof window !== 'undefined') {
@@ -35,6 +36,7 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             window.location.reload();
         }
     }
+
     return [
         {
             accessorKey: 'nama_perusahaan',

@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerLink;
 use App\Models\CustomerAttach;
 use App\Models\Customers_Status;
+use App\Models\Perusahaan;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -38,6 +39,23 @@ class CustomerController extends Controller
             'status.status3Approver'
         ]);
 
+        if ($user->hasRole('user')) {
+            if ($user->id_perusahaan) {
+                $query->where('id_perusahaan', $user->id_perusahaan);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } elseif ($user->hasRole(['manager', 'direktur', 'lawyer'])) {
+            // Dapatkan perusahaan dari relasi user
+            $perusahaan = $user->perusahaan;
+
+            if ($perusahaan) {
+                $query->where('id_perusahaan', $perusahaan->id_Perusahaan);
+            } else {
+                // Tidak ada perusahaan terkait, return kosong
+                $query->whereRaw('1 = 0');
+            }
+        }
 
         // Ambil hasil query
         $suppliers = $query->get();
