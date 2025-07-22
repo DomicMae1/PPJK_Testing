@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, PackageOpen, Shield, Users } from 'lucide-react';
+import { Building2, LayoutGrid, PackageOpen, Shield, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -31,6 +31,11 @@ const mainNavItems: NavItem[] = [
         title: 'Manage Role',
         url: '/role-manager',
         icon: Shield,
+    },
+    {
+        title: 'Manage Company',
+        url: '/companys',
+        icon: Building2,
     },
 ];
 
