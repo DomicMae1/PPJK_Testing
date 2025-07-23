@@ -9,7 +9,7 @@
 <body>
     <h2>Hasil Review</h2>
     <p>Halo,</p>
-    <p>Status untuk Customer dengan nama: <strong>{{ $nama->nama_personal }}</strong> mendapatkan review dari {{ $sender->getRoleNames()->first() }} {{ $sender->name }} .</p>
+    <p>Customer {{$nama->nama_personal}} mendapatkan review <span style="color: red;">bermasalah</span> dengan catatan lawyer sebagai berikut:'</p>
 
     @if ($status->status_3_keterangan)
     <p><strong>Dengan Keterangan:</strong> </p>

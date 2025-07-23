@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\Customers_Status;
 use App\Models\Perusahaan;
 use Illuminate\Http\Request;
@@ -105,19 +106,17 @@ class CustomersStatusController extends Controller
 
         $idPerusahaan = $request->input('id_perusahaan');
         $emailsToNotify = [];
-        $perusahaan = null;
+        $perusahaan = Perusahaan::find($idPerusahaan);
 
-        if (!empty($idPerusahaan)) {
-            $perusahaan = Perusahaan::find($idPerusahaan);
-
-            if ($perusahaan && !empty($perusahaan->notify_1)) {
+        if ($perusahaan) {
+            if (!empty($perusahaan->notify_1)) {
                 Log::info('Isi notify_1:', [$perusahaan->notify_1]);
                 $emailsToNotify = explode(',', $perusahaan->notify_1);
             } else {
-                Log::warning('Perusahaan ditemukan tapi notify_1 kosong atau tidak ada.');
+                Log::warning("Perusahaan ditemukan, tapi notify_1 kosong. Perusahaan ID: $idPerusahaan");
             }
         } else {
-            Log::warning('ID perusahaan kosong atau tidak dikirim dari request.');
+            Log::warning("Perusahaan tidak ditemukan. ID: $idPerusahaan");
         }
 
         $status = Customers_Status::where('id_Customer', $request->customer_id)->first();
@@ -199,10 +198,12 @@ class CustomersStatusController extends Controller
 
                         Log::info('Akan mengirim email ke:', $validEmails);
 
+                        $customer = $status->customer;
+
                         if (!empty($validEmails)) {
-                            Mail::to($validEmails)->send(new \App\Mail\StatusRejectedMail($status, $user));
+                            Mail::to($validEmails)->send(new \App\Mail\StatusRejectedMail($status, $user, $customer));
                         } else {
-                            Mail::to('default@example.com')->send(new \App\Mail\StatusRejectedMail($status, $user));
+                            Mail::to('default@example.com')->send(new \App\Mail\StatusRejectedMail($status, $user, $customer));
                         }
                     }
                 }

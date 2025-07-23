@@ -30,16 +30,16 @@ class StatusRejectedMail extends Mailable
         $this->sender = $sender;
     }
 
-    public function build()
-    {
-        return $this->subject('Status Ditolak oleh ' . $this->sender->name)
-            ->view('emails.status_rejected');
-    }
+    // public function build()
+    // {
+    //     return $this->subject('Status Ditolak oleh ' . $this->sender->name)
+    //         ->view('emails.status_rejected');
+    // }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Status Ditolak oleh ' . $this->sender->name,
+            subject: 'Customer ' . $this->nama->nama_personal . ' mendapatkan catatan khusus'
         );
     }
 
