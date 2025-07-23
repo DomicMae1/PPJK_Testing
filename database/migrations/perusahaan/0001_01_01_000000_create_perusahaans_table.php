@@ -12,33 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::connection('tako-perusahaan')->create('perusahaan', function (Blueprint $table) {
-            $table->id('id_Perusahaan');
+            $table->id('id_perusahaan');
             $table->string('nama_perusahaan');
 
-            $table->unsignedBigInteger('id_User_1')->nullable();
-            $table->unsignedBigInteger('id_User_2')->nullable();
-            $table->unsignedBigInteger('id_User_3')->nullable();
+            // $table->unsignedBigInteger('id_User_1')->nullable();
+            // $table->unsignedBigInteger('id_User_2')->nullable();
+            // $table->unsignedBigInteger('id_User_3')->nullable();
 
             $table->string('notify_1')->nullable();
             $table->string('notify_2')->nullable();
 
             $table->timestamps();
-
-            // // Foreign key ke tabel users
-            // $table->foreign('id_User_1')
-            //     ->references('id')
-            //     ->on('users')
-            //     ->onDelete('set null');
-
-            // $table->foreign('id_User_2')
-            //     ->references('id')
-            //     ->on('users')
-            //     ->onDelete('set null');
-
-            // $table->foreign('id_User_3')
-            //     ->references('id')
-            //     ->on('users')
-            //     ->onDelete('set null');
         });
     }
 
