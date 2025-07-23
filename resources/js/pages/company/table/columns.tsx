@@ -15,17 +15,12 @@ export const columns = (onEditClick: (perusahaan: Perusahaan) => void, onDeleteC
     {
         accessorKey: 'Notify_1',
         header: 'Notify 1',
-        cell: ({ row }) => <Badge variant={row.original.Notify_1 ? 'default' : 'secondary'}>{row.original.Notify_1 ? 'Ya' : 'Tidak'}</Badge>,
+        cell: ({ row }) => <Badge variant={row.original.notify_1 ? 'default' : 'secondary'}>{row.original.notify_1 || 'tidak ada'}</Badge>,
     },
     {
         accessorKey: 'Notify_2',
         header: 'Notify 2',
-        cell: ({ row }) => <Badge variant={row.original.Notify_2 ? 'default' : 'secondary'}>{row.original.Notify_2 ? 'Ya' : 'Tidak'}</Badge>,
-    },
-    {
-        accessorKey: 'id_User',
-        header: 'User Utama',
-        cell: ({ row }) => <span className="text-muted-foreground text-sm">{row.original.user?.name ?? '-'}</span>,
+        cell: ({ row }) => <Badge variant={row.original.Notify_2 ? 'default' : 'secondary'}>{row.original.notify_2 || 'tidak ada'}</Badge>,
     },
     {
         id: 'actions',

@@ -128,7 +128,7 @@ export default function ManageCompany() {
                         <div className="mt-2">Apakah Anda yakin ingin menghapus perusahaan ini?</div>
                     </DialogHeader>
                     <DialogFooter className="sm:justify-start">
-                        <Button variant="destructive" onClick={onConfirmDelete}>
+                        <Button variant="destructive" className="text-white" onClick={onConfirmDelete}>
                             Hapus
                         </Button>
                         <DialogClose asChild>
