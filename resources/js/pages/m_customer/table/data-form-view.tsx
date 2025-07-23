@@ -663,9 +663,21 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                                   : 'text-muted-foreground'
                                         }`}
                                     >
-                                        {statusData.status_3.toLowerCase() === 'rejected' && <SquareX className="h-4 w-4" />}
-                                        {statusData.status_3.toLowerCase() === 'approved' && <SquareCheck className="h-4 w-4" />}
-                                        {statusData.status_3}
+                                        {statusData.status_3.toLowerCase() === 'rejected' && (
+                                            <>
+                                                <SquareX className="h-4 w-4" />
+                                                <span>BERMASALAH</span>
+                                            </>
+                                        )}
+                                        {statusData.status_3.toLowerCase() === 'approved' && (
+                                            <>
+                                                <SquareCheck className="h-4 w-4" />
+                                                <span>OKE</span>
+                                            </>
+                                        )}
+                                        {statusData.status_3.toLowerCase() !== 'approved' && statusData.status_3.toLowerCase() !== 'rejected' && (
+                                            <span>{statusData.status_3}</span>
+                                        )}
                                     </span>
                                 </div>
 
