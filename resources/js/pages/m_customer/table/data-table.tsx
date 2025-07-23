@@ -74,7 +74,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 </div>
 
                 <DataTableViewOptions table={table} />
-                {userRole === 'user' && (
+                {['user', 'manager', 'direktur'].includes(userRole) && (
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button className="h-9">Add customer</Button>
