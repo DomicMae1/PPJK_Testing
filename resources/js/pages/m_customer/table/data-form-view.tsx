@@ -158,7 +158,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         const formData = new FormData();
         formData.append('customer_id', customer.id.toString());
         formData.append('status_1_by', String(props.auth.user.id));
-        formData.append('id_perusahaan', String(props.auth.user.perusahaan.id_Perusahaan));
 
         if (userRole === 'user' && attachFileUser) {
             formData.append('attach', attachFileUser);
@@ -169,6 +168,10 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             if (attachFile) {
                 formData.append('attach', attachFile);
             }
+        }
+
+        if (customer?.id_perusahaan) {
+            formData.append('id_perusahaan', customer.id_perusahaan.toString());
         }
 
         if (userRole === 'lawyer' && decision) {
@@ -512,7 +515,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     <div className="border-r border-b border-l border-black p-2">
                         {statusData?.submit_1_nama_file && (
                             <div className="">
-                                <h4 className="text-muted-foreground text-sm">Keterangan file Marketing</h4>
+                                <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
                                 <a
                                     href={`/storage/attachments/${statusData.submit_1_nama_file}`}
                                     target="_blank"
@@ -567,8 +570,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </p>
                                     <p>{statusData.status_1_keterangan}</p>
                                 </div>
-                                <div className="border-black p-2">
-                                    <h4 className="text-muted-foreground text-sm">Keterangan file Manager</h4>
+                                <div className="border-black pt-2">
+                                    <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
                                     <a
                                         href={`/storage/attachments/${statusData.status_1_nama_file}`}
                                         target="_blank"
@@ -624,8 +627,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </p>
                                     <p>{statusData.status_2_keterangan}</p>
                                 </div>
-                                <div className="border-black p-2">
-                                    <h4 className="text-muted-foreground text-sm">Keterangan file Direktur</h4>
+                                <div className="border-black pt-2">
+                                    <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
                                     <a
                                         href={`/storage/attachments/${statusData.status_2_nama_file}`}
                                         target="_blank"
@@ -698,7 +701,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     <p>{statusData.status_3_keterangan}</p>
                                 </div>
                                 <div className="mt-2">
-                                    <h4 className="text-muted-foreground text-sm">Keterangan Lawyer</h4>
+                                    <h4 className="text-muted-foreground text-sm font-bold">Attachment Lawyer</h4>
                                     <a
                                         href={`/storage/attachments/${statusData.submit_3_nama_file}`}
                                         target="_blank"
