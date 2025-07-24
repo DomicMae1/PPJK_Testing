@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { Attachment, Auth, MasterCustomer } from '@/types';
-import { router, useForm } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import { CloudUploadIcon, File, Trash2Icon } from 'lucide-react';
@@ -123,6 +123,8 @@ export default function CustomerForm({
             })
             .join('');
     }
+
+    console.log(usePage().props);
 
     useEffect(() => {
         const existingNpwp = customer?.attachments?.find((a) => a.type === 'npwp');
@@ -529,6 +531,7 @@ export default function CustomerForm({
 
             const finalPayload = {
                 ...data,
+                id_perusahaan: data.id_perusahaan,
                 attachments: updatedAttachments,
             };
             if (customer?.id) {
@@ -566,6 +569,33 @@ export default function CustomerForm({
             <form onSubmit={handleSubmit}>
                 <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {/* Perusahaan */}
+                        {auth.user?.roles?.some((role) => ['manager', 'direktur'].includes(role.name)) && (
+                            <div className="w-full grid-cols-1 md:w-1/2 md:grid-cols-2 lg:col-span-3 lg:w-1/3">
+                                <Label htmlFor="id_perusahaan">
+                                    Perusahaan <span className="text-red-500">*</span>
+                                </Label>
+                                <Select
+                                    value={data.id_perusahaan}
+                                    onValueChange={(value) => {
+                                        setData('id_perusahaan', value);
+                                        setErrors((prev) => ({ ...prev, id_perusahaan: undefined }));
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Pilih Perusahaan" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {auth.user?.companies?.map((perusahaan) => (
+                                            <SelectItem key={perusahaan.id_perusahaan} value={String(perusahaan.id_perusahaan)}>
+                                                {perusahaan.nama_perusahaan}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         {/* Kategori Usaha */}
                         <div className="w-full">
                             <Label htmlFor="kategori_usaha">

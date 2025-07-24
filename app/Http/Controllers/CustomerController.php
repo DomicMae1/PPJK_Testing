@@ -220,9 +220,19 @@ class CustomerController extends Controller
 
 
         try {
+            $roles = $user->getRoleNames();
+
+            if ($roles->contains('user')) {
+                // Ambil dari relasi langsung user
+                $idPerusahaan = $user->id_perusahaan;
+            } elseif ($roles->contains('manager') || $roles->contains('direktur')) {
+                // Ambil dari input request
+                $idPerusahaan = $request->id_perusahaan;
+            }
+
             $customer = Customer::create(array_merge($validated, [
                 'id_user' => $user->id,
-                'id_perusahaan' => $user->id_perusahaan ?? 0, // sesuaikan jika tersedia
+                'id_perusahaan' => $idPerusahaan, // ✅ ambil dari inputan user
             ]));
 
             if (!empty($validated['attachments'])) {
