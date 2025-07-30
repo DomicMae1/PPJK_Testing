@@ -40,24 +40,36 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
     return [
         {
             accessorKey: 'nama_perusahaan',
-            header: () => <div className="px-2 py-2">Ownership</div>,
-            cell: ({ row }) => <div className="px-2 py-2">{row.original.nama_perusahaan ?? '-'}</div>,
+            header: ({ column }) => (
+                <div className="px-2 py-2 text-sm font-medium" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+                    Ownership {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
+                </div>
+            ),
+            cell: ({ row }) => <div className="min-w-[150px] truncate px-2 py-2 text-sm">{row.original.nama_perusahaan ?? '-'}</div>,
         },
-
         {
             accessorKey: 'nama_user',
             header: 'Disubmit oleh',
-            cell: ({ row }) => <div className="px-0">{row.original.creator?.name || ''}</div>,
+            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.creator?.name || ''}</div>,
         },
         {
             accessorKey: 'nama_customer',
-            header: 'Nama Customer',
-            cell: ({ row }) => <div className="px-0">{row.original.nama_customer || '-'}</div>,
+            header: ({ column }) => (
+                <div
+                    className="cursor-pointer px-2 py-2 text-sm font-medium select-none"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Nama Customer
+                    {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
+                </div>
+            ),
+            cell: ({ row }) => <div className="min-w-[150px] truncate px-2 text-sm">{row.original.nama_customer || '-'}</div>,
+            enableSorting: true,
         },
         {
             accessorKey: 'no_telp_pic',
             header: 'No Telp PIC',
-            cell: ({ row }) => <div className="px-0">{row.original.no_telp_personal || '-'}</div>,
+            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.no_telp_personal || '-'}</div>,
         },
         {
             accessorKey: 'keterangan_status',
@@ -72,19 +84,21 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                 const isInput = label === 'diinput';
 
                 return (
-                    <span>
-                        {label}
-                        {!isInput && nama_user ? ` oleh ` : ' '}
-                        {!isInput && nama_user && <strong>{nama_user}</strong>}
-                        {' pada '}
-                        <strong>
-                            {new Date(tanggal).toLocaleDateString('id-ID', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                            })}
-                        </strong>
-                    </span>
+                    <div className="min-w-[200px] truncate px-2 text-sm">
+                        <span>
+                            {label}
+                            {!isInput && nama_user ? ` oleh ` : ' '}
+                            {!isInput && nama_user && <strong>{nama_user}</strong>}
+                            {' pada '}
+                            <strong>
+                                {new Date(tanggal).toLocaleDateString('id-ID', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                })}
+                            </strong>
+                        </span>
+                    </div>
                 );
             },
         },
@@ -94,16 +108,35 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             cell: ({ row }) => {
                 const status = row.original.status?.toLowerCase();
                 let displayText = '-';
+                let textColor = 'text-muted-foreground';
 
                 if (status === 'rejected') {
-                    displayText = 'bermasalah';
+                    displayText = 'Bermasalah';
+                    textColor = 'text-red-600';
                 } else if (status === 'approved') {
-                    displayText = 'oke';
+                    displayText = 'Aman';
+                    textColor = 'text-green-600';
                 } else if (status) {
                     displayText = status;
                 }
 
-                return <div className="px-0">{displayText}</div>;
+                return <div className={`min-w-[100px] px-2 text-sm font-semibold ${textColor}`}>{displayText}</div>;
+            },
+        },
+        {
+            accessorKey: 'status_2_timestamps',
+            header: '',
+            cell: () => null,
+            enableHiding: true,
+            filterFn: (row, columnId, filterValue) => {
+                const raw = row.getValue(columnId);
+
+                // Normalisasi: jadikan null jika value kosong string, string 'null', atau undefined
+                const value = raw === null || raw === undefined || raw === '' || raw === 'null' ? null : raw;
+
+                if (filterValue === 'sudah') return value !== null;
+                if (filterValue === 'belum') return value === null;
+                return true;
             },
         },
         {
@@ -111,27 +144,27 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             cell: ({ row }) => {
                 const supplier = row.original;
                 return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <Link href={`/customer/${supplier.id}`}>
-                                <DropdownMenuItem>View Customer</DropdownMenuItem>
-                            </Link>
-                            {userRole === 'user' && supplier.submit_1_timestamps === null && (
-                                <Link href={`/customer/${supplier.id}/edit`}>
-                                    <DropdownMenuItem>Edit Customer</DropdownMenuItem>
+                    <div className="min-w-[80px]">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <Link href={`/customer/${supplier.id}`}>
+                                    <DropdownMenuItem>View Customer</DropdownMenuItem>
                                 </Link>
-                            )}
-                            <Link href={`/customer/${supplier.id}/pdf`}>
+                                {supplier.submit_1_timestamps === null && userRole === supplier.creator?.role && (
+                                    <Link href={`/customer/${supplier.id}/edit`}>
+                                        <DropdownMenuItem>Edit Customer</DropdownMenuItem>
+                                    </Link>
+                                )}
+
                                 <DropdownMenuItem onClick={() => supplier.id != null && downloadPdf(supplier.id)}>Download PDF</DropdownMenuItem>
-                            </Link>
-                            {/* <DropdownMenuItem onClick={() => onDeleteClick(supplier.id)}>Delete Customer</DropdownMenuItem> */}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 );
             },
         },
