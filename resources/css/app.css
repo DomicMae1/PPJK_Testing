@@ -169,3 +169,15 @@
     @apply bg-background text-foreground;
     }
 }
+
+.react-international-phone-input {
+  background-color: white;
+  color: black;
+}
+
+.dark .react-international-phone-input {
+  background-color: black !important;
+  color: gray !important;
+ border: 1px solid rgba(200, 200, 200, 0.35) !important;
+}
+

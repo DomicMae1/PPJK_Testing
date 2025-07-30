@@ -239,12 +239,14 @@ class CustomerController extends Controller
 
             if (!empty($validated['attachments'])) {
                 foreach ($validated['attachments'] as $attachment) {
-                    CustomerAttach::create([
-                        'customer_id' => $customer->id,
-                        'nama_file' => $attachment['nama_file'],
-                        'path' => $attachment['path'],
-                        'type' => $attachment['type'],
-                    ]);
+                    if (!str_starts_with($attachment['path'], 'blob:')) { // 👈 tambahkan ini
+                        CustomerAttach::create([
+                            'customer_id' => $customer->id,
+                            'nama_file' => $attachment['nama_file'],
+                            'path' => $attachment['path'],
+                            'type' => $attachment['type'],
+                        ]);
+                    }
                 }
             }
 
@@ -262,15 +264,11 @@ class CustomerController extends Controller
 
             DB::commit();
 
-            return redirect()->route('customer.index')->with('success', 'Data Customer berhasil dibuat!');
+            return Inertia::location(route('customer.show', $customer->id));
         } catch (\Throwable $th) {
             DB::rollBack();
             return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()]);
         }
-
-        // Customer::create($validated);
-
-        // return redirect()->route('customer.index')->with('success', 'Data Customer berhasil dibuat!');
     }
 
     public function storePublic(Request $request)

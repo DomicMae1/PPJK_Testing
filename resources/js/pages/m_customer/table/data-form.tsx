@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Dropzone, DropZoneArea, DropzoneFileListItem, DropzoneRemoveFile, DropzoneTrigger, useDropzone } from '@/components/dropzone';
 import InputError from '@/components/input-error';
@@ -15,7 +16,7 @@ import { CloudUploadIcon, File, Trash2Icon } from 'lucide-react';
 // import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // import { AlertCircle } from "lucide-react"
 import axios from 'axios';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from 'react';
 import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import { NumericFormat } from 'react-number-format';
@@ -127,51 +128,41 @@ export default function CustomerForm({
     console.log(usePage().props);
 
     useEffect(() => {
-        const existingNpwp = customer?.attachments?.find((a) => a.type === 'npwp');
-        const existingNib = customer?.attachments?.find((a) => a.type === 'nib');
-        const existingSppkp = customer?.attachments?.find((a) => a.type === 'sppkp');
-        const existingKtp = customer?.attachments?.find((a) => a.type === 'ktp');
+        if (!customer) return;
 
-        if (existingNpwp) {
-            setNpwpFileStatuses([
-                {
-                    id: 'existing-npwp',
-                    status: 'success',
-                    fileName: existingNpwp.nama_file,
-                    result: existingNpwp.path,
-                },
-            ]);
-        }
-        if (existingNib) {
-            setNibFileStatuses([
-                {
-                    id: 'existing-nib',
-                    status: 'success',
-                    fileName: existingNib.nama_file,
-                    result: existingNib.path,
-                },
-            ]);
-        }
-        if (existingSppkp) {
-            setSppkpFileStatuses([
-                {
-                    id: 'existing-sppkp',
-                    status: 'success',
-                    fileName: existingSppkp.nama_file,
-                    result: existingSppkp.path,
-                },
-            ]);
-        }
-        if (existingKtp) {
-            setKtpFileStatuses([
-                {
-                    id: 'existing-ktp',
-                    status: 'success',
-                    fileName: existingKtp.nama_file,
-                    result: existingKtp.path,
-                },
-            ]);
-        }
+        const setStatus = (attachment: any | undefined, setState: (s: any[]) => void, type: string) => {
+            if (attachment && attachment.path && !attachment.path.startsWith('blob:')) {
+                setState([
+                    {
+                        id: `existing-${type}`,
+                        status: 'success',
+                        fileName: attachment.nama_file,
+                        result: attachment.path, // URL dari backend
+                    },
+                ]);
+            }
+        };
+
+        setStatus(
+            customer.attachments?.find((a) => a.type === 'npwp'),
+            setNpwpFileStatuses,
+            'npwp',
+        );
+        setStatus(
+            customer.attachments?.find((a) => a.type === 'nib'),
+            setNibFileStatuses,
+            'nib',
+        );
+        setStatus(
+            customer.attachments?.find((a) => a.type === 'sppkp'),
+            setSppkpFileStatuses,
+            'sppkp',
+        );
+        setStatus(
+            customer.attachments?.find((a) => a.type === 'ktp'),
+            setKtpFileStatuses,
+            'ktp',
+        );
     }, [customer]);
 
     // State untuk masing-masing dropzone
@@ -265,15 +256,30 @@ export default function CustomerForm({
         },
     });
 
+    async function uploadAttachment(file: File, type: string): Promise<Attachment> {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await axios.post('/customer/upload-temp', formData);
+
+        return {
+            id: 0,
+            customer_id: customer?.id ?? 0,
+            nama_file: res.data.nama_file,
+            path: res.data.path,
+            type,
+        };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const extractAttachmentFromStatus = (statuses: any[], type: string) => {
+    const extractAttachmentFromStatus = (statuses: any[], type: string): Attachment | null => {
         if (statuses.length > 0) {
-            const file = statuses[0]; // maxFiles: 1
+            const file = statuses[0];
             return {
                 id: 0,
                 customer_id: customer?.id ?? 0,
                 nama_file: file.fileName,
-                path: file.result,
+                path: file.result, // HARUS berasal dari backend URL sebelumnya
                 type,
             };
         }
@@ -453,92 +459,69 @@ export default function CustomerForm({
         setErrors(newErrors);
 
         try {
-            const uploadedAttachments = [];
+            const uploadedAttachments: Attachment[] = [];
 
             // ✅ Upload NPWP
-            if (!npwpFileStatuses) {
-                if (npwpFile) {
-                    const formDataNpwp = new FormData();
-                    formDataNpwp.append('file', npwpFile);
-                    const resNpwp = await axios.post('/customer/upload-temp', formDataNpwp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resNpwp.data.nama_file,
-                        path: resNpwp.data.path,
-                        type: 'npwp',
-                    });
-                }
+            if (npwpFile) {
+                const npwp = await uploadAttachment(npwpFile, 'npwp');
+                uploadedAttachments.push(npwp);
             }
 
-            // ✅ Upload NIB
-            if (!nibFileStatuses) {
-                if (nibFile) {
-                    const formDataNib = new FormData();
-                    formDataNib.append('file', nibFile);
-                    const resNib = await axios.post('/customer/upload-temp', formDataNib);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resNib.data.nama_file,
-                        path: resNib.data.path,
-                        type: 'nib',
-                    });
-                }
+            if (nibFile) {
+                const nib = await uploadAttachment(nibFile, 'nib');
+                uploadedAttachments.push(nib);
             }
 
-            // ✅ Upload SPPKP (opsional)
-            if (!sppkpFileStatuses) {
-                if (sppkpFile) {
-                    const formDataSppkp = new FormData();
-                    formDataSppkp.append('file', sppkpFile);
-                    const resSppkp = await axios.post('/customer/upload-temp', formDataSppkp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resSppkp.data.nama_file,
-                        path: resSppkp.data.path,
-                        type: 'sppkp',
-                    });
-                }
+            if (sppkpFile) {
+                const sppkp = await uploadAttachment(sppkpFile, 'sppkp');
+                uploadedAttachments.push(sppkp);
             }
 
-            // ✅ Upload KTP
-            if (!ktpFileStatuses) {
-                if (ktpFile) {
-                    const formDataKtp = new FormData();
-                    formDataKtp.append('file', ktpFile);
-                    const resKtp = await axios.post('/customer/upload-temp', formDataKtp);
-                    uploadedAttachments.push({
-                        id: 0,
-                        customer_id: customer?.id ?? 0,
-                        nama_file: resKtp.data.nama_file,
-                        path: resKtp.data.path,
-                        type: 'ktp',
-                    });
-                }
+            if (ktpFile) {
+                const ktp = await uploadAttachment(ktpFile, 'ktp');
+                uploadedAttachments.push(ktp);
             }
 
-            // ✅ Merge existing + uploaded
-            const allAttachmentObjects = [
-                extractAttachmentFromStatus(npwpFileStatuses, 'npwp'),
-                extractAttachmentFromStatus(nibFileStatuses, 'nib'),
-                extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp'),
-                extractAttachmentFromStatus(ktpFileStatuses, 'ktp'),
-            ].filter(Boolean); // remove null
+            const isBlob = (path: string) => path?.startsWith('blob:');
 
-            const updatedAttachments = allAttachmentObjects;
+            const oldAttachments = [
+                !npwpFile && npwpFileStatuses.length > 0 && !isBlob(npwpFileStatuses[0].result)
+                    ? extractAttachmentFromStatus(npwpFileStatuses, 'npwp')
+                    : null,
+                !nibFile && nibFileStatuses.length > 0 && !isBlob(nibFileStatuses[0].result)
+                    ? extractAttachmentFromStatus(nibFileStatuses, 'nib')
+                    : null,
+                !sppkpFile && sppkpFileStatuses.length > 0 && !isBlob(sppkpFileStatuses[0].result)
+                    ? extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp')
+                    : null,
+                !ktpFile && ktpFileStatuses.length > 0 && !isBlob(ktpFileStatuses[0].result)
+                    ? extractAttachmentFromStatus(ktpFileStatuses, 'ktp')
+                    : null,
+            ].filter(Boolean) as Attachment[];
+
+            // // ✅ Merge existing + uploaded
+            // const allAttachmentObjects = [
+            //     extractAttachmentFromStatus(npwpFileStatuses, 'npwp'),
+            //     extractAttachmentFromStatus(nibFileStatuses, 'nib'),
+            //     extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp'),
+            //     extractAttachmentFromStatus(ktpFileStatuses, 'ktp'),
+            // ].filter(Boolean); // remove null
+
+            const updatedAttachments = [...uploadedAttachments, ...oldAttachments];
 
             const finalPayload = {
                 ...data,
                 id_perusahaan: data.id_perusahaan,
                 attachments: updatedAttachments,
             };
+            console.log('Payload:', finalPayload);
+
             if (customer?.id) {
                 // 🔁 UPDATE
                 router.put(route('customer.update', customer.id), finalPayload, {
                     onSuccess: () => {
                         console.log('✅ Berhasil update data!');
+                        window.alert('✅ Data berhasil diperbarui!');
                         onSuccess?.();
                     },
                     onError: (errors: unknown) => {
@@ -547,15 +530,7 @@ export default function CustomerForm({
                 });
             } else {
                 // 🆕 CREATE
-                router.post(route('customer.store'), finalPayload, {
-                    onSuccess: () => {
-                        console.log('✅ Berhasil simpan data!');
-                        onSuccess?.();
-                    },
-                    onError: (errors: unknown) => {
-                        console.log('Create error:', errors);
-                    },
-                });
+                router.post(route('customer.store'), finalPayload);
             }
         } catch (err) {
             console.error('Upload gagal:', err);
@@ -570,7 +545,7 @@ export default function CustomerForm({
                 <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {/* Perusahaan */}
-                        {auth.user?.roles?.some((role) => ['manager', 'direktur'].includes(role.name)) && (
+                        {auth.user?.roles?.some((role: { name: string }) => ['manager', 'direktur'].includes(role.name)) && (
                             <div className="w-full grid-cols-1 md:w-1/2 md:grid-cols-2 lg:col-span-3 lg:w-1/3">
                                 <Label htmlFor="id_perusahaan">
                                     Perusahaan <span className="text-red-500">*</span>
@@ -586,11 +561,36 @@ export default function CustomerForm({
                                         <SelectValue placeholder="Pilih Perusahaan" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {auth.user?.companies?.map((perusahaan) => (
-                                            <SelectItem key={perusahaan.id_perusahaan} value={String(perusahaan.id_perusahaan)}>
-                                                {perusahaan.nama_perusahaan}
-                                            </SelectItem>
-                                        ))}
+                                        {auth.user?.companies?.map(
+                                            (perusahaan: {
+                                                id_perusahaan: Key | null | undefined;
+                                                nama_perusahaan:
+                                                    | string
+                                                    | number
+                                                    | bigint
+                                                    | boolean
+                                                    | ReactElement<unknown, string | JSXElementConstructor<any>>
+                                                    | Iterable<ReactNode>
+                                                    | ReactPortal
+                                                    | Promise<
+                                                          | string
+                                                          | number
+                                                          | bigint
+                                                          | boolean
+                                                          | ReactPortal
+                                                          | ReactElement<unknown, string | JSXElementConstructor<any>>
+                                                          | Iterable<ReactNode>
+                                                          | null
+                                                          | undefined
+                                                      >
+                                                    | null
+                                                    | undefined;
+                                            }) => (
+                                                <SelectItem key={perusahaan.id} value={String(perusahaan.id)}>
+                                                    {perusahaan.nama_perusahaan}
+                                                </SelectItem>
+                                            ),
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -937,9 +937,11 @@ export default function CustomerForm({
                         </div>
                     </div>
                     <div className="col-span-3 mt-4">
-                        <h1 className="mb-2 text-xl font-semibold">Lampiran</h1>
+                        <h1 className="mb-2 text-xl font-semibold">
+                            Lampiran <span className="text-sm font-normal italic">(maksimal ukuran attachment 5 mb)</span>
+                        </h1>
 
-                        {/* 3 Dropzone Kolom */}
+                        {/* 4 Dropzone Kolom */}
                         <div className="col-span-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                             {/* NPWP */}
                             <div className="w-full">
@@ -947,25 +949,22 @@ export default function CustomerForm({
                                     Upload NPWP <span className="text-red-500">*</span>
                                 </Label>
                                 <Dropzone {...dropzoneNpwp}>
-                                    <DropZoneArea>
+                                    <DropZoneArea className="h-[200px] min-h-[200px] overflow-hidden">
                                         {npwpFileStatuses.length > 0 ? (
                                             npwpFileStatuses.map((file) => (
                                                 <DropzoneFileListItem
                                                     key={file.id}
                                                     file={file}
-                                                    className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
+                                                    className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
                                                 >
-                                                    {file.status === 'pending' && <div className="aspect-video animate-pulse bg-black/20" />}
+                                                    {file.status === 'pending' && <div className="h-full animate-pulse bg-black/20" />}
+
                                                     {file.status === 'success' && (
                                                         <div
-                                                            onClick={() => {
-                                                                if (file.result) {
-                                                                    window.open(file.result, '_blank');
-                                                                }
-                                                            }}
-                                                            className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
+                                                            onClick={() => file.result && window.open(file.result, '_blank')}
+                                                            className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
                                                         >
-                                                            <File className="mr-2 size-6" />
+                                                            <File className="mr-2 size-6 shrink-0" />
                                                             {file.fileName}
                                                         </div>
                                                     )}
@@ -980,11 +979,11 @@ export default function CustomerForm({
                                                 </DropzoneFileListItem>
                                             ))
                                         ) : (
-                                            <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
+                                            <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
                                                 <CloudUploadIcon className="size-8" />
                                                 <div>
                                                     <p className="font-semibold">Upload PDF</p>
-                                                    <p className="text-muted-foreground text-sm">Click or drag to upload a .pdf file</p>
+                                                    <p className="text-muted-foreground text-sm">Click atau drag file .pdf ke sini</p>
                                                 </div>
                                             </DropzoneTrigger>
                                         )}
@@ -1000,25 +999,22 @@ export default function CustomerForm({
                                     Upload NIB <span className="text-red-500">*</span>
                                 </Label>
                                 <Dropzone {...dropzoneNib}>
-                                    <DropZoneArea>
+                                    <DropZoneArea className="h-[200px] min-h-[200px] overflow-hidden">
                                         {nibFileStatuses.length > 0 ? (
                                             nibFileStatuses.map((file) => (
                                                 <DropzoneFileListItem
                                                     key={file.id}
                                                     file={file}
-                                                    className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
+                                                    className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
                                                 >
-                                                    {file.status === 'pending' && <div className="aspect-video animate-pulse bg-black/20" />}
+                                                    {file.status === 'pending' && <div className="h-full animate-pulse bg-black/20" />}
+
                                                     {file.status === 'success' && (
                                                         <div
-                                                            onClick={() => {
-                                                                if (file.result) {
-                                                                    window.open(file.result, '_blank');
-                                                                }
-                                                            }}
-                                                            className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
+                                                            onClick={() => file.result && window.open(file.result, '_blank')}
+                                                            className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
                                                         >
-                                                            <File className="mr-2 size-6" />
+                                                            <File className="mr-2 size-6 shrink-0" />
                                                             {file.fileName}
                                                         </div>
                                                     )}
@@ -1033,7 +1029,7 @@ export default function CustomerForm({
                                                 </DropzoneFileListItem>
                                             ))
                                         ) : (
-                                            <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
+                                            <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
                                                 <CloudUploadIcon className="size-8" />
                                                 <div>
                                                     <p className="font-semibold">Upload PDF</p>
@@ -1053,25 +1049,24 @@ export default function CustomerForm({
                                     Upload SPTKP
                                 </Label>
                                 <Dropzone {...dropzoneSppkp}>
-                                    <DropZoneArea>
+                                    <DropZoneArea className="h-[200px] min-h-[200px] overflow-hidden">
                                         {sppkpFileStatuses.length > 0 ? (
                                             sppkpFileStatuses.map((file) => (
                                                 <DropzoneFileListItem
                                                     key={file.id}
                                                     file={file}
-                                                    className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
+                                                    className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
                                                 >
-                                                    {file.status === 'pending' && <div className="aspect-video animate-pulse bg-black/20" />}
+                                                    {file.status === 'pending' && <div className="h-full animate-pulse bg-black/20" />}
+
                                                     {file.status === 'success' && (
                                                         <div
                                                             onClick={() => {
-                                                                if (file.result) {
-                                                                    window.open(file.result, '_blank');
-                                                                }
+                                                                if (file.result) window.open(file.result, '_blank');
                                                             }}
-                                                            className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
+                                                            className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
                                                         >
-                                                            <File className="mr-2 size-6" />
+                                                            <File className="mr-2 size-6 shrink-0" />
                                                             {file.fileName}
                                                         </div>
                                                     )}
@@ -1086,7 +1081,7 @@ export default function CustomerForm({
                                                 </DropzoneFileListItem>
                                             ))
                                         ) : (
-                                            <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
+                                            <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
                                                 <CloudUploadIcon className="size-8" />
                                                 <div>
                                                     <p className="font-semibold">Upload PDF</p>
@@ -1105,15 +1100,16 @@ export default function CustomerForm({
                                     Upload KTP <span className="text-red-500">*</span>
                                 </Label>
                                 <Dropzone {...dropzoneKtp}>
-                                    <DropZoneArea>
+                                    <DropZoneArea className="h-[200px] min-h-[200px] overflow-hidden">
                                         {ktpFileStatuses.length > 0 ? (
                                             ktpFileStatuses.map((file) => (
                                                 <DropzoneFileListItem
                                                     key={file.id}
                                                     file={file}
-                                                    className="bg-secondary relative w-full overflow-hidden rounded-md shadow-sm"
+                                                    className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
                                                 >
-                                                    {file.status === 'pending' && <div className="aspect-video animate-pulse bg-black/20" />}
+                                                    {file.status === 'pending' && <div className="h-full animate-pulse bg-black/20" />}
+
                                                     {file.status === 'success' && (
                                                         <div
                                                             onClick={() => {
@@ -1121,9 +1117,9 @@ export default function CustomerForm({
                                                                     window.open(file.result, '_blank');
                                                                 }
                                                             }}
-                                                            className="z-10 flex aspect-video w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 text-sm text-gray-600"
+                                                            className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
                                                         >
-                                                            <File className="mr-2 size-6" />
+                                                            <File className="mr-2 size-6 shrink-0" />
                                                             {file.fileName}
                                                         </div>
                                                     )}
@@ -1138,7 +1134,7 @@ export default function CustomerForm({
                                                 </DropzoneFileListItem>
                                             ))
                                         ) : (
-                                            <DropzoneTrigger className="flex flex-col items-center gap-4 bg-transparent p-10 text-center text-sm">
+                                            <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
                                                 <CloudUploadIcon className="size-8" />
                                                 <div>
                                                     <p className="font-semibold">Upload PDF</p>
