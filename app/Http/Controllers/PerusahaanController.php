@@ -6,6 +6,7 @@ use App\Models\Perusahaan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
 
 class PerusahaanController extends Controller
 {
@@ -164,6 +165,17 @@ class PerusahaanController extends Controller
 
         return response()->json([
             'message' => 'Perusahaan berhasil dihapus',
+        ]);
+    }
+
+    public function checkManagerExistence($idPerusahaan)
+    {
+        $perusahaan = Perusahaan::with(['users' => function ($query) {
+            $query->wherePivot('role', 'manager');
+        }])->find($idPerusahaan);
+
+        return response()->json([
+            'manager_exists' => $perusahaan && $perusahaan->users->isNotEmpty(),
         ]);
     }
 }

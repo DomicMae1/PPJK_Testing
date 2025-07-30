@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomersStatusController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PerusahaanController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SecureFileController;
 use App\Http\Controllers\UserController;
 use App\Models\Customers_Status;
 use Illuminate\Support\Facades\Route;
@@ -31,6 +32,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/customer/{id}/pdf', [CustomerController::class, 'generatePdf'])->name('customer.pdf');
 
     Route::post('/customer-links', [CustomerLinkController::class, 'store'])->name('customer-links.store');
+    Route::get('/perusahaan/{id}/has-manager', [PerusahaanController::class, 'checkManagerExistence']);
 
     Route::resource('users', UserController::class);
     Route::resource('role-manager', RoleController::class);
