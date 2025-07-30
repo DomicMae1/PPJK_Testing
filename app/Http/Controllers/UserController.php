@@ -19,6 +19,13 @@ class UserController extends Controller
      */
     public function index()
     {
+        $user = Auth::user();
+
+        // Hanya izinkan akses jika user memiliki role 'admin'
+        if (!$user->hasRole('admin')) {
+            abort(403, 'Unauthorized access. Only admin can access this page.');
+        }
+
         $users = User::with('roles')->get();
         // $roles = Role::all()->pluck('name'); // Ambil semua role
         $roles = Role::all(['id', 'name']);
@@ -26,6 +33,7 @@ class UserController extends Controller
         return Inertia::render('auth/page', [
             'users' => $users,
             'roles' => $roles,
+            'companies' => Perusahaan::select('id as id', 'nama_perusahaan')->get(),
         ]);
     }
 

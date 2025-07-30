@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\CustomerAttach;
 use App\Models\Customers_Status;
 use App\Models\Perusahaan;
 use Illuminate\Http\Request;

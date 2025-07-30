@@ -14,6 +14,13 @@ class PerusahaanController extends Controller
      */
     public function index()
     {
+        $user = Auth::user();
+
+        // Hanya izinkan akses jika user memiliki role 'admin'
+        if (!$user->hasRole('admin')) {
+            abort(403, 'Unauthorized access. Only admin can access this page.');
+        }
+
         $perusahaans = Perusahaan::with(['user', 'users'])->get();
         $users = User::select('id', 'name')->get();
 
@@ -54,7 +61,7 @@ class PerusahaanController extends Controller
         $perusahaanData = collect($validated)->only([
             'nama_perusahaan',
             'notify_1',
-            'notify_2',
+            'notify_2'
         ])->toArray();
 
         // Buat perusahaan

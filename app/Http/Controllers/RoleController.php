@@ -15,13 +15,20 @@ class RoleController extends Controller
      */
     public function index()
     {
-        // Ambil semua role beserta permission-nya
+        $user = Auth::user();
+
+        // 🔒 Batasi hanya untuk role admin
+        if (!$user->hasRole('admin')) {
+            abort(403, 'Unauthorized access. Only admin can access this page.');
+        }
+
+        // ✅ Ambil semua role beserta permission-nya
         $roles = Role::with('permissions')->get();
 
-        // Ambil semua permission yang tersedia dan kelompokkan berdasarkan model
+        // ✅ Kelompokkan permissions berdasarkan model (bagian setelah tanda - pertama)
         $permissions = Permission::all()->groupBy(function ($permission) {
-            // Pisahkan permission berdasarkan model (misalnya 'view-master-barang' -> 'master-barang')
-            return explode('-', $permission->name, 2)[1];
+            $parts = explode('-', $permission->name, 2);
+            return $parts[1] ?? 'other';
         })->map(function ($group) {
             return $group->pluck('name')->toArray();
         })->toArray();
