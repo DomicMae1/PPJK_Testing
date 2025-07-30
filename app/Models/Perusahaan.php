@@ -11,7 +11,6 @@ class Perusahaan extends Model
     protected $connection = 'tako-perusahaan';
 
     protected $table = 'perusahaan';
-    protected $primaryKey = 'id_perusahaan';
 
     protected $fillable = [
         'nama_perusahaan',

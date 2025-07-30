@@ -14,6 +14,7 @@ class CustomerLink extends Model
 
     protected $fillable = [
         'id_user',
+        'id_perusahaan',
         'id_customer',       // ✅ kolom relasi ke tabel customers
         'token',             // ✅ token acak, unik
         'url',             // ✅ url
@@ -33,6 +34,11 @@ class CustomerLink extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'id_user');
+    }
+
+    public function perusahaan()
+    {
+        return $this->belongsTo(Perusahaan::class, 'id_perusahaan');
     }
 
     /**
