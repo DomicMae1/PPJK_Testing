@@ -36,8 +36,6 @@ export default function PublicCustomerForm({
         id_perusahaan: number;
     };
 
-    console.log(customer_name, token, user_id, id_perusahaan);
-
     const { data, setData, processing, errors } = useForm<MasterCustomer>({
         id: customer?.id || null,
         kategori_usaha: customer?.kategori_usaha || '',
@@ -1118,9 +1116,6 @@ export default function PublicCustomerForm({
                         <div className="mt-4 flex gap-2">
                             <Button type="submit" disabled={processing}>
                                 {customer ? 'Save' : 'Create'}
-                            </Button>
-                            <Button type="button" variant="secondary" onClick={() => router.visit('/customer')}>
-                                Cancel
                             </Button>
                         </div>
                     </form>
