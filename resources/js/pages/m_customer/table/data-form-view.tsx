@@ -440,7 +440,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                         className={`grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-${attachments.length >= 3 ? 3 : attachments.length} lg:grid-cols-${attachments.length >= 4 ? 4 : attachments.length} `}
                     >
                         {attachments.map((file) => (
-                            <div key={file.id} className="w-full rounded border border-black p-2 dark:bg-white dark:text-black">
+                            <div key={file.id} className="w-full rounded-md border border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                                 <div className="mb-1 font-medium capitalize">{file.type.toUpperCase()}</div>
                                 <a href={file.path} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
                                     Lihat Dokumen
@@ -470,7 +470,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                                 {file.status === 'success' && (
                                                     <div
                                                         onClick={() => file.result && window.open(file.result, '_blank')}
-                                                        className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
+                                                        className="z-10 flex h-full w-full cursor-pointer items-center justify-center bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
                                                     >
                                                         <File className="mr-2 size-6 shrink-0" />
                                                         {file.fileName}
@@ -484,7 +484,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                                                 setAttachFileUser(null);
                                                                 setAttachFileStatuses([]);
                                                             }}
-                                                            className="rounded-full bg-white p-1"
+                                                            className="bg-white p-1"
                                                         >
                                                             <Trash2Icon className="size-4 text-black" />
                                                         </span>
@@ -520,7 +520,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     Masukkan Keterangan
                                 </Label>
                                 <textarea
-                                    className="h-[180px] w-full rounded border p-2"
+                                    className="h-[180px] w-full rounded-sm border border-gray-500 p-2"
                                     placeholder="Masukkan keterangan"
                                     value={keterangan}
                                     onChange={(e) => setKeterangan(e.target.value)}
@@ -533,7 +533,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     Upload Lampiran (PDF)
                                 </Label>
                                 <Dropzone {...dropzoneAttach}>
-                                    <DropZoneArea className="h-[180px] min-h-[180px] overflow-hidden">
+                                    <DropZoneArea className="h-[180px] min-h-[180px] overflow-hidden border-gray-500">
                                         {attachFileStatuses.length > 0 ? (
                                             attachFileStatuses.map((file) => (
                                                 <DropzoneFileListItem
@@ -584,26 +584,26 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
             <div className="mt-6 mb-6 space-x-3">
                 {(showUserSubmit || showAnotherUserSubmit) && (
-                    <Button variant="default" onClick={() => handleSubmit()}>
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
                         Submit
                     </Button>
                 )}
 
                 {showManagerApprove && (
-                    <Button variant="default" onClick={() => handleSubmit()}>
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
                         Approved
                     </Button>
                 )}
 
                 {(showDirekturApprove || showSubmitForDirektur) && (
-                    <Button variant="default" onClick={() => handleSubmit()}>
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
                         Approved
                     </Button>
                 )}
 
                 {showLawyerApprove && (
                     <>
-                        <Button variant="default" onClick={() => handleSubmit('approved')}>
+                        <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit('approved')}>
                             Aman
                         </Button>
                         <Button variant="destructive" onClick={() => handleSubmit('rejected')} className="text-white">
@@ -622,13 +622,13 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${managerChecked && !managerExists ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
                 {/* Disubmit */}
                 <div>
-                    <div className="border-t border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-t-sm border-t border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         <Label htmlFor="kategori_usaha">Disubmit</Label>
                     </div>
 
-                    <div className="border-r border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="border-r border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         {statusData?.submit_1_timestamps && (
-                            <div className="text-muted-foreground mt-1 text-sm">
+                            <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                 <p>
                                     <strong>{statusData.nama_user}</strong>
                                 </p>
@@ -654,10 +654,10 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    <div className="border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-b-sm border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         {statusData?.submit_1_nama_file && (
                             <div className="">
-                                <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
+                                <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                 <a
                                     href={`/storage/attachments/${statusData.submit_1_nama_file}`}
                                     target="_blank"
@@ -675,12 +675,12 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 {/* Diverifikasi */}
                 {managerChecked && managerExists && (
                     <div>
-                        <div className="border-t border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                        <div className="rounded-t-sm border-t border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                             <Label htmlFor="bentuk_badan_usaha">Diverifikasi</Label>
                         </div>
-                        <div className="border-r border-l border-black p-2 dark:bg-white dark:text-black">
+                        <div className="border-r border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                             {statusData?.status_1_timestamps && (
-                                <div className="text-muted-foreground mt-1 text-sm">
+                                <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                     <p>
                                         <strong>{statusData.status_1_by_name}</strong>
                                     </p>
@@ -706,11 +706,11 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                 </div>
                             )}
                         </div>
-                        <div className="border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                        <div className="rounded-b-sm border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                             {statusData?.status_1_timestamps && (
                                 <>
                                     {statusData.status_1_keterangan && (
-                                        <div className="text-muted-foreground mt-1 text-sm">
+                                        <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                             <p>
                                                 <strong>Keterangan</strong>
                                             </p>
@@ -718,8 +718,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                         </div>
                                     )}
                                     {statusData.status_1_nama_file && (
-                                        <div className="border-black pt-2">
-                                            <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
+                                        <div className="border-gray-500 pt-2">
+                                            <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                             <a
                                                 href={`/storage/attachments/${statusData.status_1_nama_file}`}
                                                 target="_blank"
@@ -739,12 +739,12 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                 {/* Mengetahui */}
                 <div>
-                    <div className="border-t border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-t-sm border-t border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         <Label htmlFor="kota">Mengetahui</Label>
                     </div>
-                    <div className="border-r border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="border-r border-l border-gray-500 p-2 dark:bg-neutral-400">
                         {statusData?.status_2_timestamps && (
-                            <div className="text-muted-foreground mt-1 text-sm">
+                            <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                 <p>
                                     <strong> {statusData.status_2_by_name} </strong>
                                 </p>
@@ -770,11 +770,11 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    <div className="border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-b-sm border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         {statusData?.status_2_timestamps && (
                             <>
                                 {statusData.status_2_keterangan && (
-                                    <div className="text-muted-foreground mt-1 text-sm">
+                                    <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                         <p>
                                             <strong>Keterangan</strong>
                                         </p>
@@ -782,8 +782,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </div>
                                 )}
                                 {statusData.status_2_nama_file && (
-                                    <div className="border-black pt-2">
-                                        <h4 className="text-muted-foreground text-sm font-bold">Attachment</h4>
+                                    <div className="border-gray-500 pt-2">
+                                        <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                         <a
                                             href={`/storage/attachments/${statusData.status_2_nama_file}`}
                                             target="_blank"
@@ -802,12 +802,12 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                 {/* Direview */}
                 <div>
-                    <div className="border-t border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-t-sm border-t border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         <Label htmlFor="kota">Direview</Label>{' '}
                     </div>
-                    <div className="border-r border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="border-r border-l border-gray-500 p-2 dark:bg-neutral-400">
                         {statusData?.status_3_timestamps && (
-                            <div className="text-muted-foreground mt-1 text-sm">
+                            <div className="text-muted-foreground mt-1 text-sm dark:text-black">
                                 <div className="mb-2 flex items-center justify-between font-semibold">
                                     <span>
                                         <strong>{statusData.status_3_by_name}</strong>
@@ -861,11 +861,11 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             </div>
                         )}
                     </div>
-                    <div className="border-r border-b border-l border-black p-2 dark:bg-white dark:text-black">
+                    <div className="rounded-b-sm border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                         {statusData?.status_3_timestamps && (
                             <>
                                 {statusData.status_3_keterangan && (
-                                    <div className="text-muted-foreground text-sm">
+                                    <div className="text-muted-foreground text-sm dark:text-black">
                                         <p>
                                             <strong>Keterangan</strong>
                                         </p>
@@ -874,7 +874,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                 )}
                                 {statusData.submit_3_keterangan && (
                                     <div className="mt-2">
-                                        <h4 className="text-muted-foreground text-sm font-bold">Attachment Lawyer</h4>
+                                        <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment Lawyer</h4>
                                         <a
                                             href={`/storage/attachments/${statusData.submit_3_nama_file}`}
                                             target="_blank"
