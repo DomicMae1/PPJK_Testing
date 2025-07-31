@@ -572,7 +572,7 @@ class CustomerController extends Controller
 
     public function generatePdf($id)
     {
-        $customer = Customer::with('attachments')->findOrFail($id);
+        $customer = Customer::with(['attachments', 'perusahaan'])->findOrFail($id);
         $user = auth('web')->user();
 
         return Pdf::view('pdf.customer', [
