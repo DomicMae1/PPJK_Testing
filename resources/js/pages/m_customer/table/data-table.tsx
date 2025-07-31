@@ -47,7 +47,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [statusFilter, setStatusFilter] = useState<'sudah' | 'belum' | ''>('');
 
     // State lokal untuk filter
-    const [filterColumn, setFilterColumn] = useState<'nama_customer' | 'nama_user' | 'nama_perusahaan'>('nama_customer');
+    const [filterColumn, setFilterColumn] = useState<'nama_customer' | 'nama_user' | 'nama_perusahaan'>('nama_perusahaan');
     const [filterValue, setFilterValue] = useState('');
     const [selectedPerusahaanId, setSelectedPerusahaanId] = useState<string>('');
 
@@ -139,9 +139,9 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                             <SelectValue placeholder="Pilih Kolom" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="nama_customer">Nama Customer</SelectItem>
-                            <SelectItem value="nama_user">Disubmit Oleh</SelectItem>
                             <SelectItem value="nama_perusahaan">Ownership</SelectItem>
+                            <SelectItem value="creator_name">Disubmit Oleh</SelectItem>
+                            <SelectItem value="nama_customer">Nama Customer</SelectItem>
                         </SelectContent>
                     </Select>
 

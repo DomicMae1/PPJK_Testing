@@ -48,9 +48,9 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             cell: ({ row }) => <div className="min-w-[150px] truncate px-2 py-2 text-sm">{row.original.nama_perusahaan ?? '-'}</div>,
         },
         {
-            accessorKey: 'nama_user',
+            accessorKey: 'creator_name',
             header: 'Disubmit oleh',
-            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.creator?.name || ''}</div>,
+            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.creator_name || '-'}</div>,
         },
         {
             accessorKey: 'nama_customer',

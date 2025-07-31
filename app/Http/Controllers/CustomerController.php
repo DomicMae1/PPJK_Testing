@@ -109,6 +109,7 @@ class CustomerController extends Controller
                 'status' => $customer->status->status_3 ?? '-',
                 'note' => $note,
                 'nama_user' => $userName,
+                'creator_name' => $customer->creator->name ?? '-',
                 'no_telp_personal' => $customer->no_telp_personal,
                 'creator' => [
                     'name' => $customer->creator->name ?? null,
