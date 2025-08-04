@@ -1,39 +1,58 @@
-### 1. Clone repository
+# How to running laravel project
 
-````bash
+## 1. Clone repository
+
+```bash
 git clone https://github.com/Fantocaa/tako-customer-review.git
 cd tako-customer-review
+```
 
-### 2. Install Composer & NPM
+## 2. Install Composer & NPM
+
 ```bash
 composer install
+```
 
 ```bash
 npm install
+```
 
-### 3. Copy .env
+## 3. Copy .env
+
 ```bash
 cp .env.example .env
+```
 
-### 4. Make APP key on env
+## 4. Make APP key on env
+
 ```bash
 php artisan key:generate
+```
 
-### 5. Artisan migrate database
+## 5. Artisan migrate database
+
 ```bash
 php artisan migrate:fresh --database=tako-perusahaan --path=database/migrations/perusahaan
+```
 
+```bash
 php artisan migrate:fresh --database=tako-customer --path=database/migrations/customer
+```
 
-### 6. Make a Seeder
+## 6. Make a Seeder
+
 ```bash
 php artisan db:seed
+```
 
-### 7. Running Laravel (backend)
+## 7. Running Laravel (backend)
+
 ```bash
 php artisan serve
+```
 
-### 7. Running Frontend
+## 8. Running Frontend
+
 ```bash
 npm run dev
-````
+```
