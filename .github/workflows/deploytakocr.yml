@@ -38,23 +38,33 @@ jobs:
             php artisan migrate --database=tako-perusahaan --path=database/migrations/perusahaan
             php artisan migrate --database=tako-customer --path=database/migrations/customer
 
-            # Cek Node.js & npm
-            if command -v node >/dev/null 2>&1; then
+            if command -v node > /dev/null 2>&1; then
               echo "Node.js sudah terinstall: $(node -v)"
             else
-              echo "Node.js belum terinstall! Silakan install Node.js versi LTS di server."
+              echo "Node.js belum terinstall. Silakan install Node.js versi LTS."
               exit 1
             fi
 
-            if command -v npm >/dev/null 2>&1; then
-              echo "npm sudah tersedia: $(npm -v)"
+            if command -v npm > /dev/null 2>&1; then
+              echo "npm sudah terinstall: $(npm -v)"
             else
-              echo "npm belum terinstall! Silakan install npm agar frontend bisa dibuild."
-              exit 1
+              echo "npm belum terinstall! Menginstall npm via NVM..."
+              export NVM_DIR="$HOME/.nvm"
+              if [ ! -d "$NVM_DIR" ]; then
+                mkdir -p "$NVM_DIR"
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.6/install.sh | bash
+              fi
+              # load nvm
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+              nvm install --lts
+              nvm use --lts
+              echo "npm version: $(npm -v)"
             fi
 
             echo "Install frontend dependencies dan build"
-            npm install
+            npm ci
             npm run build
 
             echo "Deploy selesai ✅"
