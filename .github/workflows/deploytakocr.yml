@@ -1,0 +1,40 @@
+name: Deploy Tako Customer Review
+
+on:
+  push:
+    branches:
+      - main
+  # pull_request:
+  #   branches:
+  #     - develop
+  #     - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@main
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          # script: |
+          #   echo "SSH Connection Successful"
+          script: |
+            cd /production//tako-customer-review
+            git remote set-url origin git@github.com:Fantocaa/tako-customer-review.git
+
+            git fetch --all
+            git reset --hard origin/main
+            git clean -fd
+
+            composer install --no-dev --prefer-dist
+            php artisan migrate
+            npm i
+            npm run build
