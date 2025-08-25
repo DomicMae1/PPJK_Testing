@@ -27,7 +27,7 @@ jobs:
           # script: |
           #   echo "SSH Connection Successful"
           script: |
-            cd /production//tako-customer-review
+            cd /production/tako-customer-review
             git remote set-url origin git@github.com:Fantocaa/tako-customer-review.git
 
             git fetch --all
