@@ -11,7 +11,7 @@ import { MasterCustomer } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
-import { CloudUploadIcon, File, Trash2Icon } from 'lucide-react';
+import { CloudUploadIcon, File, Moon, Sun, Trash2Icon } from 'lucide-react';
 // import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // import { AlertCircle } from "lucide-react"
 import axios from 'axios';
@@ -72,6 +72,23 @@ export default function PublicCustomerForm({
         tgl_customer: customer?.tgl_customer || null,
         attachments: customer?.attachments || [],
     });
+
+    // 👇 1. Tambahkan state untuk tema, baca dari localStorage atau default ke 'light'
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
+
+    // 👇 2. Gunakan useEffect untuk mengubah class di <html> dan simpan ke localStorage
+    useEffect(() => {
+        const root = window.document.documentElement;
+
+        root.classList.remove('light', 'dark'); // Hapus kelas tema sebelumnya
+        root.classList.add(theme); // Tambahkan kelas tema yang baru
+
+        localStorage.setItem('theme', theme); // Simpan pilihan tema
+    }, [theme]);
+
+    const toggleTheme = () => {
+        setTheme(theme === 'light' ? 'dark' : 'light');
+    };
 
     const [lainKategori, setLainKategori] = useState(customer?.kategori_usaha === 'lain2' ? '' : '');
 
@@ -515,9 +532,17 @@ export default function PublicCustomerForm({
             <Head title="Data Customer" />
             <div className="">
                 <div className="mx-auto my-4 max-w-5xl rounded-2xl p-4 xl:my-16 xl:border">
-                    <h1 className="mb-4 text-3xl font-semibold">
-                        {customer ? 'Edit Data Customer' : 'Data Customer'} ({customer_name})
-                    </h1>
+                    <div className="flex items-center justify-between">
+                        <h1 className="mb-4 text-3xl font-semibold">
+                            {customer ? 'Edit Data Customer' : 'Data Customer'} ({customer_name})
+                        </h1>
+
+                        {/* 👇 TOMBOL TOGGLE TEMA */}
+                        <Button variant="ghost" size="icon" onClick={toggleTheme} type="button">
+                            {theme === 'light' ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
+                            <span className="sr-only">Toggle theme</span>
+                        </Button>
+                    </div>
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                             <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
