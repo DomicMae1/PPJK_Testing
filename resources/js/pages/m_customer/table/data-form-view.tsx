@@ -450,14 +450,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                         {attachments.map((file) => (
                             <div key={file.id} className="w-full rounded-md border border-gray-500 p-2 dark:bg-neutral-400 dark:text-black">
                                 <div className="mb-1 font-medium capitalize">{file.type.toUpperCase()}</div>
-
-                                {/* 👇 PANGGIL FUNGSI HELPER DI SINI */}
-                                <a
-                                    href={getPublicUrl(file.path)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-blue-600 underline"
-                                >
+                                <a href={file.path} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
                                     Lihat Dokumen
                                 </a>
                             </div>

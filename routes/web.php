@@ -19,8 +19,8 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+        return redirect('customer');
+    });
     Route::get('customer/share', [CustomerController::class, 'share'])->name('customer.share');
     // Di routes/web.php
     Route::post('/submit-customer-status', [CustomersStatusController::class, 'submit'])->name('customer-status.submit');
