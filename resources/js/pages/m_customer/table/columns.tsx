@@ -1,6 +1,17 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { Button } from '@/components/ui/button';
+import {
+    Drawer,
+    DrawerClose,
+    DrawerContent,
+    DrawerDescription,
+    DrawerFooter,
+    DrawerHeader,
+    DrawerTitle,
+    DrawerTrigger,
+} from '@/components/ui/drawer';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { MasterCustomer } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
@@ -134,28 +145,94 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
         {
             id: 'actions',
             cell: ({ row }) => {
-                const supplier = row.original;
+                const customer = row.original;
+                const { auth } = usePage().props as { auth: Auth };
+                const user = auth.user;
+                const canEdit = !customer.submit_1_timestamps && customer.user_id === user.id;
+
+                // 👇 2. Gunakan hook untuk mendeteksi breakpoint tablet/desktop
+                const isDesktop = useMediaQuery('(min-width: 768px)');
+
+                if (isDesktop) {
+                    // 👇 3. TAMPILAN DESKTOP (DropdownMenu yang sudah ada)
+                    return (
+                        <div className="flex justify-end">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Buka menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <Link href={`/customer/${customer.id}`}>
+                                        <DropdownMenuItem>View Customer</DropdownMenuItem>
+                                    </Link>
+                                    {canEdit && (
+                                        <Link href={`/customer/${customer.id}/edit`}>
+                                            <DropdownMenuItem>Edit Customer</DropdownMenuItem>
+                                        </Link>
+                                    )}
+                                    <DropdownMenuItem onClick={() => customer.id != null && downloadPdf(customer.id)}>Download PDF</DropdownMenuItem>
+                                    <DropdownMenuItem className="text-red-600" onClick={() => onDeleteClick(customer.id!)}>
+                                        Hapus Customer
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    );
+                }
+
+                // 👇 4. TAMPILAN MOBILE/TABLET (Drawer)
                 return (
-                    <div className="min-w-[80px]">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                    <div className="flex justify-end">
+                        <Drawer>
+                            <DrawerTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Buka menu</span>
                                     <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <Link href={`/customer/${supplier.id}`}>
-                                    <DropdownMenuItem>View Customer</DropdownMenuItem>
-                                </Link>
-                                {supplier.submit_1_timestamps === null && userRole === supplier.creator?.role && (
-                                    <Link href={`/customer/${supplier.id}/edit`}>
-                                        <DropdownMenuItem>Edit Customer</DropdownMenuItem>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                                <DrawerHeader className="text-left">
+                                    <DrawerTitle>Actions</DrawerTitle>
+                                    <DrawerDescription>Pilih aksi yang ingin Anda lakukan untuk customer ini.</DrawerDescription>
+                                </DrawerHeader>
+                                <div className="flex flex-col gap-2 p-4">
+                                    <Link href={`/customer/${customer.id}`}>
+                                        <Button variant="outline" className="w-full justify-start">
+                                            View Customer
+                                        </Button>
                                     </Link>
-                                )}
-
-                                <DropdownMenuItem onClick={() => supplier.id != null && downloadPdf(supplier.id)}>Download PDF</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                                    {canEdit && (
+                                        <Link href={`/customer/${customer.id}/edit`}>
+                                            <Button variant="outline" className="w-full justify-start">
+                                                Edit Customer
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        className="w-full justify-start"
+                                        onClick={() => customer.id != null && downloadPdf(customer.id)}
+                                    >
+                                        Download PDF
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        className="w-full justify-start text-white"
+                                        onClick={() => onDeleteClick(customer.id!)}
+                                    >
+                                        Hapus Customer
+                                    </Button>
+                                </div>
+                                <DrawerFooter className="pt-2">
+                                    <DrawerClose asChild>
+                                        <Button variant="outline">Batal</Button>
+                                    </DrawerClose>
+                                </DrawerFooter>
+                            </DrawerContent>
+                        </Drawer>
                     </div>
                 );
             },
