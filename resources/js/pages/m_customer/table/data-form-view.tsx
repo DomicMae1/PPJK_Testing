@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Dropzone, DropZoneArea, DropzoneFileListItem, DropzoneRemoveFile, DropzoneTrigger, useDropzone } from '@/components/dropzone';
+import { useDropzone } from '@/components/dropzone';
+import { ResettableDropzone } from '@/components/ResettableDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Attachment, MasterCustomer } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { CloudUploadIcon, File, SquareCheck, SquareX, Trash2Icon } from 'lucide-react';
+import { File, SquareCheck, SquareX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function ViewCustomerForm({ customer }: { customer: MasterCustomer }) {
@@ -463,56 +464,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 <>
                     {userRole === 'user' && (
                         <div className="mt-6 w-full md:w-1/3">
-                            <Label htmlFor="attach" className="mb-1 block">
-                                Upload Lampiran Penawaran Marketing(PDF)
-                            </Label>
-                            <Dropzone {...dropzoneAttachUser}>
-                                <DropZoneArea className="h-[180px] min-h-[180px] overflow-hidden">
-                                    {attachFileStatuses.length > 0 ? (
-                                        attachFileStatuses.map((file) => (
-                                            <DropzoneFileListItem
-                                                key={file.id}
-                                                file={file}
-                                                className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
-                                            >
-                                                {file.status === 'pending' && <div className="h-full animate-pulse bg-black/20" />}
-
-                                                {file.status === 'success' && (
-                                                    <div
-                                                        onClick={() => file.result && window.open(file.result, '_blank')}
-                                                        className="z-10 flex h-full w-full cursor-pointer items-center justify-center rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
-                                                    >
-                                                        <File className="mr-2 size-6 shrink-0" />
-                                                        {file.fileName}
-                                                    </div>
-                                                )}
-
-                                                <div className="absolute top-2 right-2 z-20">
-                                                    <DropzoneRemoveFile>
-                                                        <span
-                                                            onClick={() => {
-                                                                setAttachFileUser(null);
-                                                                setAttachFileStatuses([]);
-                                                            }}
-                                                            className="rounded-full bg-white p-1"
-                                                        >
-                                                            <Trash2Icon className="size-4 text-black" />
-                                                        </span>
-                                                    </DropzoneRemoveFile>
-                                                </div>
-                                            </DropzoneFileListItem>
-                                        ))
-                                    ) : (
-                                        <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
-                                            <CloudUploadIcon className="size-8" />
-                                            <div>
-                                                <p className="font-semibold">Upload PDF</p>
-                                                <p className="text-muted-foreground text-sm">Click atau drag file .pdf ke sini</p>
-                                            </div>
-                                        </DropzoneTrigger>
-                                    )}
-                                </DropZoneArea>
-                            </Dropzone>
+                            <ResettableDropzone label="Upload Lampiran Penawaran Marketing (PDF)" onFileChange={setAttachFileUser} />
                         </div>
                     )}
                 </>
@@ -529,7 +481,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     Masukkan Keterangan
                                 </Label>
                                 <textarea
-                                    className="h-[180px] w-full rounded-sm border border-gray-500 p-2"
+                                    className="h-[200px] w-full rounded-sm border border-gray-500 p-2"
                                     placeholder="Masukkan keterangan"
                                     value={keterangan}
                                     onChange={(e) => setKeterangan(e.target.value)}
@@ -538,54 +490,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                             {/* Dropzone */}
                             <div className="w-full md:w-1/2">
-                                <Label htmlFor="attach" className="mb-1 block">
-                                    Upload Lampiran (PDF)
-                                </Label>
-                                <Dropzone {...dropzoneAttach}>
-                                    <DropZoneArea className="h-[180px] min-h-[180px] overflow-hidden border-gray-500">
-                                        {attachFileStatuses.length > 0 ? (
-                                            attachFileStatuses.map((file) => (
-                                                <DropzoneFileListItem
-                                                    key={file.id}
-                                                    file={file}
-                                                    className="bg-secondary relative h-full w-full overflow-hidden rounded-md shadow-sm"
-                                                >
-                                                    {file.status === 'success' && (
-                                                        <div
-                                                            onClick={() => file.result && window.open(file.result, '_blank')}
-                                                            className="z-10 flex h-full w-full cursor-pointer items-center justify-center overflow-hidden rounded-md bg-gray-100 px-2 text-sm text-ellipsis whitespace-nowrap text-gray-600"
-                                                        >
-                                                            <File className="mr-2 size-5 shrink-0" />
-                                                            {file.fileName}
-                                                        </div>
-                                                    )}
-                                                    <div className="absolute top-2 right-2 z-20">
-                                                        <DropzoneRemoveFile>
-                                                            <span
-                                                                onClick={() => {
-                                                                    setAttachFile(null);
-                                                                    setAttachFileStatuses([]);
-                                                                }}
-                                                                className="rounded-full bg-white p-1"
-                                                            >
-                                                                <Trash2Icon className="size-4 text-black" />
-                                                            </span>
-                                                        </DropzoneRemoveFile>
-                                                    </div>
-                                                </DropzoneFileListItem>
-                                            ))
-                                        ) : (
-                                            <DropzoneTrigger className="flex h-full flex-col items-center justify-center gap-4 bg-transparent text-center text-sm">
-                                                <CloudUploadIcon className="size-8" />
-                                                <div>
-                                                    <p className="font-semibold">Upload PDF</p>
-                                                    <p className="text-muted-foreground text-sm">Click atau drag file .pdf ke sini</p>
-                                                </div>
-                                            </DropzoneTrigger>
-                                        )}
-                                    </DropZoneArea>
-                                </Dropzone>
-                                {userRole === 'lawyer' && <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>}
+                                <ResettableDropzone label="Upload Lampiran Penawaran Marketing (PDF)" onFileChange={setAttachFile} />
+                                <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
                             </div>
                         </div>
                     </div>
