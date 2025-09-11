@@ -98,7 +98,7 @@ export function ResettableDropzone({
                 key={componentKey} // Kunci utama untuk reset
                 {...getRootProps()}
                 className={cn(
-                    'flex h-[200px] min-h-[200px] cursor-pointer items-center justify-center rounded-md border-2 border-dashed p-4 text-center transition-colors',
+                    'flex h-[200px] min-h-[200px] cursor-pointer items-center justify-center rounded-md border-2 p-4 text-center transition-colors',
                     borderColor,
                 )}
             >
