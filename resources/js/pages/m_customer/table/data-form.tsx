@@ -436,22 +436,23 @@ export default function CustomerForm({
             return; // ⛔ STOP proses di sini!
         }
 
-        // 🔒 Cek wajib upload file PDF
-        if (!npwpFile) {
+        const hasExistingNpwp = customer?.attachments?.some((a) => a.type === 'npwp');
+        if (!npwpFile && !hasExistingNpwp) {
             const message = 'Dokumen NPWP wajib diunggah.';
-            setErrors((prev) => ({ ...prev, attachments: message }));
-            alert(message); // ⬅️ alert ditambahkan
-            return;
-        }
-        if (!nibFile) {
-            const message = 'Dokumen NIB wajib diunggah.';
-            setErrors((prev) => ({ ...prev, attachments: message }));
             alert(message);
             return;
         }
-        if (!ktpFile) {
+
+        const hasExistingNib = customer?.attachments?.some((a) => a.type === 'nib');
+        if (!nibFile && !hasExistingNib) {
+            const message = 'Dokumen NIB wajib diunggah.';
+            alert(message);
+            return;
+        }
+
+        const hasExistingKtp = customer?.attachments?.some((a) => a.type === 'ktp');
+        if (!ktpFile && !hasExistingKtp) {
             const message = 'Dokumen KTP wajib diunggah.';
-            setErrors((prev) => ({ ...prev, attachments: message }));
             alert(message);
             return;
         }
@@ -950,7 +951,7 @@ export default function CustomerForm({
                                     onFileChange={setKtpFile}
                                     existingFile={customer?.attachments?.find((a) => a.type === 'ktp')}
                                 />
-                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah KTP dalam format PDF</p>
+                                <p className="mt-1 text-xs text-red-500">* Wajib unggah KTP dalam format PDF</p>
                             </div>
                         </div>
                     </div>
