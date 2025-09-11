@@ -446,10 +446,6 @@ class CustomerController extends Controller
     {
         $user = auth('web')->user();
 
-        if (! $user->hasPermissionTo('update-master-customer')) {
-            throw UnauthorizedException::forPermissions(['update-master-customer']);
-        }
-
         $customer->load('attachments');
 
         // $attachment = $customer->attachments;
@@ -471,11 +467,7 @@ class CustomerController extends Controller
         $createdDate = \Carbon\Carbon::parse($customer->created_at)->toDateString();
         $today = now()->toDateString();
 
-        $canEditToday = $createdDate === $today && $user->hasPermissionTo('update-master-customer');
-
-        if (! $canEditToday) {
-            throw \Spatie\Permission\Exceptions\UnauthorizedException::forPermissions(['update-master-customer']);
-        }
+        $canEditToday = $createdDate === $today;
 
         $validated = $request->validate([
             'kategori_usaha' => 'required|string',
