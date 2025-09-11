@@ -123,6 +123,7 @@ class CustomerController extends Controller
                 'customer_link' => [
                     'url' => $customer->customer_links->url ?? null,
                 ],
+                'user_id' => $customer->user_id,
             ];
         });
 
