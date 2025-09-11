@@ -147,9 +147,17 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             id: 'actions',
             cell: ({ row }) => {
                 const customer = row.original;
+                const { auth } = usePage().props as { auth: Auth };
+                const currentUser = auth.user;
 
-                // 👇 Logika HANYA untuk tombol Edit
-                const canEdit = !customer.submit_1_timestamps;
+                // Ambil role user yang sedang login
+                const currentUserRole = currentUser.roles?.[0]?.name;
+
+                // 👇 LOGIKA BARU YANG LEBIH ANDAL
+                const canEdit =
+                    !customer.submit_1_timestamps && // 1. Belum pernah disubmit
+                    (customer.user_id === currentUser.id || // 2. Dibuat oleh user yang sama (jika user_id ada)
+                        (customer.creator?.role && currentUserRole && customer.creator.role === currentUserRole)); // ATAU role creator sama dengan role user saat ini
 
                 const isDesktop = useMediaQuery('(min-width: 768px)');
 
