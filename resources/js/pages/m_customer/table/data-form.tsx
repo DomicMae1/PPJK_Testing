@@ -166,97 +166,6 @@ export default function CustomerForm({
         );
     }, [customer]);
 
-    // State untuk masing-masing dropzone
-    const dropzoneNpwp = useDropzone({
-        onDropFile: async (file: File) => {
-            setNpwpFile(file);
-
-            const fileStatus = {
-                id: String(Date.now()),
-                status: 'success',
-                fileName: file.name,
-                result: URL.createObjectURL(file),
-            } as const;
-
-            setNpwpFileStatuses([fileStatus]); // Timpa data lama dengan file baru
-            return fileStatus;
-        },
-        validation: {
-            accept: {
-                'application/pdf': ['.pdf'],
-            },
-            maxSize: 5 * 1024 * 1024,
-            maxFiles: 1,
-        },
-    });
-
-    const dropzoneNib = useDropzone({
-        onDropFile: async (file: File) => {
-            setNibFile(file); // ❗️Simpan ke state, belum upload
-            const fileStatus = {
-                id: String(Date.now()),
-                status: 'success',
-                fileName: file.name,
-                result: URL.createObjectURL(file),
-            } as const;
-
-            setNibFileStatuses([fileStatus]); // Timpa data lama dengan file baru
-            return fileStatus;
-        },
-        validation: {
-            accept: {
-                'application/pdf': ['.pdf'],
-            },
-            maxSize: 5 * 1024 * 1024,
-            maxFiles: 1,
-        },
-    });
-
-    const dropzoneSppkp = useDropzone({
-        onDropFile: async (file: File) => {
-            setSppkpFile(file); // ❗️Simpan ke state, belum upload
-
-            const fileStatus = {
-                id: String(Date.now()),
-                status: 'success',
-                fileName: file.name,
-                result: URL.createObjectURL(file),
-            } as const;
-
-            setSppkpFileStatuses([fileStatus]); // Timpa data lama dengan file baru
-            return fileStatus;
-        },
-        validation: {
-            accept: {
-                'application/pdf': ['.pdf'], // ✅ hanya PDF
-            },
-            maxSize: 5 * 1024 * 1024, // ✅ max 5MB
-            maxFiles: 1,
-        },
-    });
-
-    const dropzoneKtp = useDropzone({
-        onDropFile: async (file: File) => {
-            setKtpFile(file); // ❗️Simpan ke state, belum upload
-            const fileStatus = {
-                id: String(Date.now()),
-                status: 'success',
-                fileName: file.name,
-                result: URL.createObjectURL(file),
-            } as const;
-
-            setKtpFileStatuses([fileStatus]); // Timpa data lama dengan file baru
-            return fileStatus;
-        },
-        validation: {
-            accept: {
-                'application/pdf': ['.pdf'], // ✅ hanya PDF
-            },
-            maxSize: 5 * 1024 * 1024, // ✅ max 5MB
-            maxFiles: 1,
-        },
-    });
-
     async function uploadAttachment(file: File, type: AttachmentType): Promise<Attachment> {
         const formData = new FormData();
         formData.append('file', file);
@@ -499,14 +408,6 @@ export default function CustomerForm({
                     ? extractAttachmentFromStatus(ktpFileStatuses, 'ktp')
                     : null,
             ].filter(Boolean) as Attachment[];
-
-            // // ✅ Merge existing + uploaded
-            // const allAttachmentObjects = [
-            //     extractAttachmentFromStatus(npwpFileStatuses, 'npwp'),
-            //     extractAttachmentFromStatus(nibFileStatuses, 'nib'),
-            //     extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp'),
-            //     extractAttachmentFromStatus(ktpFileStatuses, 'ktp'),
-            // ].filter(Boolean); // remove null
 
             const updatedAttachments = [...uploadedAttachments, ...oldAttachments];
 
