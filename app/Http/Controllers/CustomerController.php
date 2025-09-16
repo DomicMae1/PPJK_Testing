@@ -537,26 +537,19 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Customer $customer, $id)
+    public function destroy(Customer $customer)
     {
-        $user = auth('web')->user();
-
-        if (!$user->hasPermissionTo('delete-master-customer')) {
-            throw UnauthorizedException::forPermissions(['delete-master-customer']);
-        }
-
-        $orderCustomer = Customer::findOrFail($id);
 
         try {
             DB::beginTransaction();
 
-            // Soft delete data m_supplier
-            $orderCustomer->delete();
+            // Soft delete -> hanya isi deleted_at, tidak hapus permanen
+            $customer->delete();
 
             DB::commit();
 
             return redirect()->route('customer.index')
-                ->with('success', 'Data Customer berhasil dihapus!');
+                ->with('success', 'Data Customer berhasil dihapus (soft delete)!');
         } catch (\Exception $e) {
             DB::rollBack();
 
