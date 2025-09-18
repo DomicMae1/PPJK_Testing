@@ -7,11 +7,6 @@ import { Link } from '@inertiajs/react';
 
 const sidebarNavItems: NavItem[] = [
     {
-        title: 'Profile',
-        url: '/settings/profile',
-        icon: null,
-    },
-    {
         title: 'Password',
         url: '/settings/password',
         icon: null,
