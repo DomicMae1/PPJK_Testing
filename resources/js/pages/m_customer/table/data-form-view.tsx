@@ -556,12 +556,14 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </strong>{' '}
                                     pukul{' '}
                                     <strong>
-                                        {new Date(statusData.submit_1_timestamps).toLocaleTimeString('id-ID', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            second: '2-digit',
-                                            hour12: false,
-                                        })}
+                                        {new Date(statusData.submit_1_timestamps)
+                                            .toLocaleTimeString('id-ID', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false,
+                                            })
+                                            .replace(':', '.')}{' '}
+                                        WIB
                                     </strong>
                                 </p>
                             </div>
@@ -608,12 +610,14 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                         </strong>{' '}
                                         pukul{' '}
                                         <strong>
-                                            {new Date(statusData.status_1_timestamps).toLocaleTimeString('id-ID', {
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                second: '2-digit',
-                                                hour12: false,
-                                            })}
+                                            {new Date(statusData.status_1_timestamps)
+                                                .toLocaleTimeString('id-ID', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: false,
+                                                })
+                                                .replace(':', '.')}{' '}
+                                            WIB
                                         </strong>
                                     </p>
                                 </div>
@@ -672,12 +676,14 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </strong>{' '}
                                     pukul{' '}
                                     <strong>
-                                        {new Date(statusData.status_2_timestamps).toLocaleTimeString('id-ID', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            second: '2-digit',
-                                            hour12: false,
-                                        })}
+                                        {new Date(statusData.status_2_timestamps)
+                                            .toLocaleTimeString('id-ID', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false,
+                                            })
+                                            .replace(':', '.')}{' '}
+                                        WIB
                                     </strong>
                                 </p>
                             </div>
@@ -755,7 +761,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                 <p>
                                     tanggal{' '}
                                     <strong>
-                                        {new Date(statusData.status_2_timestamps).toLocaleDateString('id-ID', {
+                                        {new Date(statusData.status_3_timestamps).toLocaleDateString('id-ID', {
                                             day: 'numeric',
                                             month: 'long',
                                             year: 'numeric',
@@ -763,12 +769,14 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     </strong>{' '}
                                     pukul{' '}
                                     <strong>
-                                        {new Date(statusData.status_2_timestamps).toLocaleTimeString('id-ID', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            second: '2-digit',
-                                            hour12: false,
-                                        })}
+                                        {new Date(statusData.status_3_timestamps)
+                                            .toLocaleTimeString('id-ID', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false,
+                                            })
+                                            .replace(':', '.')}{' '}
+                                        WIB
                                     </strong>
                                 </p>
                             </div>
