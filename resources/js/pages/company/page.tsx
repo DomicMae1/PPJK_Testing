@@ -14,7 +14,7 @@ import { DataTable } from './table/data-table';
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Manage Company',
-        href: '/companys',
+        href: '/perusahaan',
     },
 ];
 
@@ -65,7 +65,8 @@ export default function ManageCompany() {
 
     const onConfirmDelete = () => {
         if (companyIdToDelete) {
-            router.delete(`/companys/${companyIdToDelete}`, {
+            router.delete(`/perusahaan/${companyIdToDelete}`, {
+                preserveScroll: true, // biar nggak balik ke atas
                 onSuccess: () => {
                     setOpenDelete(false);
                     setCompanyIdToDelete(null);
@@ -82,7 +83,8 @@ export default function ManageCompany() {
         };
 
         if (selectedCompany) {
-            router.put(`companys/${selectedCompany.id}`, data, {
+            router.put(`/perusahaan/${selectedCompany.id}`, data, {
+                preserveScroll: true,
                 onSuccess: () => {
                     setOpenForm(false);
                     resetForm();
@@ -90,7 +92,8 @@ export default function ManageCompany() {
                 },
             });
         } else {
-            router.post('/companys', data, {
+            router.post('/perusahaan', data, {
+                preserveScroll: true,
                 onSuccess: () => {
                     setOpenForm(false);
                     resetForm();

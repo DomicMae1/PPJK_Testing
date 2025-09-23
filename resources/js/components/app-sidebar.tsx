@@ -36,7 +36,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Manage Company',
-        url: '/companys',
+        url: '/perusahaan',
         icon: Building2,
         adminOnly: true,
     },

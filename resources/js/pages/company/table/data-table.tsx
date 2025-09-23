@@ -66,7 +66,7 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
     });
 
     const handleSubmit = () => {
-        router.post('/companys', form as Record<string, any>, {
+        router.post('/perusahaan', form as Record<string, any>, {
             onSuccess: () => {
                 setOpenCreate(false);
                 // 👇 3. Reset id_User setelah sukses
