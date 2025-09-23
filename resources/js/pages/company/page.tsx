@@ -54,6 +54,21 @@ export default function ManageCompany() {
 
     console.log(usePage().props);
 
+    const userRoles = [
+        { key: 'id_User', label: 'Marketing' },
+        { key: 'id_User_1', label: 'Manager' },
+        { key: 'id_User_2', label: 'Direktur' },
+        { key: 'id_User_3', label: 'Lawyer' },
+    ];
+
+    // Handle perubahan select
+    const handleUserChange = (field: keyof FormState, value: string) => {
+        setForm((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
     useEffect(() => {
         if (flash.success) toast.success(flash.success);
         if (flash.error) toast.error(flash.error);
@@ -206,47 +221,29 @@ export default function ManageCompany() {
                                     required
                                 />
                             </div>
-                            <div>
-                                <Label htmlFor="id_User">ID User / Marketing</Label>
-                                <Input
-                                    id="id_User"
-                                    name="id_User"
-                                    value={form.id_User}
-                                    onChange={handleInputChange}
-                                    placeholder="Masukkan ID User untuk Marketing"
-                                />
+
+                            {/* 🔽 Dropdown user roles */}
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                {userRoles.map(({ key, label }) => (
+                                    <div key={key}>
+                                        <Label htmlFor={key}>{label}</Label>
+                                        <select
+                                            id={key}
+                                            className="w-full rounded border px-2 py-1"
+                                            value={form[key as keyof FormState]}
+                                            onChange={(e) => handleUserChange(key as keyof FormState, e.target.value)}
+                                        >
+                                            <option value="">Pilih {label}</option>
+                                            {props.users?.map((user: any) => (
+                                                <option key={user.id} value={user.id}>
+                                                    {user.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ))}
                             </div>
 
-                            <div>
-                                <Label htmlFor="id_User_1">ID User Manager</Label>
-                                <Input
-                                    id="id_User_1"
-                                    name="id_User_1"
-                                    value={form.id_User_1}
-                                    onChange={handleInputChange}
-                                    placeholder="Masukkan ID User untuk Manager"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="id_User_2">ID User Direktur</Label>
-                                <Input
-                                    id="id_User_2"
-                                    name="id_User_2"
-                                    value={form.id_User_2}
-                                    onChange={handleInputChange}
-                                    placeholder="Masukkan ID User untuk Direktur"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="id_User_3">ID User Lawyer</Label>
-                                <Input
-                                    id="id_User_3"
-                                    name="id_User_3"
-                                    value={form.id_User_3}
-                                    onChange={handleInputChange}
-                                    placeholder="Masukkan ID User untuk Lawyer"
-                                />
-                            </div>
                             <div>
                                 <Label htmlFor="notify_1">Notifikasi Email 1</Label>
                                 <Input
