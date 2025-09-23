@@ -37,7 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('users', UserController::class);
     Route::resource('role-manager', RoleController::class);
-    Route::resource('companys', PerusahaanController::class);
+    Route::resource('perusahaan', PerusahaanController::class);
 });
 Route::post('customer/upload-temp', [CustomerController::class, 'upload'])->name('customer.upload');
 Route::get('/form/{token}', [CustomerController::class, 'showPublicForm'])->name('customer.form.show');
