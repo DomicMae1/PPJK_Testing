@@ -610,16 +610,23 @@ class CustomerController extends Controller
 
         // ✅ Merge PDF
         $mergedPath = "{$tempDir}/customer_{$customer->id}.pdf";
-        $this->mergePdfsWithGhostscript(array_merge([$mainPdfPath], $attachmentPdfPaths), $mergedPath);
+        try {
+            $this->mergePdfsWithGhostscript(array_merge([$mainPdfPath], $attachmentPdfPaths), $mergedPath);
 
-        if (!file_exists($mergedPath) || filesize($mergedPath) < 1000) {
-            Log::error("❌ Merge gagal atau file terlalu kecil: {$mergedPath}");
-            abort(500, 'Merge PDF gagal.');
+            if (!file_exists($mergedPath) || filesize($mergedPath) < 1000) {
+                Log::error("❌ Merge gagal atau file terlalu kecil: {$mergedPath}");
+                throw new \Exception('Merge PDF gagal.');
+            }
+
+            $finalPath = $mergedPath;
+        } catch (\Throwable $e) {
+            Log::error("⚠️ Ghostscript gagal, fallback ke main PDF. Error: " . $e->getMessage());
+            $finalPath = $mainPdfPath;
         }
 
         Log::info("✅ Proses selesai, kirim file ke user.");
 
-        return response()->download($mergedPath, "customer_{$customer->id}.pdf", [
+        return response()->download($finalPath, "customer_{$customer->id}.pdf", [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="customer_' . $customer->id . '.pdf"',
         ])->deleteFileAfterSend(true);
