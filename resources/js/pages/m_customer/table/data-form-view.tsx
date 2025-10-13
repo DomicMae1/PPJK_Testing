@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Attachment, MasterCustomer } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
+import { File, Loader2, SquareCheck, SquareX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function ViewCustomerForm({ customer }: { customer: MasterCustomer }) {
@@ -18,7 +19,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const [attachFileUser, setAttachFileUser] = useState<File | null>(null);
     const [attachFileStatuses, setAttachFileStatuses] = useState<any[]>([]);
     const [statusData, setStatusData] = useState<any | null>(null);
-    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [managerExists, setManagerExists] = useState<boolean>(false);
     const [managerChecked, setManagerChecked] = useState<boolean>(false);
 
@@ -60,7 +61,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     console.error('Gagal mengambil data status:', err);
                 })
                 .finally(() => {
-                    setIsLoadingStatus(false);
+                    setIsLoading(false);
                 });
         }
     }, [customer?.id]);
@@ -152,6 +153,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             alert('❌ Customer ID tidak ditemukan.');
             return;
         }
+        setIsLoading(true);
         const uploadedAttachments = [];
 
         if (userRole === 'lawyer' && decision === 'rejected') {
@@ -159,6 +161,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 const message = '❌ Keterangan wajib diisi jika status Bermasalah.';
                 setAttachmentError(message);
                 alert(message);
+                setIsLoading(false);
                 return;
             }
 
@@ -166,6 +169,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 const message = '❌ File PDF wajib diunggah jika status Bermasalah.';
                 setAttachmentError(message);
                 alert(message);
+                setIsLoading(false);
                 return;
             }
         } else {
@@ -193,6 +197,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             } catch (error) {
                 console.error('Upload gagal:', error);
                 alert('❌ Upload file gagal.');
+                setIsLoading(false);
                 return;
             }
         }
@@ -247,11 +252,13 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 alert('✅ Data berhasil disubmit!');
                 setAttachFile(null);
                 setAttachFileStatuses([]);
+                setIsLoading(false);
                 router.visit(`/customer/${props.customer.id}`, { replace: true, preserveState: false });
             },
             onError: (errors) => {
                 const firstError = errors[Object.keys(errors)[0]];
                 alert(`❌ Gagal submit: ${firstError}`);
+                setIsLoading(false);
             },
         });
     };
@@ -488,38 +495,74 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     </div>
                 )}
 
-            <div className="mt-6 mb-6 space-x-3">
+            <div className="mt-6 mb-6 flex flex-wrap gap-2 space-x-3">
                 {(showUserSubmit || showAnotherUserSubmit) && (
-                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
-                        Submit
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()} disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Mengirim...
+                            </>
+                        ) : (
+                            'Submit'
+                        )}
                     </Button>
                 )}
 
                 {showManagerApprove && (
-                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
-                        Approved
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()} disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Menyimpan...
+                            </>
+                        ) : (
+                            'Approved'
+                        )}
                     </Button>
                 )}
 
                 {(showDirekturApprove || showSubmitForDirektur) && (
-                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()}>
-                        Approved
+                    <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit()} disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Menyimpan...
+                            </>
+                        ) : (
+                            'Approved'
+                        )}
                     </Button>
                 )}
 
                 {showLawyerApprove && (
                     <>
-                        <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit('approved')}>
-                            Aman
+                        <Button variant="default" className="dark:bg-neutral-400" onClick={() => handleSubmit('approved')} disabled={isLoading}>
+                            {isLoading && decision === 'approved' ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Memproses...
+                                </>
+                            ) : (
+                                'Aman'
+                            )}
                         </Button>
-                        <Button variant="destructive" onClick={() => handleSubmit('rejected')} className="text-white">
-                            Bermasalah
+
+                        <Button variant="destructive" onClick={() => handleSubmit('rejected')} className="text-white" disabled={isLoading}>
+                            {isLoading && decision === 'rejected' ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Mengirim...
+                                </>
+                            ) : (
+                                'Bermasalah'
+                            )}
                         </Button>
                     </>
                 )}
 
                 <Link href="/customer">
-                    <Button variant="secondary" className="border-1 border-black">
+                    <Button variant="secondary" className="border border-black" disabled={isLoading}>
                         Kembali
                     </Button>
                 </Link>

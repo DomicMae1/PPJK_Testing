@@ -4,12 +4,13 @@ import { ResettableDropzone } from '@/components/ResettableDropzone'; // 👈 1.
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { Attachment, AttachmentType, Auth, MasterCustomer } from '@/types';
-import { router, useForm, usePage } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import { File } from 'lucide-react';
@@ -66,6 +67,8 @@ export default function CustomerForm({
         tgl_customer: customer?.tgl_customer || null,
         attachments: customer?.attachments || [],
     });
+
+    const [isLoading, setIsLoading] = useState(false);
 
     const [lainKategori, setLainKategori] = useState(customer?.kategori_usaha === 'lain2' ? '' : '');
 
@@ -197,10 +200,13 @@ export default function CustomerForm({
 
         const newErrors: typeof errors_kategori = {};
 
+        setIsLoading(true);
+
         if (!data.kategori_usaha) {
             const message = 'Kategori usaha wajib dipilih';
             setErrors((prev) => ({ ...prev, kategori_usaha: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -208,6 +214,7 @@ export default function CustomerForm({
             const message = 'Kategori lainnya wajib diisi';
             setErrors((prev) => ({ ...prev, lain_kategori: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -215,6 +222,7 @@ export default function CustomerForm({
             const message = 'Nama Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, nama_perusahaan: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -222,6 +230,7 @@ export default function CustomerForm({
             const message = 'Bentuk badan usaha wajib dipilih';
             setErrors((prev) => ({ ...prev, bentuk_badan_usaha: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -229,6 +238,7 @@ export default function CustomerForm({
             const message = 'Alamat lengkap wajib diisi';
             setErrors((prev) => ({ ...prev, alamat_lengkap: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -236,6 +246,7 @@ export default function CustomerForm({
             const message = 'Kota wajib diisi';
             setErrors((prev) => ({ ...prev, kota: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -243,6 +254,7 @@ export default function CustomerForm({
             const message = 'No Telpon Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -250,6 +262,7 @@ export default function CustomerForm({
             const message = 'Alamat Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, alamat_penagihan: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -257,6 +270,7 @@ export default function CustomerForm({
             const message = 'Email Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, email: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -264,6 +278,7 @@ export default function CustomerForm({
             const message = 'Term of Payment wajib diisi';
             setErrors((prev) => ({ ...prev, top: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -271,6 +286,7 @@ export default function CustomerForm({
             const message = 'Status perpajakan wajib dipilih';
             setErrors((prev) => ({ ...prev, status_perpajakan: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -278,6 +294,7 @@ export default function CustomerForm({
             const message = 'Nomer NPWP wajib diisi';
             setErrors((prev) => ({ ...prev, no_npwp: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -285,6 +302,7 @@ export default function CustomerForm({
             const message = 'Nomer NPWP 16 wajib diisi';
             setErrors((prev) => ({ ...prev, no_npwp_16: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -292,6 +310,7 @@ export default function CustomerForm({
             const message = 'Nama Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, nama_pj: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -299,6 +318,7 @@ export default function CustomerForm({
             const message = 'NIK Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, no_ktp_pj: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -306,6 +326,7 @@ export default function CustomerForm({
             const message = 'No Telp Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp_pj: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -313,6 +334,7 @@ export default function CustomerForm({
             const message = 'Nama Personal wajib diisi';
             setErrors((prev) => ({ ...prev, nama_personal: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -320,6 +342,7 @@ export default function CustomerForm({
             const message = 'Jabatan Personal wajib diisi';
             setErrors((prev) => ({ ...prev, jabatan_personal: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -327,6 +350,7 @@ export default function CustomerForm({
             const message = 'No Telp Personal wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp_personal: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -334,6 +358,7 @@ export default function CustomerForm({
             const message = 'Email Personal wajib diisi';
             setErrors((prev) => ({ ...prev, email_personal: message }));
             alert(message);
+            setIsLoading(false);
             return;
         }
 
@@ -418,17 +443,27 @@ export default function CustomerForm({
                     onSuccess: () => {
                         window.alert('✅ Data berhasil diperbarui!');
                         onSuccess?.();
+                        setIsLoading(false);
                     },
                     onError: (errors: unknown) => {
-                        console.log('Update error:', errors);
+                        setIsLoading(false);
                     },
                 });
             } else {
-                router.post(route('customer.store'), finalPayload);
+                router.post(route('customer.store'), finalPayload, {
+                    onSuccess: () => {
+                        window.alert('✅ Data berhasil disimpan!');
+                        setIsLoading(false);
+                    },
+                    onError: (errors: unknown) => {
+                        setIsLoading(false);
+                    },
+                });
             }
         } catch (err) {
             console.error('Upload gagal:', err);
             alert('Gagal upload file. Silakan coba lagi.');
+            setIsLoading(false);
         }
     };
 
@@ -861,10 +896,20 @@ export default function CustomerForm({
                     </div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                    <Button type="submit" disabled={processing}>
-                        {customer ? 'Save' : 'Create'}
+                    <Button type="submit" disabled={isLoading || processing}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {customer ? 'Saving...' : 'Creating...'}
+                            </>
+                        ) : customer ? (
+                            'Save'
+                        ) : (
+                            'Create'
+                        )}
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => router.visit('/customer')}>
+
+                    <Button type="button" variant="secondary" onClick={() => router.visit('/customer')} disabled={isLoading}>
                         Cancel
                     </Button>
                 </div>
