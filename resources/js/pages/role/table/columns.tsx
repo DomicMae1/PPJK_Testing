@@ -18,7 +18,7 @@ export const columns = (onEditClick: (role: Role) => void, onDeleteClick: (id: n
         header: 'Permissions',
         cell: ({ row }) => {
             const permissions = row.original.permissions;
-            const maxPermissionsToShow = 4; // Batasi jumlah permission yang ditampilkan
+            const maxPermissionsToShow = 4;
 
             const displayedPermissions = permissions.slice(0, maxPermissionsToShow);
             const hasMorePermissions = permissions.length > maxPermissionsToShow;

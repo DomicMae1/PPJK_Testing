@@ -60,7 +60,6 @@ class User extends Authenticatable
                     ->withTimestamps();
     }
 
-    // Relasi perusahaan fleksibel (baru) lewat pivot
     public function companies(): BelongsToMany
     {
         return $this->belongsToMany(Perusahaan::class, 'perusahaan_user_roles', 'user_id', 'id_perusahaan')

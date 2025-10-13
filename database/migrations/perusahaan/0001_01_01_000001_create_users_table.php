@@ -19,7 +19,6 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
 
-            // Tambahkan ini untuk user biasa
             $table->unsignedBigInteger('id_perusahaan')->nullable();
             $table->foreign('id_perusahaan')->references('id')->on('perusahaan')->onDelete('set null');
 

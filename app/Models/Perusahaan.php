@@ -12,16 +12,12 @@ class Perusahaan extends Model
 
     protected $table = 'perusahaan';
 
-    protected $primaryKey = 'id'; // ⬅️ tambahkan ini
+    protected $primaryKey = 'id'; 
     public $incrementing = true;
     protected $keyType = 'int';
 
     protected $fillable = [
         'nama_perusahaan',
-        // 'id_User_1',
-        // 'id_User_2',
-        // 'id_User_3',
-        // 'id_User',
         'notify_1',
         'notify_2',
     ];
@@ -38,13 +34,11 @@ class Perusahaan extends Model
     {
         return $this->belongsTo(User::class, 'id_User_3');
     }
-    // Relasi ke user utama
     public function user()
     {
         return $this->belongsTo(User::class, 'id_User');
     }
 
-    // Relasi user fleksibel (baru) lewat pivot
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'perusahaan_user_roles', 'id_perusahaan', 'user_id')

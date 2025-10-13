@@ -18,7 +18,7 @@ class PerusahaanSeeder extends Seeder
 
         foreach ($perusahaans as $data) {
             Perusahaan::updateOrCreate(
-                ['nama_perusahaan' => $data['nama_perusahaan']], // ✅ gunakan kolom unik sebagai pencocokan
+                ['nama_perusahaan' => $data['nama_perusahaan']], 
                 [
                     'notify_1' => $data['notify_1'],
                 ]

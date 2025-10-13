@@ -74,12 +74,10 @@ class CustomerAttachController extends Controller
         ]);
 
         if ($request->hasFile('file')) {
-            // Hapus file lama
             if ($customerAttach->path && Storage::disk('public')->exists($customerAttach->path)) {
                 Storage::disk('public')->delete($customerAttach->path);
             }
 
-            // Simpan file baru
             $customerAttach->path = $request->file('file')->store('uploads/customer_attaches', 'public');
         }
 

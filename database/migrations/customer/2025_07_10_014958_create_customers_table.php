@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::connection('tako-customer')->create('customers', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedBigInteger('id_user');         // refer ke users di database tako-perusahaan
-            $table->unsignedBigInteger('id_perusahaan');   // refer ke perusahaan di database tako-perusahaan
+            $table->unsignedBigInteger('id_user');         
+            $table->unsignedBigInteger('id_perusahaan'); 
 
             $table->string('kategori_usaha');
             $table->string('nama_perusahaan');
@@ -32,12 +32,10 @@ return new class extends Migration
             $table->string('no_npwp')->nullable();
             $table->string('no_npwp_16')->nullable();
 
-            // data penanggung jawab / direktur
             $table->string('nama_pj');
             $table->string('no_ktp_pj');
             $table->string('no_telp_pj')->nullable();
 
-            // personal yg dihubungi
             $table->string('nama_personal');
             $table->string('jabatan_personal');
             $table->string('no_telp_personal')->nullable();

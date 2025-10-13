@@ -37,7 +37,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
     const [rowSelection, setRowSelection] = React.useState({});
 
-    // State untuk dialog create
     const [openCreate, setOpenCreate] = React.useState(false);
     const [roleName, setRoleName] = React.useState('');
     const [selectedPermissions, setSelectedPermissions] = React.useState<string[]>([]);
@@ -100,7 +99,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 </div>
 
                 <DataTableViewOptions table={table} />
-                {/* Ganti Link dengan Button untuk membuka dialog */}
                 <Button className="h-9" onClick={() => setOpenCreate(true)}>
                     Add Role
                 </Button>
@@ -142,7 +140,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
             </div>
             <DataTablePagination table={table} />
 
-            {/* Dialog untuk create role */}
             <Dialog open={openCreate} onOpenChange={setOpenCreate}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>

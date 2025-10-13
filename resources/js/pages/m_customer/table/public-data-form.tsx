@@ -72,17 +72,15 @@ export default function PublicCustomerForm({
         attachments: customer?.attachments || [],
     });
 
-    // 👇 1. Tambahkan state untuk tema, baca dari localStorage atau default ke 'light'
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
 
-    // 👇 2. Gunakan useEffect untuk mengubah class di <html> dan simpan ke localStorage
     useEffect(() => {
         const root = window.document.documentElement;
 
-        root.classList.remove('light', 'dark'); // Hapus kelas tema sebelumnya
-        root.classList.add(theme); // Tambahkan kelas tema yang baru
+        root.classList.remove('light', 'dark');
+        root.classList.add(theme);
 
-        localStorage.setItem('theme', theme); // Simpan pilihan tema
+        localStorage.setItem('theme', theme);
     }, [theme]);
 
     const toggleTheme = () => {
@@ -132,18 +130,18 @@ export default function PublicCustomerForm({
     useEffect(() => {
         if (isFilled) {
             alert('Form sudah diisi sebelumnya. Kamu tidak bisa mengedit data ini lagi.');
-            router.visit('/'); // atau router.replace() kalau pakai Next.js
+            router.visit('/');
         }
     }, [isFilled]);
 
     function formatNpwp16(input: string): string {
-        const raw = input.replace(/\D/g, ''); // Hanya angka
+        const raw = input.replace(/\D/g, '');
         const parts = [raw.slice(0, 4), raw.slice(4, 8), raw.slice(8, 12), raw.slice(12, 16)].filter(Boolean);
         return parts.join(' ');
     }
 
     function formatNpwp(input: string) {
-        const raw = input.replace(/\D/g, ''); // Hanya angka
+        const raw = input.replace(/\D/g, '');
         const parts = [raw.slice(0, 2), raw.slice(2, 5), raw.slice(5, 8), raw.slice(8, 9), raw.slice(9, 12), raw.slice(12, 15)].filter(Boolean);
         return parts
             .map((part, i) => {
@@ -177,7 +175,7 @@ export default function PublicCustomerForm({
                 id: 0,
                 customer_id: customer?.id ?? 0,
                 nama_file: file.fileName,
-                path: file.result, // HARUS berasal dari backend URL sebelumnya
+                path: file.result,
                 type,
             };
         }
@@ -192,146 +190,146 @@ export default function PublicCustomerForm({
         if (!data.kategori_usaha) {
             const message = 'Kategori usaha wajib dipilih';
             setErrors((prev) => ({ ...prev, kategori_usaha: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (data.kategori_usaha === 'lain2' && !lainKategori.trim()) {
             const message = 'Kategori lainnya wajib diisi';
             setErrors((prev) => ({ ...prev, lain_kategori: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.nama_perusahaan) {
             const message = 'Nama Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, nama_perusahaan: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.bentuk_badan_usaha) {
             const message = 'Bentuk badan usaha wajib dipilih';
             setErrors((prev) => ({ ...prev, bentuk_badan_usaha: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.alamat_lengkap || !data.alamat_lengkap.trim()) {
             const message = 'Alamat lengkap wajib diisi';
             setErrors((prev) => ({ ...prev, alamat_lengkap: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.kota || !data.kota.trim()) {
             const message = 'Kota wajib diisi';
             setErrors((prev) => ({ ...prev, kota: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_telp || data.no_telp.trim().length <= 3) {
             const message = 'No Telpon Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.alamat_penagihan || !data.alamat_penagihan.trim()) {
             const message = 'Alamat Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, alamat_penagihan: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.email || !data.email.trim()) {
             const message = 'Email Perusahaan wajib diisi';
             setErrors((prev) => ({ ...prev, email: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.top || !data.top.trim()) {
             const message = 'Term of Payment wajib diisi';
             setErrors((prev) => ({ ...prev, top: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.status_perpajakan) {
             const message = 'Status perpajakan wajib dipilih';
             setErrors((prev) => ({ ...prev, status_perpajakan: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_npwp || !data.no_npwp.trim()) {
             const message = 'Nomer NPWP wajib diisi';
             setErrors((prev) => ({ ...prev, no_npwp: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_npwp_16 || !data.no_npwp_16.trim()) {
             const message = 'Nomer NPWP 16 wajib diisi';
             setErrors((prev) => ({ ...prev, no_npwp_16: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.nama_pj || !data.nama_pj.trim()) {
             const message = 'Nama Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, nama_pj: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_ktp_pj || !data.no_ktp_pj.trim()) {
             const message = 'NIK Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, no_ktp_pj: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_telp_pj || data.no_telp_pj.trim().length <= 3) {
             const message = 'No Telp Direktur wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp_pj: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.nama_personal || !data.nama_personal.trim()) {
             const message = 'Nama Personal wajib diisi';
             setErrors((prev) => ({ ...prev, nama_personal: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.jabatan_personal || !data.jabatan_personal.trim()) {
             const message = 'Jabatan Personal wajib diisi';
             setErrors((prev) => ({ ...prev, jabatan_personal: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.no_telp_personal || data.no_telp_personal.trim().length <= 3) {
             const message = 'No Telp Personal wajib diisi';
             setErrors((prev) => ({ ...prev, no_telp_personal: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (!data.email_personal || !data.email_personal.trim()) {
             const message = 'Email Personal wajib diisi';
             setErrors((prev) => ({ ...prev, email_personal: message }));
-            alert(message); // ⬅️ alert ditambahkan
+            alert(message);
             return;
         }
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            return; // ⛔ STOP proses di sini!
+            return;
         }
 
         const hasExistingNpwp = customer?.attachments?.some((a) => a.type === 'npwp');
@@ -360,7 +358,6 @@ export default function PublicCustomerForm({
         try {
             const uploadedAttachments: Attachment[] = [];
 
-            // ✅ Upload NPWP
             if (npwpFile) {
                 const npwp = await uploadAttachment(npwpFile, 'npwp');
                 uploadedAttachments.push(npwp);
@@ -388,13 +385,10 @@ export default function PublicCustomerForm({
                 attachments: updatedAttachments,
             };
             if (!customer || !customer.id) {
-                // 🆕 CREATE
                 await axios
                     .post(route('customer.public.submit'), finalPayload)
                     .then((res) => {
-                        // ✅ Tampilkan alert, lalu reload halaman setelah ditutup
                         alert(res.data.message || '✅ Data berhasil disimpan!');
-                        window.location.reload(); // Refresh setelah alert ditutup
                     })
                     .catch((err) => {
                         console.error(err);
@@ -417,7 +411,6 @@ export default function PublicCustomerForm({
                             {customer ? 'Edit Data Customer' : 'Data Customer'} ({customer_name})
                         </h1>
 
-                        {/* 👇 TOMBOL TOGGLE TEMA */}
                         <Button variant="ghost" size="icon" onClick={toggleTheme} type="button">
                             {theme === 'light' ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
                             <span className="sr-only">Toggle theme</span>
@@ -426,7 +419,6 @@ export default function PublicCustomerForm({
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                             <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {/* Kategori Usaha */}
                                 <div className="w-full">
                                     <Label htmlFor="kategori_usaha">
                                         Kategori Usaha <span className="text-red-500">*</span>
@@ -457,7 +449,6 @@ export default function PublicCustomerForm({
                                         </SelectContent>
                                     </Select>
 
-                                    {/* Input tambahan muncul hanya jika pilih "lain-lain" */}
                                     {data.kategori_usaha === 'lain2' && (
                                         <div className="mt-2">
                                             <Label htmlFor="lain_kategori">Kategori Usaha Lainnya</Label>
@@ -493,7 +484,7 @@ export default function PublicCustomerForm({
                                     <Select
                                         value={data.bentuk_badan_usaha}
                                         onValueChange={(value) => {
-                                            setData('bentuk_badan_usaha', value); // kosongkan nilai utama, karena nanti user akan isi manual
+                                            setData('bentuk_badan_usaha', value);
 
                                             setErrors((prev) => ({
                                                 ...prev,
@@ -541,7 +532,7 @@ export default function PublicCustomerForm({
                                         Nomor Telp Perusahaan <span className="text-red-500">*</span>
                                     </Label>
                                     <PhoneInput
-                                        defaultCountry="id" // kode negara default: Indonesia
+                                        defaultCountry="id"
                                         value={data.no_telp?.toString() || ''}
                                         onChange={(phone) => setData('no_telp', phone)}
                                         inputClassName={cn(
@@ -651,7 +642,7 @@ export default function PublicCustomerForm({
                                     <input
                                         type="text"
                                         inputMode="numeric"
-                                        maxLength={19} // karena spasi: 4 + 1 + 4 + 1 + 4 + 1 + 4 = 19 total karakter
+                                        maxLength={19}
                                         id="no_npwp_16"
                                         value={data.no_npwp_16 ?? ''}
                                         onChange={(e) => setData('no_npwp_16', formatNpwp16(e.target.value))}
@@ -667,7 +658,6 @@ export default function PublicCustomerForm({
                             <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 <h1 className="mb-2 text-xl font-semibold">Data Direktur</h1>
                                 <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    {/* Data Direktur */}
                                     <div className="w-full">
                                         <Label htmlFor="nama_pj">
                                             Nama <span className="text-red-500">*</span>
@@ -702,7 +692,7 @@ export default function PublicCustomerForm({
                                             No. Telp. Direktur <span className="text-red-500">*</span>
                                         </Label>
                                         <PhoneInput
-                                            defaultCountry="id" // kode negara default: Indonesia
+                                            defaultCountry="id"
                                             value={data.no_telp_pj?.toString() || ''}
                                             onChange={(phone) => setData('no_telp_pj', phone)}
                                             inputClassName={cn(
@@ -719,7 +709,6 @@ export default function PublicCustomerForm({
                             <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 <h1 className="mb-2 text-xl font-semibold">Data Personal</h1>
                                 <div className="col-span-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                    {/* Data Direktur */}
                                     <div className="w-full">
                                         <Label htmlFor="nama_personal">
                                             Nama <span className="text-red-500">*</span>
@@ -747,7 +736,7 @@ export default function PublicCustomerForm({
                                             No. Telp. <span className="text-red-500">*</span>
                                         </Label>
                                         <PhoneInput
-                                            defaultCountry="id" // kode negara default: Indonesia
+                                            defaultCountry="id"
                                             value={data.no_telp_personal?.toString() || ''}
                                             onChange={(phone) => setData('no_telp_personal', phone)}
                                             inputClassName={cn(
@@ -774,7 +763,6 @@ export default function PublicCustomerForm({
                             <div className="col-span-3 mt-4">
                                 <h1 className="mb-2 text-xl font-semibold">Lampiran</h1>
 
-                                {/* 4 Dropzone Kolom */}
                                 <div className="col-span-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                                     <div className="w-full">
                                         <ResettableDropzone
@@ -815,7 +803,6 @@ export default function PublicCustomerForm({
 
                             <div className="col-span-3">
                                 <div className="w-full">
-                                    {/* Keterangan Tanggal dan Nama */}
                                     <p className="text-muted-foreground mt-2 text-sm">
                                         Diisi tanggal{' '}
                                         <strong>

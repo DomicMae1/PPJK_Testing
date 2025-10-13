@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Exceptions\UnauthorizedException;
-// use Spatie\LaravelPdf\Facades\Pdf;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Clegginabox\PDFMerger\PDFMerger;
@@ -54,7 +53,6 @@ class CustomerController extends Controller
                 $query->whereRaw('1 = 0');
             }
         } elseif ($user->hasRole(['manager', 'direktur', 'lawyer'])) {
-            // Ambil semua id_perusahaan dari tabel pivot perusahaan_user_roles
             $perusahaanIds = DB::connection('tako-perusahaan')
                 ->table('perusahaan_user_roles')
                 ->where('user_id', $user->id)
@@ -68,7 +66,6 @@ class CustomerController extends Controller
             }
         }
 
-        // Ambil hasil query
         $suppliers = $query->get();
 
         $customerData = $suppliers->map(function ($customer) {
@@ -100,7 +97,7 @@ class CustomerController extends Controller
             } else {
                 $tanggal = $status->created_at;
                 $label = 'diinput';
-                $userName = $customer->creator->name ?? '-'; // ini berarti customer yang mengisi
+                $userName = $customer->creator->name ?? '-';
             }
 
             return [
@@ -231,21 +228,19 @@ class CustomerController extends Controller
             $roles = $user->getRoleNames();
 
             if ($roles->contains('user')) {
-                // Ambil dari relasi langsung user
                 $idPerusahaan = $user->id_perusahaan;
             } elseif ($roles->contains('manager') || $roles->contains('direktur')) {
-                // Ambil dari input request
                 $idPerusahaan = $request->id_perusahaan;
             }
 
             $customer = Customer::create(array_merge($validated, [
                 'id_user' => $user->id,
-                'id_perusahaan' => $idPerusahaan, // ✅ ambil dari inputan user
+                'id_perusahaan' => $idPerusahaan,
             ]));
 
             if (!empty($validated['attachments'])) {
                 foreach ($validated['attachments'] as $attachment) {
-                    if (!str_starts_with($attachment['path'], 'blob:')) { // 👈 tambahkan ini
+                    if (!str_starts_with($attachment['path'], 'blob:')) {
                         CustomerAttach::create([
                             'customer_id' => $customer->id,
                             'nama_file' => $attachment['nama_file'],
@@ -281,8 +276,6 @@ class CustomerController extends Controller
     {
 
         DB::beginTransaction();
-
-        // dd($request->all());
 
         $validated = $request->validate([
             'kategori_usaha' => 'required|string',
@@ -327,7 +320,6 @@ class CustomerController extends Controller
         try {
             $userId = $request->input('user_id');
 
-            // Ambil customer_link yang aktif untuk user ini
             $link = CustomerLink::on('tako-perusahaan')
                 ->where('id_user', $userId)
                 ->whereNull('id_customer')
@@ -343,7 +335,7 @@ class CustomerController extends Controller
 
             $customer = Customer::create(array_merge($validated, [
                 'id_user' => $userId,
-                'id_perusahaan' => $id_perusahaan, // Atau ambil dari user table jika diperlukan
+                'id_perusahaan' => $id_perusahaan,
             ]));
 
 
@@ -371,7 +363,6 @@ class CustomerController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // ✅ UPDATE customer_links (tako-perusahaan)
             CustomerLink::on('tako-perusahaan')
                 ->where('id_user', $userId)
                 ->whereNull('id_customer')
@@ -399,18 +390,15 @@ class CustomerController extends Controller
     {
         $file = $request->file('file');
 
-        // Buat nama file unik
         $filename = time() . '_' . $file->getClientOriginalName();
 
-        // Simpan ke folder 'customers' di disk 'public'
         $path = $file->storeAs('customers', $filename, 'public');
 
-        // URL akses publik
-        $url = url(Storage::url($path)); // hasil: /storage/customers/filename.pdf
+        $url = url(Storage::url($path)); 
 
         return response()->json([
-            'path' => $url,            // untuk diakses di frontend (misal window.open)
-            'nama_file' => $filename,  // untuk ditampilkan di UI
+            'path' => $url,           
+            'nama_file' => $filename,
         ]);
     }
 
@@ -426,7 +414,6 @@ class CustomerController extends Controller
             throw UnauthorizedException::forPermissions(['view-master-customer']);
         }
 
-        // Load relasi attachments
         $customer->load('attachments');
 
         return Inertia::render('m_customer/table/view-data-form', [
@@ -448,11 +435,8 @@ class CustomerController extends Controller
 
         $customer->load('attachments');
 
-        // $attachment = $customer->attachments;
-
         return Inertia::render('m_customer/table/edit-data-form', [
             'customer' => $customer->load('attachments'),
-            // 'attachments' => $attachment,
         ]);
     }
 
@@ -513,10 +497,7 @@ class CustomerController extends Controller
 
             $customer->update($validated);
 
-            // Hapus attachment lama
             CustomerAttach::where('customer_id', $customer->id)->delete();
-
-            // Tambahkan attachment baru
             foreach ($validated['attachments'] as $attachment) {
                 CustomerAttach::create([
                     'customer_id' => $customer->id,
@@ -543,7 +524,6 @@ class CustomerController extends Controller
         try {
             DB::beginTransaction();
 
-            // Soft delete -> hanya isi deleted_at, tidak hapus permanen
             $customer->delete();
 
             DB::commit();
@@ -571,7 +551,6 @@ class CustomerController extends Controller
             Log::info("📁 Folder temp dibuat: {$tempDir}");
         }
 
-        // ✅ Generate PDF utama
         $mainPdfPath = "{$tempDir}/customer_{$customer->id}_main.pdf";
         $mainPdf = Pdf::loadView('pdf.customer', [
             'customer' => $customer,
@@ -579,7 +558,6 @@ class CustomerController extends Controller
         ])->setPaper('a4');
         file_put_contents($mainPdfPath, $mainPdf->output());
 
-        // ✅ Ambil PDF lampiran
         $attachmentPdfPaths = [];
 
         foreach ($customer->attachments as $attachment) {
@@ -608,7 +586,6 @@ class CustomerController extends Controller
             }
         }
 
-        // ✅ Merge PDF
         $mergedPath = "{$tempDir}/customer_{$customer->id}.pdf";
         try {
             $this->mergePdfsWithGhostscript(array_merge([$mainPdfPath], $attachmentPdfPaths), $mergedPath);
@@ -644,10 +621,7 @@ class CustomerController extends Controller
         $outputFile = '"' . str_replace('\\', '/', $outputPath) . '"';
         $cmd = "{$gsCmd} -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile={$outputFile} {$inputFiles}";
 
-        Log::info("📦 Jalankan Ghostscript: {$cmd}");
         exec($cmd . ' 2>&1', $output, $returnVar);
-        Log::info("📤 Output Ghostscript: " . implode("\n", $output));
-        Log::info("📥 Return code: {$returnVar}");
 
         if ($returnVar !== 0) {
             throw new \Exception("Ghostscript gagal menggabungkan PDF. Kode: {$returnVar}");
@@ -656,7 +630,6 @@ class CustomerController extends Controller
 
     public function showPublicForm($token)
     {
-        // Cari berdasarkan kolom 'token' (bukan 'link_customer')
         $link = CustomerLink::where('token', $token)->first();
 
         if (!$link) {
@@ -664,8 +637,7 @@ class CustomerController extends Controller
         }
 
         if ($link->is_filled) {
-            // Sudah diisi, redirect atau tampilkan pesan
-            return inertia('m_customer/table/filled-already'); // atau return view('already-filled')
+            return inertia('m_customer/table/filled-already');
         }
 
         Log::info('Link detail', [
@@ -712,17 +684,12 @@ class CustomerController extends Controller
             'nama_personal' => 'required|string',
             'jabatan_personal' => 'required|string',
             'email_personal' => 'required|email',
-            // tambahkan jika perlu: no_telp, website, dsb
         ]);
 
         $customer = Customer::create(array_merge($validated, [
-            'id_user' => $link->id_user, // ✅ pakai dari token
-            'id_perusahaan' => $link->id_perusahaan, // atau isi sesuai kebutuhan jika bisa diketahui
+            'id_user' => $link->id_user, 
+            'id_perusahaan' => $link->id_perusahaan, 
         ]));
-
-
-        // Opsional: Hapus link agar tidak bisa dipakai ulang
-        // $link->delete();
 
         return redirect('/')->with('success', 'Data berhasil dikirim.');
     }

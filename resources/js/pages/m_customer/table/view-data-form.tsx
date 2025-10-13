@@ -18,8 +18,6 @@ export default function PaymentsEdit() {
     const { props } = usePage();
     const { customer } = props as unknown as { customer: MasterCustomer };
 
-    // console.log(usePage().props);
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="View Customer" />

@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Attachment, MasterCustomer } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { File, SquareCheck, SquareX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function ViewCustomerForm({ customer }: { customer: MasterCustomer }) {
@@ -38,7 +37,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
     const { attachments } = props;
-    console.log('hasil data', props);
 
     const creatorId = customer?.id_user;
     const currentUserId = props.auth.user?.id;
@@ -75,7 +73,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             } catch (err) {
                 console.error('Gagal cek manager:', err);
             } finally {
-                setManagerChecked(true); // tunggu selesai dulu
+                setManagerChecked(true);
             }
         };
 
@@ -90,13 +88,11 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
     const showDirekturApprove =
         userRole === 'direktur' &&
-        ((!!statusData?.status_1_timestamps && !statusData?.status_2_timestamps) || // flow biasa
-            (managerChecked && !managerExists && !!statusData?.submit_1_timestamps && !statusData?.status_2_timestamps)); // fallback tanpa manager
+        ((!!statusData?.status_1_timestamps && !statusData?.status_2_timestamps) ||
+            (managerChecked && !managerExists && !!statusData?.submit_1_timestamps && !statusData?.status_2_timestamps));
 
     const showLawyerApprove =
-        userRole === 'lawyer' &&
-        (!!statusData?.status_1_timestamps || !!statusData?.submit_1_timestamps) && // bisa lewat manager atau langsung setelah user
-        !statusData?.status_3_timestamps;
+        userRole === 'lawyer' && (!!statusData?.status_1_timestamps || !!statusData?.submit_1_timestamps) && !statusData?.status_3_timestamps;
 
     const showSubmitForDirektur =
         managerChecked &&
@@ -104,10 +100,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         userRole === 'direktur' &&
         !!statusData?.submit_1_timestamps &&
         !statusData?.status_2_timestamps &&
-        !statusData?.status_3_timestamps; // hindari jika sudah selesai di lawyer
-
-    console.log('User role:', userRole);
-    console.log('berhasil', showExtraFields);
+        !statusData?.status_3_timestamps;
 
     const dropzoneAttach = useDropzone({
         onDropFile: async (file: File) => {
@@ -120,7 +113,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 result: URL.createObjectURL(file),
             } as const;
 
-            setAttachFileStatuses([fileStatus]); // Ganti jika user upload baru
+            setAttachFileStatuses([fileStatus]);
             return fileStatus;
         },
         validation: {
@@ -142,7 +135,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 result: URL.createObjectURL(file),
             } as const;
 
-            setAttachFileStatuses([fileStatus]); // ganti status untuk user
+            setAttachFileStatuses([fileStatus]);
             return fileStatus;
         },
         validation: {
@@ -176,10 +169,9 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 return;
             }
         } else {
-            setAttachmentError(null); // Reset error jika tidak ada masalah
+            setAttachmentError(null);
         }
 
-        // 1️⃣ Upload file ke /customer/upload-temp
         if (showExtraFields && attachFile) {
             try {
                 const formDataAttach = new FormData();
@@ -225,7 +217,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             }
         }
 
-        // Penambahan alur status otomatis berdasarkan creator
         if (creatorId === currentUserId && userRole === 'manager') {
             formData.append('submit_1_timestamps', now);
             formData.append('status_1_by', String(currentUserId));
@@ -245,7 +236,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         }
 
         if (userRole === 'lawyer' && decision) {
-            formData.append('status_3', decision); // 👈 hanya untuk lawyer
+            formData.append('status_3', decision);
         }
 
         router.post('/submit-customer-status', formData, {
@@ -267,9 +258,8 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
     const getPublicUrl = (relativePath: string | null | undefined): string => {
         if (!relativePath) {
-            return '#'; // Kembalikan link non-fungsional jika path kosong
+            return '#';
         }
-        // Gabungkan dengan base URL storage
         return `/storage/${relativePath}`;
     };
 
@@ -439,7 +429,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 </div>
             </div>
 
-            {/* TAMPILKAN ATTACHMENTS */}
             {attachments?.length > 0 && (
                 <div className="mt-6">
                     <h2 className="mb-2 text-xl font-bold">Lampiran Dokumen</h2>
@@ -447,7 +436,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                         className={`grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-${attachments.length >= 3 ? 3 : attachments.length} lg:grid-cols-${attachments.length >= 4 ? 4 : attachments.length}`}
                     >
                         {attachments.map((file) => {
-                            // ✅ Ganti label kalau SPPKP -> SPTKP
                             const label = file.type.toUpperCase() === 'SPPKP' ? 'SPTKP' : file.type.toUpperCase();
 
                             return (

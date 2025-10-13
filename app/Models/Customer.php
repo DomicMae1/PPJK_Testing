@@ -14,7 +14,7 @@ class Customer extends Model
 
     protected $connection = 'tako-customer';
     protected $table = 'customers';
-    protected $primaryKey = 'id'; // disesuaikan karena tabel menggunakan $table->id();
+    protected $primaryKey = 'id'; 
 
     protected $fillable = [
         'id_user',

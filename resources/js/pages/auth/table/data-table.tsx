@@ -39,7 +39,7 @@ interface Perusahaan {
 export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
     const { roles, companies } = usePage().props as unknown as {
         // const { roles, auth } = usePage().props as unknown as {
-        roles: Role[]; // Ubah tipe roles menjadi array of Role
+        roles: Role[]; 
         companies: Perusahaan[];
     };
 
@@ -48,17 +48,15 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
     const [rowSelection, setRowSelection] = React.useState({});
 
-    // State untuk dialog create
     const [openCreate, setOpenCreate] = React.useState(false);
     const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [passwordConfirmation, setPasswordConfirmation] = React.useState('');
-    const [selectedRole, setSelectedRole] = React.useState<string>(''); // Ubah tipe menjadi string karena Select mengharapkan string
+    const [selectedRole, setSelectedRole] = React.useState<string>(''); 
     const [selectedCompany, setSelectedCompany] = React.useState<string>('');
     const selectedRoleName = roles.find((role) => String(role.id) === selectedRole)?.name;
 
-    // State lokal untuk filter
     const [filterValue, setFilterValue] = React.useState('');
 
     const table = useReactTable({
@@ -80,21 +78,18 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         },
     });
 
-    // Sinkronkan filterValue dengan columnFilters
     React.useEffect(() => {
         table.getColumn('name')?.setFilterValue(filterValue);
     }, [filterValue, table]);
 
     const onSubmitCreate = (e: React.FormEvent) => {
-        e.preventDefault(); // Mencegah submit form default
+        e.preventDefault();
 
-        // Validasi semua field
         if (!name || !email || !password || !passwordConfirmation || !selectedRole) {
             console.error('All fields are required.');
             return;
         }
 
-        // Validasi password dan password_confirmation cocok
         if (password !== passwordConfirmation) {
             console.error('Password and password confirmation do not match.');
             return;
@@ -104,8 +99,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
             console.error('Perusahaan harus dipilih untuk role user.');
             return;
         }
-
-        console.log(selectedCompany);
 
         const data = {
             name,
@@ -188,13 +181,11 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
             </div>
             <DataTablePagination table={table} />
 
-            {/* Dialog untuk create user */}
             <Dialog
                 open={openCreate}
                 onOpenChange={(open) => {
                     setOpenCreate(open);
                     if (!open) {
-                        // Reset form saat dialog ditutup
                         setName('');
                         setEmail('');
                         setPassword('');

@@ -22,18 +22,16 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function ManageUsers() {
     const { users, roles } = usePage().props as unknown as { users: User[]; roles: Role[] };
     const [openDelete, setOpenDelete] = useState(false);
-    const [userIdToDelete, setUserIdToDelete] = useState<number | null>(null); // Ubah tipe menjadi number
+    const [userIdToDelete, setUserIdToDelete] = useState<number | null>(null);
     const [openEdit, setOpenEdit] = useState(false);
-    const [userIdToEdit, setUserIdToEdit] = useState<number | null>(null); // Ubah tipe menjadi number
+    const [userIdToEdit, setUserIdToEdit] = useState<number | null>(null);
     const [editName, setEditName] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [editRole, setEditRole] = useState<string>('');
 
     const userToDelete = users.find((u) => u.id === userIdToDelete);
-    // const userToEdit = users.find((u) => u.id === userIdToEdit);
 
     const onEditClick = (id: number) => {
-        // Ubah tipe parameter menjadi number
         const user = users.find((u) => u.id === id);
         if (user) {
             setUserIdToEdit(id);
@@ -45,14 +43,12 @@ export default function ManageUsers() {
     };
 
     const onDeleteClick = (id: number) => {
-        // Ubah tipe parameter menjadi number
         setUserIdToDelete(id);
         setOpenDelete(true);
     };
 
     const onConfirmDelete = () => {
         if (userIdToDelete !== null) {
-            // Ubah pengecekan karena userIdToDelete sekarang number
             router.delete(`/users/${userIdToDelete}`, {
                 onSuccess: () => {
                     setOpenDelete(false);
@@ -82,7 +78,6 @@ export default function ManageUsers() {
         };
 
         if (userIdToEdit !== null) {
-            // Ubah pengecekan karena userIdToEdit sekarang number
             router.put(`/users/${userIdToEdit}`, data, {
                 onSuccess: () => {
                     setOpenEdit(false);
@@ -113,7 +108,6 @@ export default function ManageUsers() {
                 <DataTable columns={columns(onDeleteClick, onEditClick)} data={users} />
             </div>
 
-            {/* Dialog untuk menghapus user */}
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
@@ -136,7 +130,6 @@ export default function ManageUsers() {
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog untuk mengedit user */}
             <Dialog
                 open={openEdit}
                 onOpenChange={(open) => {

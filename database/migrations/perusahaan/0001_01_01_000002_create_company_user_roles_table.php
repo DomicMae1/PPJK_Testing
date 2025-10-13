@@ -17,7 +17,6 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->string('role');
 
-            // ✅ Sesuaikan nama tabel dan nama kolom FK dengan yang benar
             $table->foreign('id_perusahaan')->references('id')->on('perusahaan')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
 

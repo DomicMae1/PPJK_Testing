@@ -8,19 +8,19 @@ use App\Models\Customer;
 
 class CustomerLink extends Model
 {
-    protected $connection = 'tako-perusahaan'; // koneksi yang digunakan
+    protected $connection = 'tako-perusahaan'; 
     protected $table = 'customer_links';
-    protected $primaryKey = 'id_link'; // sesuai dengan migration
+    protected $primaryKey = 'id_link'; 
 
     protected $fillable = [
         'id_user',
         'id_perusahaan',
-        'id_customer',       // ✅ kolom relasi ke tabel customers
-        'token',             // ✅ token acak, unik
-        'url',             // ✅ url
-        'nama_customer',     // ✅ input dari marketing
-        'is_filled',         // ✅ boolean apakah sudah diisi
-        'filled_at',         // ✅ waktu saat diisi
+        'id_customer',     
+        'token',            
+        'url',       
+        'nama_customer',    
+        'is_filled',       
+        'filled_at', 
     ];
 
     protected $casts = [

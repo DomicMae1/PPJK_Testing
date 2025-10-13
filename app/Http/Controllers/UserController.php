@@ -24,13 +24,11 @@ class UserController extends Controller
     {
         $user = Auth::user();
 
-        // Hanya izinkan akses jika user memiliki role 'admin'
         if (!$user->hasRole('admin')) {
             abort(403, 'Unauthorized access. Only admin can access this page.');
         }
 
         $users = User::with('roles')->get();
-        // $roles = Role::all()->pluck('name'); // Ambil semua role
         $roles = Role::all(['id', 'name']);
 
         return Inertia::render('auth/page', [
@@ -45,7 +43,7 @@ class UserController extends Controller
      */
     public function create()
     {
-        // return Inertia::render('auth/register');
+        // 
     }
 
     /**
@@ -53,12 +51,11 @@ class UserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        // dd($request);
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => 'required|exists:roles,id', // Validasi role harus ada di tabel roles
+            'role' => 'required|exists:roles,id',
             'id_perusahaan' => 'nullable|exists:perusahaan,id',
         ]);
 
@@ -71,7 +68,7 @@ class UserController extends Controller
 
         Log::info('Request Data:', $request->all());
 
-        $role = Role::find($request->role); // Cari role berdasarkan ID
+        $role = Role::find($request->role);
         $user->assignRole($role);
 
         return redirect()->route('users.index')->with('message', 'User created successfully.');

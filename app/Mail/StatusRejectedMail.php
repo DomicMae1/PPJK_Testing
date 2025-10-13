@@ -36,7 +36,6 @@ class StatusRejectedMail extends Mailable
         $email = $this->subject('Status Ditolak oleh ' . $this->sender->name)
             ->view('emails.status_rejected');
 
-        // Cek apakah ada file terlampir
         if ($this->status->submit_3_path) {
             $path = storage_path('app/public/' . $this->status->submit_3_path);
 
@@ -52,11 +51,10 @@ class StatusRejectedMail extends Mailable
 
         if ($customerId) {
             $files = CustomerAttach::where('customer_id', $customerId)
-                ->whereIn('type', ['npwp', 'nib', 'ktp', 'sppkp']) // atau sesuai kebutuhan
+                ->whereIn('type', ['npwp', 'nib', 'ktp', 'sppkp'])
                 ->get();
 
             foreach ($files as $file) {
-                // Jika $file adalah array (hasil dari $files->toArray())
                 $filePathUrl = $file->path;
 
                 $parsedPath = parse_url($filePathUrl, PHP_URL_PATH);
@@ -67,7 +65,7 @@ class StatusRejectedMail extends Mailable
                     $filename = ($file->type ?? 'lampiran') . '_' . ($file->nama_file ?? 'file.pdf');
 
                     $email->attach($localPath, [
-                        'as' => $filename ?: 'file_customer.pdf', // fallback jika $filename null
+                        'as' => $filename ?: 'file_customer.pdf', 
                         'mime' => 'application/pdf',
                     ]);
                 }

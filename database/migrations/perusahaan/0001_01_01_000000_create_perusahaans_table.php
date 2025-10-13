@@ -15,10 +15,6 @@ return new class extends Migration
             $table->id();
             $table->string('nama_perusahaan');
 
-            // $table->unsignedBigInteger('id_User_1')->nullable();
-            // $table->unsignedBigInteger('id_User_2')->nullable();
-            // $table->unsignedBigInteger('id_User_3')->nullable();
-
             $table->string('notify_1')->nullable();
             $table->string('notify_2')->nullable();
 

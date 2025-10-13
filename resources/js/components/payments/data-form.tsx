@@ -48,14 +48,12 @@ export default function FormPayments({ payment }: { payment: Payment }) {
         const formattedAmount = values.amount.replace(/\./g, '');
 
         if (payment?.id) {
-            // Jika ada ID, lakukan update
             router.put(route('payments.update', payment.id), {
                 email: values.email,
                 amount: formattedAmount,
                 status: values.status,
             });
         } else {
-            // Jika tidak ada ID, lakukan create
             router.post(route('payments.store'), {
                 email: values.email,
                 amount: formattedAmount,

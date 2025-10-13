@@ -27,11 +27,6 @@ const downloadPdf = (id: number) => {
 };
 
 export const columns = (): ColumnDef<MasterCustomer>[] => {
-    const { props } = usePage();
-    console.log('Tes', usePage().props);
-    const userRole = props.auth?.user?.roles?.[0]?.name ?? '';
-    console.log(userRole);
-
     if (typeof window !== 'undefined') {
         const hasReloaded = localStorage.getItem('hasReloadedCustomerPage');
 
@@ -87,7 +82,6 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
 
                 const isInput = label === 'diinput';
 
-                // Format tanggal
                 const dateObj = new Date(tanggal);
                 const tanggalFormat = dateObj
                     .toLocaleDateString('id-ID', {
@@ -95,7 +89,7 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                         month: '2-digit',
                         year: 'numeric',
                     })
-                    .replace(/\./g, '/'); // jaga2 kalau ada titik dari locale
+                    .replace(/\./g, '/');
 
                 const jamMenit = dateObj
                     .toLocaleTimeString('id-ID', {
@@ -149,7 +143,6 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             filterFn: (row, columnId, filterValue) => {
                 const raw = row.getValue(columnId);
 
-                // Normalisasi: jadikan null jika value kosong string, string 'null', atau undefined
                 const value = raw === null || raw === undefined || raw === '' || raw === 'null' ? null : raw;
 
                 if (filterValue === 'sudah') return value !== null;
@@ -164,10 +157,8 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                 const { auth } = usePage().props as { auth: Auth };
                 const currentUser = auth.user;
 
-                // Ambil role user yang sedang login
                 const currentUserRole = currentUser.roles?.[0]?.name;
 
-                // 👇 LOGIKA BARU YANG LEBIH ANDAL
                 const canEdit =
                     !customer.submit_1_timestamps && // 1. Belum pernah disubmit
                     (customer.user_id === currentUser.id || // 2. Dibuat oleh user yang sama (jika user_id ada)
@@ -190,7 +181,6 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                                         <DropdownMenuItem>View Customer</DropdownMenuItem>
                                     </Link>
 
-                                    {/* Tombol Edit hanya muncul jika 'canEdit' true */}
                                     {canEdit && (
                                         <Link href={`/customer/${customer.id}/edit`}>
                                             <DropdownMenuItem>Edit Customer</DropdownMenuItem>
@@ -216,7 +206,6 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                     );
                 }
 
-                // Tampilan Mobile/Tablet (Drawer)
                 return (
                     <div className="flex justify-end">
                         <Drawer>

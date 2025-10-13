@@ -27,12 +27,11 @@ interface User {
     name: string;
 }
 
-// 👇 1. Tambahkan id_User ke dalam FormState
 interface FormState {
     nama_perusahaan: string;
-    id_User_1: string; // Manager
-    id_User_2: string; // Direktur
-    id_User_3: string; // Lawyer
+    id_User_1: string;
+    id_User_2: string;
+    id_User_3: string;
     notify_1: string;
     notify_2?: string;
 }
@@ -53,7 +52,6 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
     const { props } = usePage<{ users: User[] }>();
     const users = props.users ?? [];
 
-    // 👇 2. Tambahkan id_User ke state awal
     const [form, setForm] = useState<FormState>({
         nama_perusahaan: '',
         id_User_1: '',
@@ -67,7 +65,6 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
         router.post('/perusahaan', form as Record<string, any>, {
             onSuccess: () => {
                 setOpenCreate(false);
-                // 👇 3. Reset id_User setelah sukses
                 setForm({
                     nama_perusahaan: '',
                     id_User_1: '',
@@ -106,7 +103,6 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
         },
     });
 
-    // 👇 4. Buat array untuk mempermudah mapping form
     const userRoles = [
         { key: 'id_User_1', label: 'Manager' },
         { key: 'id_User_2', label: 'Direktur' },
@@ -178,7 +174,6 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                             />
                         </div>
 
-                        {/* 👇 5. Gunakan grid 2x2 dan mapping dari array userRoles */}
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             {userRoles.map(({ key, label }) => (
                                 <div key={key}>

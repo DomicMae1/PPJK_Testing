@@ -12,9 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::connection('tako-perusahaan')->create('customer_links', function (Blueprint $table) {
-            $table->id('id_link'); // Primary key
+            $table->id('id_link'); 
 
-            // FK ke tabel users (marketing/user yang buat link)
             $table->unsignedBigInteger('id_perusahaan');
             $table->foreign('id_perusahaan')->references('id')->on('perusahaan')->onDelete('cascade');
             $table->unsignedBigInteger('id_user');
@@ -23,17 +22,16 @@ return new class extends Migration
                 ->on('users')
                 ->onDelete('cascade');
 
-            // FK ke tabel customers, nullable karena belum tentu diisi langsung
             $table->unsignedBigInteger('id_customer')->nullable();
 
-            $table->string('token')->unique(); // token acak (hash, unik)
+            $table->string('token')->unique();
             $table->string('url')->nullable();
-            $table->string('nama_customer');   // nama input dari marketing
+            $table->string('nama_customer'); 
 
-            $table->boolean('is_filled')->default(false);  // status apakah sudah diisi
-            $table->timestamp('filled_at')->nullable();    // waktu ketika diisi
+            $table->boolean('is_filled')->default(false); 
+            $table->timestamp('filled_at')->nullable();  
 
-            $table->timestamps(); // created_at & updated_at
+            $table->timestamps(); 
         });
     }
 

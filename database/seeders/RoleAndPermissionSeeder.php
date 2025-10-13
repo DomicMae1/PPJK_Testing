@@ -37,12 +37,10 @@ class RoleAndPermissionSeeder extends Seeder
             Permission::firstOrCreate(['name' => $perm]);
         }
 
-        // Daftar model yang akan memiliki permission
         $models = [
             'master-customer',
         ];
 
-        // Daftar action yang akan diterapkan pada setiap model
         $actions = [
             'create',
             'update',
@@ -50,7 +48,6 @@ class RoleAndPermissionSeeder extends Seeder
             'view',
         ];
 
-        // Buat permission secara dinamis
         foreach ($models as $model) {
             foreach ($actions as $action) {
                 $permissionName = "{$action}-{$model}";
@@ -58,16 +55,13 @@ class RoleAndPermissionSeeder extends Seeder
             }
         }
 
-        // Create roles
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         $lawyerRole = Role::firstOrCreate(['name' => 'lawyer']);
         $editorRole = Role::firstOrCreate(['name' => 'manager']);
         $userRole = Role::firstOrCreate(['name' => 'user']);
 
-        // Admin: semua
         $adminRole->syncPermissions(Permission::all());
 
-        // Manager
         $editorRole->syncPermissions([
             'create-master-customer',
             'view-master-customer',
@@ -76,7 +70,6 @@ class RoleAndPermissionSeeder extends Seeder
             'create-email-manager-master-customer',
         ]);
 
-        // Direktur
         $direkturRole = Role::firstOrCreate(['name' => 'direktur']);
         $direkturRole->syncPermissions([
             'create-master-customer',
@@ -86,7 +79,6 @@ class RoleAndPermissionSeeder extends Seeder
             'create-email-direktur-master-customer',
         ]);
 
-        // Lawyer
         $lawyerRole->syncPermissions([
             'view-master-customer',
             'view-lawyer-master-customer',
@@ -94,7 +86,6 @@ class RoleAndPermissionSeeder extends Seeder
             'create-email-lawyer-master-customer',
         ]);
 
-        // User: terbatas
         $userRole->syncPermissions([
             'create-master-customer',
             'update-master-customer',

@@ -50,14 +50,11 @@ class HandleInertiaRequests extends Middleware
 
                     $user->load(['roles', 'perusahaan', 'companies']);
 
-                    // Default perusahaan: dari kolom id_perusahaan
                     $perusahaan = $user->perusahaan;
 
-                    // Cek role jika perusahaan masih null
                     if (!$perusahaan && $user->companies->isNotEmpty()) {
                         $roleNames = $user->roles->pluck('name')->toArray();
 
-                        // Jika role-nya manager atau direktur, ambil perusahaan dari pivot
                         if (in_array('manager', $roleNames) || in_array('direktur', $roleNames)) {
                             $perusahaan = $user->companies->first();
                         }

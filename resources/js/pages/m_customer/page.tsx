@@ -18,8 +18,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function MasterCustomerPage() {
     const { customers, flash } = usePage().props as unknown as { customers: MasterCustomer[]; flash: { success?: string; error?: string } };
 
-    // console.log(usePage().props);
-
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success);
@@ -56,7 +54,6 @@ export default function MasterCustomerPage() {
                 <DataTable columns={columns(onDeleteClick)} data={customers} />
             </div>
 
-            {/* Dialog untuk menghapus supplier */}
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>

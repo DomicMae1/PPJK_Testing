@@ -97,12 +97,11 @@ class CustomersStatusController extends Controller
 
     public function submit(Request $request)
     {
-        // dd($request);
 
         $request->validate([
             'customer_id' => 'required|exists:customers_statuses,id_Customer',
             'keterangan' => 'nullable|string',
-            'attach' => 'nullable|file|mimes:pdf|max:5120', // max 5MB
+            'attach' => 'nullable|file|mimes:pdf|max:5120',
             'submit_1_timestamps' => 'nullable|date',
             'status_1_timestamps' => 'nullable|date',
             'status_2_timestamps' => 'nullable|date',
@@ -131,7 +130,7 @@ class CustomersStatusController extends Controller
 
         $user = Auth::user();
         $userId = $user->id;
-        $role = $user->getRoleNames()->first(); // Ambil role pertama user
+        $role = $user->getRoleNames()->first();
         $now = Carbon::now();
         $nama = $user->name;
 
@@ -139,7 +138,6 @@ class CustomersStatusController extends Controller
             $status->submit_1_timestamps = $request->input('submit_1_timestamps');
         }
 
-        // ✅ Tambahan jika status_1_timestamps dan status_2_timestamps dikirim (otomatis dari frontend)
         if ($request->filled('status_1_timestamps')) {
             $status->status_1_timestamps = $request->input('status_1_timestamps');
             $status->status_1_by = $userId;
@@ -150,7 +148,6 @@ class CustomersStatusController extends Controller
             $status->status_2_by = $userId;
         }
 
-        // Handle attachment
         $filename = null;
         if ($request->hasFile('attach')) {
             $file = $request->file('attach');
@@ -196,17 +193,14 @@ class CustomersStatusController extends Controller
                     $status->submit_3_path = $path;
                 }
 
-                // Tambahan: simpan status_3 jika dikirim
                 if ($request->has('status_3')) {
                     $validStatuses = ['approved', 'rejected'];
                     $statusValue = strtolower($request->status_3);
 
-                    // ✅ Simpan status_3 ke database
                     if (in_array($statusValue, $validStatuses)) {
                         $status->status_3 = $statusValue;
                     }
 
-                    // Kirim email jika rejected
                     if ($statusValue === 'rejected') {
                         $validEmails = collect($emailsToNotify)
                             ->map(fn($email) => trim($email))
@@ -231,7 +225,6 @@ class CustomersStatusController extends Controller
                 return back()->with('error', 'Role tidak dikenali.');
         }
 
-        // ✅ Logging untuk audit trail
         Log::info("Submit oleh {$nama} ({$role})", [
             'customer_id' => $request->customer_id,
             'timestamp' => $now->toDateTimeString(),

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->string('nama_file');
             $table->string('path');
-            $table->string('type'); // e.g. 'npwp', 'sppkp', 'ktp'
+            $table->string('type'); 
             $table->softDeletes();
             $table->timestamps();
         });

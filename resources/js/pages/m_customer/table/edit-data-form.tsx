@@ -18,8 +18,6 @@ export default function EditCustomer() {
     const { props } = usePage();
     const { customer, auth, attachments } = props as unknown as { customer: MasterCustomer; auth: Auth; attachments: Attachment };
 
-    console.log(usePage().props);
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Edit Customer" />

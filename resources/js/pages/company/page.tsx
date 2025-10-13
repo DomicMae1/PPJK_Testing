@@ -18,12 +18,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-// Sesuaikan interface dengan snake_case dari backend
 interface FormState {
     nama_perusahaan: string;
-    id_User_1: string; // manager
-    id_User_2: string; // direktur
-    id_User_3: string; // lawyer
+    id_User_1: string;
+    id_User_2: string;
+    id_User_3: string;
     notify_1: string;
     notify_2: string;
 }
@@ -50,15 +49,12 @@ export default function ManageCompany() {
     const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
     const [companyIdToDelete, setCompanyIdToDelete] = useState<number | null>(null);
 
-    console.log(usePage().props);
-
     const userRoles = [
         { key: 'id_User_1', label: 'Manager' },
         { key: 'id_User_2', label: 'Direktur' },
         { key: 'id_User_3', label: 'Lawyer' },
     ];
 
-    // Handle perubahan select
     const handleUserChange = (field: keyof FormState, value: string) => {
         setForm((prev) => ({
             ...prev,
@@ -79,18 +75,15 @@ export default function ManageCompany() {
         }));
     };
 
-    // Fungsi untuk mereset form dan menutup dialog
     const resetFormAndClose = () => {
         setForm(initialFormState);
         setSelectedCompany(null);
         setOpenForm(false);
     };
 
-    // --- FUNGSI INI DIPERBAIKI ---
     const onEditClick = (company: any) => {
         setSelectedCompany(company);
 
-        // ✅ Cari role masing-masing
         const manager = company.users.find((u: any) => u.pivot.role === 'manager');
         const direktur = company.users.find((u: any) => u.pivot.role === 'direktur');
         const lawyer = company.users.find((u: any) => u.pivot.role === 'lawyer');
@@ -115,13 +108,12 @@ export default function ManageCompany() {
     const onConfirmDelete = () => {
         if (companyIdToDelete) {
             router.delete(`/perusahaan/${companyIdToDelete}`, {
-                preserveScroll: true, // biar nggak balik ke atas
+                preserveScroll: true,
                 onSuccess: () => {
                     setOpenDelete(false);
                     setCompanyIdToDelete(null);
                     toast.success('Perusahaan berhasil dihapus');
 
-                    // ✅ reload halaman supaya data terbaru ditarik dari server
                     router.reload({ only: ['companies'] });
                 },
                 onError: () => {
@@ -133,7 +125,6 @@ export default function ManageCompany() {
 
     const onSubmit = (e: FormEvent) => {
         e.preventDefault();
-        // Backend mengharapkan string, jadi tidak perlu di-split
         const data = {
             ...form,
             ...(selectedCompany ? { id_perusahaan: selectedCompany.id } : {}),
@@ -146,7 +137,6 @@ export default function ManageCompany() {
                     resetFormAndClose();
                     toast.success('Perusahaan berhasil diperbarui');
 
-                    // ✅ reload hanya data companies
                     router.reload({ only: ['companies'] });
                 },
                 onError: (errors) => {
@@ -161,7 +151,6 @@ export default function ManageCompany() {
                     resetFormAndClose();
                     toast.success('Perusahaan berhasil ditambahkan');
 
-                    // ✅ reload hanya data companies
                     router.reload({ only: ['companies'] });
                 },
                 onError: (errors) => {
@@ -179,7 +168,6 @@ export default function ManageCompany() {
                 <DataTable columns={columns(onEditClick, onDeleteClick)} data={companies} />
             </div>
 
-            {/* Dialog Hapus */}
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent>
                     <DialogHeader>
@@ -197,7 +185,6 @@ export default function ManageCompany() {
                 </DialogContent>
             </Dialog>
 
-            {/* --- DIALOG FORM INI DIPERBAIKI --- */}
             <Dialog open={openForm} onOpenChange={(isOpen) => !isOpen && resetFormAndClose()}>
                 <DialogContent>
                     <form onSubmit={onSubmit}>
@@ -217,7 +204,6 @@ export default function ManageCompany() {
                                 />
                             </div>
 
-                            {/* 🔽 Dropdown user roles */}
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 {userRoles.map(({ key, label }) => (
                                     <div key={key}>

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'; // pastikan path sesuai
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -46,7 +46,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [generatedLink, setGeneratedLink] = useState('');
     const [statusFilter, setStatusFilter] = useState<'sudah' | 'belum' | ''>('');
 
-    // State lokal untuk filter
     const [filterColumn, setFilterColumn] = useState<'nama_customer' | 'nama_user' | 'nama_perusahaan'>('nama_perusahaan');
     const [filterValue, setFilterValue] = useState('');
     const [selectedPerusahaanId, setSelectedPerusahaanId] = useState<string>('');
@@ -70,7 +69,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         },
     });
 
-    // Sinkronkan filterValue dengan columnFilters
     useEffect(() => {
         const column = table.getColumn(filterColumn);
         if (column) {
@@ -85,7 +83,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         if (statusFilter === 'sudah' || statusFilter === 'belum') {
             column.setFilterValue(statusFilter);
         } else {
-            column.setFilterValue(undefined); // 'all' atau kosong
+            column.setFilterValue(undefined);
         }
     }, [statusFilter, table]);
 
@@ -114,7 +112,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 token,
                 id_perusahaan,
             });
-            console.log(id_perusahaan);
 
             setGeneratedLink(res.data.link);
             setIsNameDialogOpen(false);
@@ -233,7 +230,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 </Table>
             </div>
             <DataTablePagination table={table} />
-            {/* Dialog input nama */}
             <Dialog open={isNameDialogOpen} onOpenChange={setIsNameDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -270,7 +266,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog tampilkan link */}
             <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
                 <DialogContent>
                     <DialogHeader>

@@ -68,11 +68,9 @@ export default function ManageRoles() {
         const modelPermissions = permissions[model];
 
         if (checked) {
-            // Tambahkan semua permission model
             const newPermissions = Array.from(new Set([...selectedPermissions, ...modelPermissions]));
             setSelectedPermissions(newPermissions);
         } else {
-            // Hapus semua permission model
             const newPermissions = selectedPermissions.filter((perm) => !modelPermissions.includes(perm));
             setSelectedPermissions(newPermissions);
         }
@@ -139,7 +137,6 @@ export default function ManageRoles() {
                 <DataTable columns={columns(onEditClick, onDeleteClick)} data={roles} />
             </div>
 
-            {/* Dialog untuk menghapus role */}
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent className="max-w-[90vw] sm:max-w-md">
                     <DialogHeader>
@@ -159,7 +156,6 @@ export default function ManageRoles() {
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog untuk menambah/mengedit role */}
             <Dialog open={openForm} onOpenChange={setOpenForm}>
                 <DialogContent className="max-w-[90vw] sm:max-w-md md:max-w-lg">
                     <DialogHeader>

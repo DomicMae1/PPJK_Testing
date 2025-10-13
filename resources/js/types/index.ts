@@ -56,8 +56,8 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
-    [key: string]: unknown; // This allows for additional properties...
-    roles: { name: string }[]; // 👈 Pastikan ini adalah array objek
+    [key: string]: unknown;
+    roles: { name: string }[];
     companies: { id: number; nama_perusahaan: string }[];
 }
 

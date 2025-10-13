@@ -6,15 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Customers_Status extends Model
 {
-    protected $connection = 'tako-perusahaan'; // koneksi khusus
+    protected $connection = 'tako-perusahaan';
 
-    protected $table = 'customers_statuses';   // nama tabel
+    protected $table = 'customers_statuses'; 
 
-    protected $primaryKey = 'id_Customer';     // primary key khusus
+    protected $primaryKey = 'id_Customer';     
 
-    public $incrementing = true;               // auto-increment
+    public $incrementing = true;              
 
-    protected $keyType = 'int';                // tipe primary key
+    protected $keyType = 'int';             
 
     protected $fillable = [
         'id_user',
@@ -53,13 +53,11 @@ class Customers_Status extends Model
         'updated_at',
     ];
 
-    // Relasi ke user (yang menginput/submit)
     public function user()
     {
         return $this->belongsTo(User::class, 'id_user');
     }
 
-    // (Opsional) Relasi ke customer, jika id_Customer juga merupakan FK
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'id_Customer');
@@ -70,7 +68,6 @@ class Customers_Status extends Model
         return $this->belongsTo(User::class, 'id_user');
     }
 
-    // Relasi ke user yang menyetujui status 1
     public function status1Approver()
     {
         return $this->belongsTo(User::class, 'status_1_by');

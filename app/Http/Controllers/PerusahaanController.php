@@ -17,7 +17,6 @@ class PerusahaanController extends Controller
     {
         $user = Auth::user();
 
-        // Hanya izinkan akses jika user memiliki role 'admin'
         if (!$user->hasRole('admin')) {
             abort(403, 'Unauthorized access. Only admin can access this page.');
         }
@@ -53,32 +52,28 @@ class PerusahaanController extends Controller
             'id_User_1' => 'nullable|integer|exists:users,id',
             'id_User_2' => 'nullable|integer|exists:users,id',
             'id_User_3' => 'nullable|integer|exists:users,id',
-            'id_User' => 'nullable|integer|exists:users,id', // Validasi sudah ada, bagus!
+            'id_User' => 'nullable|integer|exists:users,id',
             'notify_1' => 'nullable|string',
             'notify_2' => 'nullable|string',
         ]);
 
-        // Ambil hanya field yang ada di tabel perusahaan
         $perusahaanData = collect($validated)->only([
             'nama_perusahaan',
             'notify_1',
             'notify_2'
         ])->toArray();
 
-        // Buat perusahaan
         $perusahaan = Perusahaan::create($perusahaanData);
 
-        // 👇 1. Tambahkan 'id_User' ke dalam array userRoles
         $userRoles = [
             $validated['id_User_1'] ?? null => 'manager',
             $validated['id_User_2'] ?? null => 'direktur',
             $validated['id_User_3'] ?? null => 'lawyer',
-            $validated['id_User']   ?? null => 'user', // Tambahkan user/marketing di sini
+            $validated['id_User']   ?? null => 'user', 
         ];
 
         foreach ($userRoles as $userId => $role) {
             if ($userId) {
-                // Gunakan attach pada relasi untuk memasukkan ke tabel pivot
                 $perusahaan->users()->attach($userId, ['role' => $role]);
 
                  User::where('id', $userId)->update([
@@ -86,9 +81,6 @@ class PerusahaanController extends Controller
             ]);
             }
         }
-
-        // 👇 2. Hapus blok 'creator' yang lama karena sudah ditangani di atas
-        // if (!empty($validated['id_User'])) { ... }
 
         return back()->with('success', 'Perusahaan berhasil ditambahkan.');
     }
@@ -120,26 +112,24 @@ class PerusahaanController extends Controller
     {
         $validated = $request->validate([
             'nama_perusahaan' => 'required|string|max:255',
-            'id_User'   => 'nullable|integer|exists:users,id',   // user/marketing
-            'id_User_1' => 'nullable|integer|exists:users,id',   // manager
-            'id_User_2' => 'nullable|integer|exists:users,id',   // direktur
-            'id_User_3' => 'nullable|integer|exists:users,id',   // lawyer
+            'id_User'   => 'nullable|integer|exists:users,id',   
+            'id_User_1' => 'nullable|integer|exists:users,id', 
+            'id_User_2' => 'nullable|integer|exists:users,id', 
+            'id_User_3' => 'nullable|integer|exists:users,id', 
             'notify_1'  => 'nullable|string',
             'notify_2'  => 'nullable|string',
         ]);
 
-        // Update data perusahaan
         $perusahaan->update([
             'nama_perusahaan' => $validated['nama_perusahaan'],
             'notify_1'        => $validated['notify_1'] ?? null,
             'notify_2'        => $validated['notify_2'] ?? null,
         ]);
 
-        // Siapkan sync role baru
         $syncData = [];
 
         if (!empty($validated['id_User'])) {
-            $syncData[$validated['id_User']] = ['role' => 'user']; // atau 'creator' kalau memang pakai itu
+            $syncData[$validated['id_User']] = ['role' => 'user']; 
         }
         if (!empty($validated['id_User_1'])) {
             $syncData[$validated['id_User_1']] = ['role' => 'manager'];
@@ -151,7 +141,6 @@ class PerusahaanController extends Controller
             $syncData[$validated['id_User_3']] = ['role' => 'lawyer'];
         }
 
-        // Sync ulang user-role (hapus yang lama & isi yang baru)
         $perusahaan->users()->sync($syncData);
 
         return redirect()
@@ -164,13 +153,10 @@ class PerusahaanController extends Controller
      */
     public function destroy(Perusahaan $perusahaan)
     {
-        // Hapus relasi user-role terlebih dahulu
         $perusahaan->users()->detach();
 
-        // Hapus data perusahaan
         $perusahaan->delete();
 
-        // Kembalikan redirect dengan flash message agar Inertia bisa tangkap
         return redirect()
             ->back()
             ->with('success', 'Perusahaan berhasil dihapus');

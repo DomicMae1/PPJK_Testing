@@ -7,7 +7,7 @@ import { MoreHorizontal } from 'lucide-react';
 
 export const columns = (
     onDeleteClick: (id: number) => void,
-    onEditClick: (id: number) => void, // Tambahkan parameter onEditClick
+    onEditClick: (id: number) => void,
 ): ColumnDef<User>[] => [
     {
         accessorKey: 'name',

@@ -47,7 +47,7 @@ class CustomerLinkController extends Controller
         $validated = $request->validate([
             'nama_customer' => 'required|string|max:255',
             'token' => 'nullable|string|max:255|unique:customer_links,token',
-            'id_perusahaan' => 'nullable|integer', // validasi dilakukan manual di bawah
+            'id_perusahaan' => 'nullable|integer',
         ]);
 
         $token = $validated['token'] ?? Str::random(12);
@@ -57,20 +57,17 @@ class CustomerLinkController extends Controller
         $id_perusahaan = null;
 
         if ($role === 'user') {
-            // Ambil dari kolom users.id_perusahaan
             $id_perusahaan = $user->id_perusahaan;
             if (!$id_perusahaan) {
                 return response()->json(['message' => 'User tidak memiliki ID perusahaan.'], 422);
             }
         } elseif (in_array($role, ['manager', 'direktur'])) {
-            // Ambil dari request → validasi apakah benar perusahaan milik user
             if (!$request->id_perusahaan) {
                 return response()->json(['message' => 'ID perusahaan wajib diisi untuk manager/direktur.'], 422);
             }
 
             $perusahaanId = $request->id_perusahaan;
 
-            // Cek apakah perusahaan ini terkait dengan user via tabel pivot
             $hasAccess = DB::table('perusahaan_user_roles')
                 ->where('user_id', $user->id)
                 ->where('id_perusahaan', $perusahaanId)
