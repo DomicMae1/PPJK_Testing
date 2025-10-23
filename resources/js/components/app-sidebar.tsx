@@ -7,16 +7,6 @@ import { Building2, Shield, SquareUserRound, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
-    // {
-    //     title: 'Dashboard',
-    //     url: '/dashboard',
-    //     icon: LayoutGrid,
-    // },
-    // {
-    //     title: 'Payments',
-    //     url: '/dashboard/payments',
-    //     icon: CreditCard,
-    // },
     {
         title: 'Customers',
         url: '/customer',
