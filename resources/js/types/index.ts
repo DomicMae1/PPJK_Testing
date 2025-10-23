@@ -95,6 +95,8 @@ export type Payment = {
 };
 
 export type MasterCustomer = {
+    id_user: any;
+    creator_role: string;
     id: number | null;
     id_perusahaan?: any;
     kategori_usaha: string;
