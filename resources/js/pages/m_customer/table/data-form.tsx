@@ -39,7 +39,7 @@ export default function CustomerForm({
         bentuk_badan_usaha: customer?.bentuk_badan_usaha || '',
         alamat_lengkap: customer?.alamat_lengkap || '',
         kota: customer?.kota || '',
-        no_telp: customer?.no_telp || '',
+        no_telp: customer?.no_telp ?? null,
         no_fax: customer?.no_fax ?? null,
         alamat_penagihan: customer?.alamat_penagihan || '',
         email: customer?.email || '',
@@ -56,7 +56,6 @@ export default function CustomerForm({
         no_telp_personal: customer?.no_telp_personal || '',
         email_personal: customer?.email_personal || '',
         keterangan_reject: customer?.keterangan_reject || '',
-        user_id: customer?.user_id || auth.user.id,
         approved_1_by: customer?.approved_1_by ?? null,
         approved_2_by: customer?.approved_2_by ?? null,
         rejected_1_by: customer?.rejected_1_by ?? null,
@@ -890,7 +889,7 @@ export default function CustomerForm({
                                         year: 'numeric',
                                     })}
                                 </strong>{' '}
-                                <strong> oleh {data.nama_personal || ''}</strong>
+                                <strong> oleh {data.nama_personal || '...'}</strong>
                             </p>
                         </div>
                     </div>

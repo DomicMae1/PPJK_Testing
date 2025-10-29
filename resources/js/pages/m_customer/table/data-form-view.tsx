@@ -22,6 +22,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const [isLoading, setIsLoading] = useState(false);
     const [managerExists, setManagerExists] = useState<boolean>(false);
     const [managerChecked, setManagerChecked] = useState<boolean>(false);
+    const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null);
 
     const { props } = usePage<{
         attachments: Attachment[];
@@ -255,7 +256,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 setAttachFile(null);
                 setAttachFileStatuses([]);
                 setIsLoading(false);
-                router.visit(`/customer/${props.customer.id}`, { replace: true, preserveState: false });
+                router.visit(`/customer/${customer.id}`, { replace: true, preserveState: false });
             },
             onError: (errors) => {
                 const firstError = errors[Object.keys(errors)[0]];
@@ -293,7 +294,6 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             id="bentuk_badan_usaha"
                             value={customer.bentuk_badan_usaha}
                             disabled
-                            className="w-full border-black dark:bg-white dark:text-black"
                             className="w-full border border-black dark:border-neutral-600 dark:text-white"
                         />
                     </div>
