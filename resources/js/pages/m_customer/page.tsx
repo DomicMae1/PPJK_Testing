@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
@@ -17,6 +18,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function MasterCustomerPage() {
     const { customers, flash } = usePage().props as unknown as { customers: MasterCustomer[]; flash: { success?: string; error?: string } };
+    const page = usePage();
 
     useEffect(() => {
         if (flash?.success) {
@@ -26,6 +28,13 @@ export default function MasterCustomerPage() {
             toast.error(flash.error);
         }
     }, [flash]);
+
+    useEffect(() => {
+        const errors = (page.props as any)?.errors;
+        if (errors && (errors.status === 403 || errors.code === 403)) {
+            toast.error('Anda tidak memiliki akses ke data ini.');
+        }
+    }, [page.props]);
 
     const [openDelete, setOpenDelete] = useState(false);
     const [supplierIdToDelete, setSupplierIdToDelete] = useState<number | null>(null);

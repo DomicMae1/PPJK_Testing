@@ -414,15 +414,20 @@ class CustomerController extends Controller
             throw UnauthorizedException::forPermissions(['view-master-customer']);
         }
 
+        $userCompanyIds = $user->companies()->pluck('perusahaan.id')->toArray();
+
+        if (!empty($user->id_perusahaan)) {
+            $userCompanyIds[] = $user->id_perusahaan;
+        }
+        if (!in_array($customer->id_perusahaan, $userCompanyIds)) {
+            abort(403, 'Anda tidak memiliki akses ke data customer ini.');
+        }
+
         $customer->load('attachments');
 
         return Inertia::render('m_customer/table/view-data-form', [
             'customer' => $customer,
             'attachments' => $customer->attachments,
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error'),
-            ],
         ]);
     }
 
