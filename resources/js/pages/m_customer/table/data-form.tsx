@@ -69,7 +69,8 @@ export default function CustomerForm({
 
     const [isLoading, setIsLoading] = useState(false);
 
-    const [lainKategori, setLainKategori] = useState(customer?.kategori_usaha === 'lain2' ? '' : '');
+    const [lainKategori, setLainKategori] = useState('');
+    const [showLainKategori, setShowLainKategori] = useState(false);
 
     const [errors_kategori, setErrors] = useState<{
         kategori_usaha?: string;
@@ -503,17 +504,23 @@ export default function CustomerForm({
                                 Kategori Usaha <span className="text-red-500">*</span>
                             </Label>
                             <Select
-                                value={data.kategori_usaha}
+                                value={showLainKategori ? 'lain2' : data.kategori_usaha}
                                 onValueChange={(value) => {
-                                    setData('kategori_usaha', value);
+                                    if (value === 'lain2') {
+                                        setShowLainKategori(true); // tampilkan input tambahan
+                                        setLainKategori(''); // kosongkan dulu input lain-lain
+                                        setData('kategori_usaha', ''); // kosongkan di data
+                                    } else {
+                                        setShowLainKategori(false);
+                                        setLainKategori('');
+                                        setData('kategori_usaha', value);
+                                    }
+
                                     setErrors((prev) => ({
                                         ...prev,
                                         kategori_usaha: undefined,
-                                        lain_kategori: value !== 'lain2' ? undefined : prev.lain_kategori,
+                                        lain_kategori: undefined,
                                     }));
-                                    if (value !== 'lain2') {
-                                        setLainKategori('');
-                                    }
                                 }}
                             >
                                 <SelectTrigger className="w-full">
@@ -528,7 +535,7 @@ export default function CustomerForm({
                                 </SelectContent>
                             </Select>
 
-                            {data.kategori_usaha === 'lain2' && (
+                            {showLainKategori && (
                                 <div className="mt-2">
                                     <Label htmlFor="lain_kategori">Kategori Usaha Lainnya</Label>
                                     <input
@@ -536,7 +543,9 @@ export default function CustomerForm({
                                         id="lain_kategori"
                                         value={lainKategori}
                                         onChange={(e) => {
-                                            setLainKategori(e.target.value);
+                                            const value = e.target.value;
+                                            setLainKategori(value);
+                                            setData('kategori_usaha', value); // simpan ke data utama
                                             setErrors((prev) => ({ ...prev, lain_kategori: undefined }));
                                         }}
                                         className="focus:border-primary mt-1 block w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:ring"
