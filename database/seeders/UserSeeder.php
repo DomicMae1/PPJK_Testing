@@ -26,6 +26,12 @@ class UserSeeder extends Seeder
             ['name' => 'don6', 'email' => 'don6@gmail.com', 'password' => '1234', 'role' => 'manager',  'id_perusahaan' => 2],
             ['name' => 'don7', 'email' => 'don7@gmail.com', 'password' => '1234', 'role' => 'direktur', 'id_perusahaan' => 2],
             ['name' => 'don8', 'email' => 'don8@gmail.com', 'password' => '1234', 'role' => 'admin'],
+            ['name' => 'don9', 'email' => 'don9@gmail.com', 'password' => '1234', 'role' => 'user',     'id_perusahaan' => 3],
+            ['name' => 'don10', 'email' => 'don10@gmail.com', 'password' => '1234', 'role' => 'manager',  'id_perusahaan' => 3],
+            ['name' => 'don11', 'email' => 'don11@gmail.com', 'password' => '1234', 'role' => 'direktur', 'id_perusahaan' => 3],
+            ['name' => 'don9', 'email' => 'don9@gmail.com', 'password' => '1234', 'role' => 'user',     'id_perusahaan' => 4],
+            ['name' => 'don10', 'email' => 'don10@gmail.com', 'password' => '1234', 'role' => 'manager',  'id_perusahaan' => 4],
+            ['name' => 'don7', 'email' => 'don7@gmail.com', 'password' => '1234', 'role' => 'direktur', 'id_perusahaan' => 4],
         ];
 
         foreach ($users as $data) {
