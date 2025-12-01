@@ -60,6 +60,13 @@ return [
             'report' => false,
         ],
 
+        'customers_external' => [
+            'driver' => 'local',
+            'root' => 'C:/Users/IT/Herd/customers',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
     ],
 
     /*
