@@ -59,6 +59,7 @@ class RoleAndPermissionSeeder extends Seeder
         $lawyerRole = Role::firstOrCreate(['name' => 'lawyer']);
         $editorRole = Role::firstOrCreate(['name' => 'manager']);
         $userRole = Role::firstOrCreate(['name' => 'user']);
+        $auditorRole = Role::firstOrCreate(['name' => 'auditor']);
 
         $adminRole->syncPermissions(Permission::all());
 
@@ -100,6 +101,14 @@ class RoleAndPermissionSeeder extends Seeder
                 $role->givePermissionTo($viewMasterCustomerPermission);
             }
         }
+
+        $allPermissions = Permission::all()->pluck('name')->toArray();
+
+        $filtered = array_filter($allPermissions, function ($perm) {
+            return $perm !== 'create-master-customer';
+        });
+
+        $auditorRole->syncPermissions($filtered);
 
         // // Editor memiliki permission terbatas
         // $editorPermissions = [];
