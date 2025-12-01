@@ -94,14 +94,14 @@ export function ResettableDropzone({
                 key={componentKey}
                 {...getRootProps()}
                 className={cn(
-                    'flex h-[200px] min-h-[200px] cursor-pointer items-center justify-center rounded-md border-2 border-black p-4 text-center transition-colors dark:border-neutral-800',
+                    'flex h-[100px] min-h-[100px] cursor-pointer items-center justify-center rounded-md border-2 border-black p-4 text-center transition-colors md:h-[100px] md:min-h-[200px] dark:border-neutral-800',
                     borderColor,
                 )}
             >
                 <input {...getInputProps()} />
 
                 {fileStatus ? (
-                    <div className="relative flex h-full w-full flex-col items-center justify-center rounded-md bg-gray-100 p-2 text-gray-700">
+                    <div className="relative flex h-full w-full flex-row items-center justify-center gap-3 rounded-md bg-gray-100 p-2 text-gray-700 md:flex-col md:gap-0">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -111,7 +111,7 @@ export function ResettableDropzone({
                             <Trash2Icon className="size-4 text-black" />
                         </Button>
                         <FileIcon className="mb-2 h-10 w-10" />
-                        <p className="max-w-full truncate text-sm font-medium">{fileStatus.fileName}</p>
+                        <p className="hidden max-w-full truncate text-sm font-medium md:block">{fileStatus.fileName}</p>
                         {fileStatus.status === 'error' && <p className="mt-1 text-xs text-red-600">{fileStatus.errorMessage}</p>}
                         {fileStatus.status === 'success' && fileStatus.previewUrl && (
                             <a
