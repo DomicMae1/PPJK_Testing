@@ -1,15 +1,5 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { Button } from '@/components/ui/button';
-import {
-    Drawer,
-    DrawerClose,
-    DrawerContent,
-    DrawerDescription,
-    DrawerFooter,
-    DrawerHeader,
-    DrawerTitle,
-    DrawerTrigger,
-} from '@/components/ui/drawer';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { MasterCustomer } from '@/types';
@@ -40,45 +30,69 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
         {
             accessorKey: 'nama_perusahaan',
             header: ({ column }) => (
-                <div className="px-2 py-2 text-sm font-medium" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-                    Ownership {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
+                <div
+                    className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Ownership
                 </div>
             ),
-            cell: ({ row }) => <div className="min-w-[150px] truncate px-2 py-2 text-sm">{row.original.nama_perusahaan ?? '-'}</div>,
+            cell: ({ row }) => <div className="text-sm md:min-w-[150px] md:truncate md:px-2 md:py-2">{row.original.nama_perusahaan ?? '-'}</div>,
         },
         {
             accessorKey: 'creator_name',
-            header: 'Disubmit oleh',
-            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.creator_name || '-'}</div>,
+            header: () => <div className="text-sm font-medium md:px-2 md:py-2">Disubmit oleh</div>,
+            cell: ({ row }) => <div className="text-sm md:min-w-[120px] md:truncate md:px-2">{row.original.creator_name || '-'}</div>,
         },
         {
             accessorKey: 'nama_customer',
             header: ({ column }) => (
                 <div
-                    className="cursor-pointer px-2 py-2 text-sm font-medium select-none"
+                    className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                 >
                     Nama Customer
-                    {column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''}
                 </div>
             ),
-            cell: ({ row }) => <div className="min-w-[150px] truncate px-2 text-sm">{row.original.nama_customer || '-'}</div>,
-            enableSorting: true,
+            cell: ({ row }) => <div className="text-sm md:min-w-[150px] md:truncate md:px-2">{row.original.nama_customer || '-'}</div>,
         },
         {
             accessorKey: 'no_telp_pic',
-            header: 'No Telp PIC',
-            cell: ({ row }) => <div className="min-w-[120px] truncate px-2 text-sm">{row.original.no_telp_personal || '-'}</div>,
+            header: () => <div className="text-sm font-medium md:px-2 md:py-2">No Telp PIC</div>,
+            cell: ({ row }) => <div className="text-sm md:min-w-[120px] md:truncate md:px-2">{row.original.no_telp_personal || '-'}</div>,
         },
         {
             accessorKey: 'keterangan_status',
-            header: 'Keterangan Status',
+            accessorFn: (row) => {
+                return {
+                    sort: row.tanggal_status ? new Date(row.tanggal_status).getTime() : 0,
+                    label: row.status_label ?? null,
+                };
+            },
+            sortingFn: (rowA, rowB, columnId) => {
+                return rowA.getValue(columnId).sort - rowB.getValue(columnId).sort;
+            },
+            filterFn: (row, columnId, filterValue) => {
+                const value = row.getValue(columnId);
+                if (!value.label) return false;
+                return value.label.toLowerCase() === filterValue.toLowerCase();
+            },
+
+            header: ({ column }) => (
+                <div
+                    className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Keterangan Status
+                </div>
+            ),
+
             cell: ({ row }) => {
                 const tanggal = row.original.tanggal_status;
                 const label = row.original.status_label;
                 const nama_user = row.original.nama_user;
 
-                if (!tanggal && !label) return '-';
+                if (!tanggal && !label) return <div className="text-sm">-</div>;
 
                 const isInput = label === 'diinput';
 
@@ -99,16 +113,14 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                     })
                     .replace('.', ':');
 
-                const finalTanggal = `${tanggalFormat} ${jamMenit} WIB`;
-
                 return (
-                    <div className="min-w-[200px] truncate px-2 text-sm">
+                    <div className="text-sm md:min-w-[200px] md:truncate md:px-2">
                         <span>
                             {label}
-                            {!isInput && nama_user ? ` oleh ` : ' '}
+                            {!isInput && nama_user ? ' oleh ' : ' '}
                             {!isInput && nama_user && <strong>{nama_user}</strong>}
                             {' pada '}
-                            <strong>{finalTanggal}</strong>
+                            <strong>{`${tanggalFormat} ${jamMenit} WIB`}</strong>
                         </span>
                     </div>
                 );
@@ -116,7 +128,7 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
         },
         {
             accessorKey: 'status',
-            header: 'Status',
+            header: () => <div className="text-sm font-medium md:px-2 md:py-2">Status Review</div>,
             cell: ({ row }) => {
                 const status = row.original.status?.toLowerCase();
                 let displayText = '-';
@@ -132,29 +144,21 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                     displayText = status;
                 }
 
-                return <div className={`min-w-[100px] px-2 text-sm font-semibold ${textColor}`}>{displayText}</div>;
+                return <div className={`text-sm font-semibold md:min-w-[100px] md:px-2 ${textColor}`}>{displayText}</div>;
             },
         },
+
         {
             accessorKey: 'status_2_timestamps',
-            header: '',
+            header: () => <div className="hidden"></div>,
             cell: () => null,
-            enableHiding: true,
-            filterFn: (row, columnId, filterValue) => {
-                const raw = row.getValue(columnId);
-
-                const value = raw === null || raw === undefined || raw === '' || raw === 'null' ? null : raw;
-
-                if (filterValue === 'sudah') return value !== null;
-                if (filterValue === 'belum') return value === null;
-                return true;
-            },
         },
         {
             id: 'actions',
+            header: () => <div className="text-right text-sm font-medium md:px-2 md:py-2">{/* kosong agar align */}</div>,
             cell: ({ row }) => {
                 const customer = row.original;
-                const { auth } = usePage().props as { auth: Auth };
+                const { auth } = usePage().props;
                 const currentUser = auth.user;
 
                 const currentUserRole = currentUser.roles?.[0]?.name;
@@ -172,10 +176,10 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-8 w-8 p-0">
-                                        <span className="sr-only">Buka menu</span>
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
+
                                 <DropdownMenuContent align="end">
                                     <Link href={`/customer/${customer.id}`}>
                                         <DropdownMenuItem>View Customer</DropdownMenuItem>
@@ -187,14 +191,28 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                                         </Link>
                                     )}
 
-                                    <DropdownMenuItem onClick={() => customer.id != null && downloadPdf(customer.id)}>Download PDF</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => customer.id && downloadPdf(customer.id)}>Download PDF</DropdownMenuItem>
 
                                     {isAdmin && (
-                                        <Link href={`/customer/${customer.id}`} method="delete" as="button" className="w-full text-left">
-                                            <DropdownMenuItem className="text-red-600" onSelect={(e) => e.preventDefault()}>
+                                        <DropdownMenuItem
+                                            className="cursor-pointer text-red-600"
+                                            asChild
+                                            onClick={(e) => {
+                                                const confirmed = window.confirm('Apakah anda yakin ingin menghapus data tersebut?');
+                                                if (!confirmed) {
+                                                    e.preventDefault();
+                                                }
+                                            }}
+                                        >
+                                            <Link
+                                                href={`/customer/${customer.id}`}
+                                                method="delete"
+                                                as="button"
+                                                onSuccess={() => window.alert('Data berhasil dihapus!')}
+                                            >
                                                 Hapus Customer
-                                            </DropdownMenuItem>
-                                        </Link>
+                                            </Link>
+                                        </DropdownMenuItem>
                                     )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -203,54 +221,49 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
                 }
 
                 return (
-                    <div className="flex justify-end">
-                        <Drawer>
-                            <DrawerTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Buka menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                            </DrawerTrigger>
-                            <DrawerContent>
-                                <DrawerHeader className="text-left">
-                                    <DrawerTitle>Actions</DrawerTitle>
-                                    <DrawerDescription>Pilih aksi yang ingin Anda lakukan.</DrawerDescription>
-                                </DrawerHeader>
-                                <div className="flex flex-col gap-2 p-4">
-                                    <Link href={`/customer/${customer.id}`}>
-                                        <Button variant="outline" className="w-full justify-start">
-                                            View Customer
-                                        </Button>
-                                    </Link>
-                                    {canEdit && (
-                                        <Link href={`/customer/${customer.id}/edit`}>
-                                            <Button variant="outline" className="w-full justify-start">
-                                                Edit Customer
-                                            </Button>
-                                        </Link>
-                                    )}
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-start"
-                                        onClick={() => customer.id != null && downloadPdf(customer.id)}
-                                    >
-                                        Download PDF
-                                    </Button>
-                                    {isAdmin && (
-                                        <Link href={`/customer/${customer.id}`} method="delete" as="button" className="w-full text-left">
-                                            <DropdownMenuItem className="text-red-600" onSelect={(e) => e.preventDefault()}>
-                                                Hapus Customer
-                                            </DropdownMenuItem>
-                                        </Link>
-                                    )}
-                                </div>
-                                <DrawerFooter className="pt-2">
-                                    <DrawerClose asChild>
-                                        <Button variant="outline">Batal</Button>
-                                    </DrawerClose>
-                                </DrawerFooter>
-                            </DrawerContent>
-                        </Drawer>
+                    <div className="flex flex-col gap-2 pt-2">
+                        <Link href={`/customer/${customer.id}`}>
+                            <Button size="sm" variant="outline" className="w-full justify-center dark:border-white">
+                                View Customer
+                            </Button>
+                        </Link>
+
+                        {canEdit && (
+                            <Link href={`/customer/${customer.id}/edit`}>
+                                <Button className="w-full justify-center">Edit Customer</Button>
+                            </Link>
+                        )}
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full justify-center dark:border-white"
+                            onClick={() => customer.id && downloadPdf(customer.id)}
+                        >
+                            Download PDF
+                        </Button>
+
+                        {isAdmin && (
+                            <Button
+                                className="cursor-pointer bg-red-500 text-white"
+                                asChild
+                                onClick={(e) => {
+                                    const confirmed = window.confirm('Apakah anda yakin ingin menghapus data tersebut?');
+                                    if (!confirmed) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                            >
+                                <Link
+                                    href={`/customer/${customer.id}`}
+                                    method="delete"
+                                    as="button"
+                                    onSuccess={() => window.alert('Data berhasil dihapus!')}
+                                >
+                                    Hapus Customer
+                                </Link>
+                            </Button>
+                        )}
                     </div>
                 );
             },
