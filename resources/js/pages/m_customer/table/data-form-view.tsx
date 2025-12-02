@@ -180,25 +180,24 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             }
         }
 
+        let isDirekturCreatorSubmit = false;
+        let isManagerCreatorSubmit = false;
+
         if (creatorId === currentUserId && userRole === 'manager') {
-            formData.append('submit_1_timestamps', now);
             formData.append('status_1_by', String(currentUserId));
-            formData.append('status_1_timestamps', now);
+
+            isManagerCreatorSubmit = true;
         } else if (creatorId === currentUserId && userRole === 'direktur') {
-            formData.append('submit_1_timestamps', now);
-            formData.append('status_2_by', String(currentUserId));
-            formData.append('status_2_timestamps', now);
-        } else if (userRole === 'user') {
-            formData.append('submit_1_timestamps', now);
-        } else if (userRole === 'manager') {
             formData.append('status_1_by', String(currentUserId));
-            formData.append('status_1_timestamps', now);
-        } else if (userRole === 'direktur') {
             formData.append('status_2_by', String(currentUserId));
-            formData.append('status_2_timestamps', now);
+
+            isDirekturCreatorSubmit = true;
+        } else if (userRole === 'manager' && !isManagerCreatorSubmit) {
+            formData.append('status_1_by', String(currentUserId));
+        } else if (userRole === 'direktur' && !isDirekturCreatorSubmit) {
+            formData.append('status_2_by', String(currentUserId));
         } else if (userRole === 'auditor') {
             formData.append('status_4_by', String(currentUserId));
-            formData.append('status_4_timestamps', now);
         }
 
         if (userRole === 'lawyer' && decision) {
