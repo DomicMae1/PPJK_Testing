@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,8 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
     const { props } = usePage<{ users: User[] }>();
     const users = props.users ?? [];
 
+    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+
     const [form, setForm] = useState<FormState>({
         nama_perusahaan: '',
         id_User_1: '',
@@ -62,7 +64,23 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
     });
 
     const handleSubmit = () => {
-        router.post('/perusahaan', form as Record<string, any>, {
+        const fd = new FormData();
+
+        // field biasa
+        fd.append('nama_perusahaan', form.nama_perusahaan);
+        fd.append('id_User_1', form.id_User_1);
+        fd.append('id_User_2', form.id_User_2);
+        fd.append('id_User_3', form.id_User_3);
+        fd.append('notify_1', form.notify_1 ?? '');
+        fd.append('notify_2', form.notify_2 ?? '');
+
+        // file logo jika ada
+        if (companyLogoFile) {
+            fd.append('company_logo', companyLogoFile);
+        }
+
+        router.post('/perusahaan', fd, {
+            forceFormData: true,
             onSuccess: () => {
                 setOpenCreate(false);
                 setForm({
@@ -73,9 +91,10 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                     notify_1: '',
                     notify_2: '',
                 });
+                setCompanyLogoFile(null);
             },
-            onError: (errors: Record<string, any>) => {
-                console.error('❌ Gagal menyimpan perusahaan:', errors);
+            onError: (errors) => {
+                console.error('❌ Error:', errors);
             },
         });
     };
@@ -95,12 +114,7 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
         getFilteredRowModel: getFilteredRowModel(),
         onColumnVisibilityChange: setColumnVisibility,
         onRowSelectionChange: setRowSelection,
-        state: {
-            sorting,
-            columnFilters,
-            columnVisibility,
-            rowSelection,
-        },
+        state: { sorting, columnFilters, columnVisibility, rowSelection },
     });
 
     const userRoles = [
@@ -157,7 +171,7 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
 
             <DataTablePagination table={table} />
 
-            {/* Dialog */}
+            {/* Dialog Tambah */}
             <Dialog open={openCreate} onOpenChange={setOpenCreate}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
@@ -184,15 +198,22 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                                         value={form[key as keyof FormState]}
                                         onChange={(e) => handleUserChange(key as keyof FormState, e.target.value)}
                                     >
-                                        <option value="">Pilih User</option>
-                                        {users.map((user) => (
-                                            <option key={user.id} value={user.id}>
-                                                {user.name}
-                                            </option>
-                                        ))}
+                                        <div className="text-black">
+                                            <option value="">Pilih User</option>
+
+                                            {users.map((user) => (
+                                                <option key={user.id} value={user.id}>
+                                                    {user.name}
+                                                </option>
+                                            ))}
+                                        </div>
                                     </select>
                                 </div>
                             ))}
+                        </div>
+
+                        <div>
+                            <ResettableDropzoneImage label="Upload Logo Perusahaan" isRequired={false} onFileChange={setCompanyLogoFile} />
                         </div>
 
                         <div>
@@ -203,12 +224,11 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                                 rows={3}
                                 value={form.notify_1}
                                 onChange={(e) => setForm({ ...form, notify_1: e.target.value })}
-                                placeholder="contoh@email.com, lain@email.com"
+                                placeholder="email1@contoh.com, email2@contoh.com"
                             />
                         </div>
-
-                        <input type="hidden" value={form.notify_2} />
                     </div>
+
                     <DialogFooter className="sm:justify-start">
                         <Button type="button" onClick={handleSubmit}>
                             Simpan
