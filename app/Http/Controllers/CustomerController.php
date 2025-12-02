@@ -415,8 +415,17 @@ class CustomerController extends Controller
     {
         $user = auth('web')->user();
 
-        if (!$user->hasPermissionTo('view-master-customer')) {
+        if (!$user->hasRole('auditor') && !$user->hasPermissionTo('view-master-customer')) {
             throw UnauthorizedException::forPermissions(['view-master-customer']);
+        }
+
+        if ($user->hasRole('auditor')) {
+            $customer->load('attachments');
+
+            return Inertia::render('m_customer/table/view-data-form', [
+                'customer' => $customer,
+                'attachments' => $customer->attachments,
+            ]);
         }
 
         $userCompanyIds = $user->companies()->pluck('perusahaan.id')->toArray();
