@@ -13,7 +13,7 @@ export default function AppLogo() {
     return (
         <>
             {/* CONTAINER ICON/LOGO */}
-            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+            <div className="text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:bg-white">
                 {companyLogo ? (
                     <img
                         src={companyLogo}
