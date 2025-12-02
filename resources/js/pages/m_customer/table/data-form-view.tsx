@@ -454,7 +454,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             {attachments?.length > 0 && (
                 <div className="mt-6">
                     <h2 className="mb-2 text-xl font-bold">Lampiran Dokumen</h2>
-                    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-${Math.min(attachments.length, 4)}`}>
+                    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-4 md:grid-cols-${Math.min(attachments.length, 4)}`}>
                         {attachments.map((file) => {
                             const label = file.type.toUpperCase() === 'SPPKP' ? 'SPTKP' : file.type.toUpperCase();
 
