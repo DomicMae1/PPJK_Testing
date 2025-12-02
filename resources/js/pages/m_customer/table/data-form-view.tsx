@@ -18,6 +18,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const [attachFileUser, setAttachFileUser] = useState<File | null>(null);
     const [attachFileStatuses, setAttachFileStatuses] = useState<any[]>([]);
     const [statusData, setStatusData] = useState<any | null>(null);
+    const [auditorStartReview, setAuditorStartReview] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [managerExists, setManagerExists] = useState<boolean>(false);
     const [managerChecked, setManagerChecked] = useState<boolean>(false);
@@ -47,7 +48,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const rawRole = props.auth.user.roles?.[0]?.name as string;
     const allowedRolesLawyer = ['lawyer'];
     const userRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-    const allowedRoles = ['manager', 'direktur', 'lawyer'];
+    const allowedRoles = ['manager', 'direktur', 'lawyer', 'auditor'];
     const showExtraFields = allowedRoles.includes(userRole);
 
     useEffect(() => {
@@ -195,6 +196,9 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         } else if (userRole === 'direktur') {
             formData.append('status_2_by', String(currentUserId));
             formData.append('status_2_timestamps', now);
+        } else if (userRole === 'auditor') {
+            formData.append('status_4_by', String(currentUserId));
+            formData.append('status_4_timestamps', now);
         }
 
         if (userRole === 'lawyer' && decision) {
@@ -484,6 +488,28 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 </>
             )}
 
+            {userRole === 'auditor' && auditorStartReview && statusData?.submit_1_timestamps !== null && (
+                <div className="mt-6">
+                    <h2 className="text-xl font-bold">Masukkan Data Review</h2>
+                    <div className="mt-4 flex flex-col gap-4 md:flex-row">
+                        <div className="w-full md:w-1/2">
+                            <Label className="mb-1 block">Masukkan Keterangan</Label>
+                            <textarea
+                                className="h-[200px] w-full rounded-sm border border-gray-500 p-2"
+                                placeholder="Masukkan keterangan"
+                                value={keterangan}
+                                onChange={(e) => setKeterangan(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="w-full md:w-1/2">
+                            <ResettableDropzone label="Upload Lampiran" onFileChange={setAttachFile} />
+                            <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {userRole !== 'user' &&
                 (showAnotherUserSubmit || showManagerApprove || showDirekturApprove || showSubmitForDirektur || showLawyerApprove) && (
                     <div className="mt-6">
@@ -527,6 +553,19 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                 {showManagerApprove && (
                     <Button variant="default" className="" onClick={() => handleSubmit()} disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Menyimpan...
+                            </>
+                        ) : (
+                            'Approved'
+                        )}
+                    </Button>
+                )}
+
+                {userRole === 'auditor' && auditorStartReview && (
+                    <Button variant="default" onClick={handleSubmit} disabled={isLoading}>
                         {isLoading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -585,6 +624,12 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                     </Link>
                 )}
 
+                {userRole === 'auditor' && statusData?.status_4_timestamps == null && statusData?.submit_1_timestamps !== null && (
+                    <Button variant="default" onClick={() => setAuditorStartReview((prev) => !prev)} className="mb-4">
+                        {auditorStartReview ? 'Tutup Catatan' : 'Buat Catatan'}
+                    </Button>
+                )}
+
                 <Link href="/customer">
                     <Button variant="outline" className="border border-gray-600" disabled={isLoading}>
                         Kembali
@@ -634,7 +679,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                             <div className="">
                                 <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                 <a
-                                    href={`/storage/attachments/${statusData.submit_1_nama_file}`}
+                                    href={`/file/view/${statusData.submit_1_path}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
@@ -698,7 +743,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                         <div className="border-gray-500 pt-2">
                                             <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                             <a
-                                                href={`/storage/attachments/${statusData.status_1_nama_file}`}
+                                                href={`/file/view/${statusData.status_1_path}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
@@ -764,7 +809,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     <div className="border-gray-500 pt-2">
                                         <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment</h4>
                                         <a
-                                            href={`/storage/attachments/${statusData.status_2_nama_file}`}
+                                            href={`/file/view/${statusData.status_2_path}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
@@ -857,7 +902,76 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                                     <div className="mt-2">
                                         <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment Lawyer</h4>
                                         <a
-                                            href={`/storage/attachments/${statusData.submit_3_nama_file}`}
+                                            href={`/file/view/${statusData.submit_3_path}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
+                                        >
+                                            <File className="h-4 w-4" />
+                                            Lihat Lampiran
+                                        </a>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${managerChecked && !managerExists ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+                {/* Diaudit */}
+                <div className="col-span-1">
+                    <div className="rounded-t-sm border-t border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-200 dark:text-black">
+                        <Label htmlFor="kota">Diaudit</Label>{' '}
+                    </div>
+                    <div className="border-r border-l border-gray-500 p-2 dark:bg-neutral-200">
+                        {statusData?.status_4_timestamps && (
+                            <div className="text-muted-foreground mt-1 text-sm dark:text-black">
+                                <div className="mb-2 flex items-center justify-between font-semibold">
+                                    <span>
+                                        <strong>{statusData.status_4_by_name}</strong>
+                                    </span>
+                                </div>
+
+                                <p>
+                                    tanggal{' '}
+                                    <strong>
+                                        {new Date(statusData.status_4_timestamps).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </strong>{' '}
+                                    pukul{' '}
+                                    <strong>
+                                        {new Date(statusData.status_4_timestamps)
+                                            .toLocaleTimeString('id-ID', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: false,
+                                            })
+                                            .replace('.', ':')}{' '}
+                                        WIB
+                                    </strong>
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    <div className="rounded-b-sm border-r border-b border-l border-gray-500 p-2 dark:bg-neutral-200 dark:text-black">
+                        {statusData?.status_4_timestamps && (
+                            <>
+                                {statusData.status_4_keterangan && (
+                                    <div className="text-muted-foreground text-sm dark:text-black">
+                                        <p>
+                                            <strong>Keterangan</strong>
+                                        </p>
+                                        <p>{statusData.status_4_keterangan}</p>
+                                    </div>
+                                )}
+                                {statusData.status_4_nama_file && (
+                                    <div className="mt-2">
+                                        <h4 className="text-muted-foreground text-sm font-bold dark:text-black">Attachment Lawyer</h4>
+                                        <a
+                                            href={`/file/view/${statusData.status_4_path}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 text-sm text-blue-600 underline"
