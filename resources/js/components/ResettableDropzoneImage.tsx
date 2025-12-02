@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // resources/js/components/ResettableDropzone.tsx
 
 import { cn } from '@/lib/utils';

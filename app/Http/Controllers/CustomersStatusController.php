@@ -155,6 +155,8 @@ class CustomersStatusController extends Controller
             $status->status_2_timestamps = $request->input('status_2_timestamps');
             $status->status_2_by = $userId;
         }
+        $isDirekturCreator = ($customer->id_user === $userId && $role === 'direktur');
+        $isManagerCreator = ($customer->id_user === $userId && $role === 'manager');
 
         $filename = null;
         $path = null;
@@ -165,8 +167,14 @@ class CustomersStatusController extends Controller
             $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
                 ->get()
                 ->map(function ($row) {
-                    $prefix = substr($row->nama_file, 0, strpos($row->nama_file, '-')); 
-                    return intval($prefix);
+                    $file = $row->nama_file;
+
+                    // pisahkan berdasarkan "-"
+                    $parts = explode('-', $file);
+                    if (count($parts) < 3) return 0;
+
+                    // ORDER ada di index ke-1 → e.g. 003
+                    return intval($parts[1]);
                 })
                 ->max() ?? 0;
 
@@ -184,17 +192,17 @@ class CustomersStatusController extends Controller
 
             if ($status) {
                 foreach ($statusFields as $field) {
-                    if (!empty($status->$field)) {
 
-                        $fileName = $status->$field;
+                    $fileName = $status->$field;
+                    if (!$fileName) continue;
 
-                        // prefix sebelum tanda "-"
-                        $prefix = substr($fileName, 0, strpos($fileName, '-'));
+                    $parts = explode('-', $fileName);
+                    if (count($parts) < 3) continue;
 
-                        if (is_numeric($prefix)) {
-                            $lastFromStatus = max($lastFromStatus, intval($prefix));
-                        }
-                    }
+                    // ORDER = index ke-1
+                    $orderNum = intval($parts[1]);
+
+                    $lastFromStatus = max($lastFromStatus, $orderNum);
                 }
             }
 
@@ -221,7 +229,7 @@ class CustomersStatusController extends Controller
             // B. BENTUK NAMA FILE
             // Format: 001-123456789-marketing_att.pdf
             $ext = $file->getClientOriginalExtension();
-            $filename = "{$order}-{$npwpSanitized}-{$docType}.{$ext}";
+            $filename = "{$npwpSanitized}-{$order}-{$docType}.{$ext}";
             $mode = 'medium'; // default compress mode
 
             // Folder final: {companySlug}/attachment
@@ -344,6 +352,11 @@ class CustomersStatusController extends Controller
                     $status->status_1_nama_file = $filename;
                     $status->status_1_path = $path;
                 }
+                if ($isManagerCreator) {
+                    if (empty($status->submit_1_timestamps)) {
+                        $status->submit_1_timestamps = $now;
+                    }
+                }
                 // if ($perusahaan && $perusahaan->hasManager()) {
                 //     if (!empty($perusahaan->notify_1)) {
                 //         $emailsToNotify = explode(',', $perusahaan->notify_1);
@@ -366,6 +379,17 @@ class CustomersStatusController extends Controller
                 if ($filename) {
                     $status->status_2_nama_file = $filename;
                     $status->status_2_path = $path;
+                }
+
+                if ($isDirekturCreator) {
+                    if (empty($status->submit_1_timestamps)) {
+                        $status->submit_1_timestamps = $now;
+                    }
+
+                    if (empty($status->status_1_timestamps)) {
+                        $status->status_1_timestamps = $now;
+                        $status->status_1_by = $userId;
+                    }
                 }
                 break;
 
@@ -424,7 +448,7 @@ class CustomersStatusController extends Controller
             'customer_id' => $request->customer_id,
             'timestamp' => $now->toDateTimeString(),
             'keterangan' => $request->keterangan,
-            'attachment' => $filename
+            'attachment' => $path
         ]);
 
         $status->save();
