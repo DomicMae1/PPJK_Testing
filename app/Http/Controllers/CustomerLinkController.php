@@ -38,11 +38,8 @@ class CustomerLinkController extends Controller
         if (!$user->hasPermissionTo('view-master-customer')) {
             throw UnauthorizedException::forPermissions(['view-master-customer']);
         }
+
         $role = $user->roles->first()?->name ?? null;
-
-        Log::info('Request input:', $request->all());
-        Log::info('User info:', ['id' => $user->id, 'role' => $role, 'id_perusahaan' => $user->id_perusahaan ?? 'null']);
-
 
         $validated = $request->validate([
             'nama_customer' => 'required|string|max:255',
@@ -51,9 +48,6 @@ class CustomerLinkController extends Controller
         ]);
 
         $token = $validated['token'] ?? Str::random(12);
-        $generatedUrl = url("/form/{$token}");
-
-
         $id_perusahaan = null;
 
         if ($role === 'user') {
@@ -61,32 +55,47 @@ class CustomerLinkController extends Controller
             if (!$id_perusahaan) {
                 return response()->json(['message' => 'User tidak memiliki ID perusahaan.'], 422);
             }
-        } elseif (in_array($role, ['manager', 'direktur'])) {
+        } 
+        elseif (in_array($role, ['manager', 'direktur'])) {
             if (!$request->id_perusahaan) {
-                return response()->json(['message' => 'ID perusahaan wajib diisi untuk manager/direktur.'], 422);
+                return response()->json(['message' => 'ID perusahaan wajib diisi.'], 422);
             }
 
-            $perusahaanId = $request->id_perusahaan;
+            $requestedId = $request->id_perusahaan;
 
-            $hasAccess = DB::table('perusahaan_user_roles')
+            $hasAccess = DB::connection('tako-perusahaan')
+                ->table('perusahaan_user_roles')
                 ->where('user_id', $user->id)
-                ->where('id_perusahaan', $perusahaanId)
+                ->where('id_perusahaan', $requestedId)
                 ->exists();
 
             if (!$hasAccess) {
                 return response()->json(['message' => 'Anda tidak memiliki akses ke perusahaan tersebut.'], 403);
             }
 
-            $id_perusahaan = $perusahaanId;
-        } else {
+            $id_perusahaan = $requestedId;
+        } 
+        else {
             return response()->json(['message' => 'Role pengguna tidak valid.'], 403);
         }
 
-        if (!$id_perusahaan) {
-            return response()->json(['message' => 'Gagal menentukan ID perusahaan.'], 500);
+        $tenant = \App\Models\Tenant::where('perusahaan_id', $id_perusahaan)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Data Tenant belum disetting untuk perusahaan ini.'], 404);
         }
 
-        $link = CustomerLink::create([
+        $domainRecord = $tenant->domains()->first();
+
+        if (!$domainRecord) {
+            return response()->json(['message' => 'Domain belum disetting untuk tenant ini.'], 404);
+        }
+
+        $tenantDomain = $domainRecord->domain; 
+        $protocol = $request->secure() ? 'https://' : 'http://';
+        $generatedUrl = "{$protocol}{$tenantDomain}/form/{$token}";
+
+        $link = CustomerLink::on('tako-perusahaan')->create([
             'id_user' => $user->id,
             'nama_customer' => $validated['nama_customer'],
             'token' => $token,
