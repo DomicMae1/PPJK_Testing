@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useSidebar } from '@/components/ui/sidebar';
 import { usePage } from '@inertiajs/react';
 import AppLogoIcon from './app-logo-icon';
 
 export default function AppLogo() {
     const { company } = usePage<any>().props; // tambahkan <any> atau tipe yang sesuai
+    const { open } = useSidebar();
 
     const companyName = company?.name ?? 'Customer Registration';
     const companyLogo = company?.logo ?? null;
@@ -11,7 +13,7 @@ export default function AppLogo() {
     return (
         <>
             {/* CONTAINER ICON/LOGO */}
-            <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 shadow-sm">
                 {companyLogo ? (
                     <img
                         src={companyLogo}
@@ -24,11 +26,13 @@ export default function AppLogo() {
             </div>
 
             {/* CONTAINER TEXT (Nama Perusahaan) */}
-            <div className="ml-2 grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{companyName}</span>
-                {/* Opsional: Tambahkan subtext jika perlu, misal: 'Dashboard' */}
-                {/* <span className="truncate text-xs text-muted-foreground">Enterprise</span> */}
-            </div>
+            {open && (
+                <div className="ml-2 grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{companyName}</span>
+                    {/* Opsional: Tambahkan subtext jika perlu, misal: 'Dashboard' */}
+                    {/* <span className="truncate text-xs text-muted-foreground">Enterprise</span> */}
+                </div>
+            )}
         </>
     );
 }
