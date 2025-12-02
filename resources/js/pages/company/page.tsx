@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -20,11 +21,13 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface FormState {
     nama_perusahaan: string;
+    domain: string;
     id_User_1: string;
     id_User_2: string;
     id_User_3: string;
     notify_1: string;
     notify_2: string;
+    path_company_logo: string;
 }
 
 export default function ManageCompany() {
@@ -32,15 +35,20 @@ export default function ManageCompany() {
     const { companies, flash } = props as {
         companies: any[];
         flash: { success?: string; error?: string };
+        users: any[];
     };
+
+    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
 
     const initialFormState: FormState = {
         nama_perusahaan: '',
+        domain: '',
         id_User_1: '',
         id_User_2: '',
         id_User_3: '',
         notify_1: '',
         notify_2: '',
+        path_company_logo: '',
     };
 
     const [form, setForm] = useState<FormState>(initialFormState);
@@ -77,12 +85,14 @@ export default function ManageCompany() {
 
     const resetFormAndClose = () => {
         setForm(initialFormState);
+        setCompanyLogoFile(null);
         setSelectedCompany(null);
         setOpenForm(false);
     };
 
     const onEditClick = (company: any) => {
         setSelectedCompany(company);
+        setCompanyLogoFile(null);
 
         const manager = company.users.find((u: any) => u.pivot.role === 'manager');
         const direktur = company.users.find((u: any) => u.pivot.role === 'direktur');
@@ -90,11 +100,13 @@ export default function ManageCompany() {
 
         setForm({
             nama_perusahaan: company.nama_perusahaan || '',
+            domain: '',
             id_User_1: manager ? String(manager.id) : '',
             id_User_2: direktur ? String(direktur.id) : '',
             id_User_3: lawyer ? String(lawyer.id) : '',
             notify_1: company.notify_1 || '',
             notify_2: company.notify_2 || '',
+            path_company_logo: company.path_company_logo || '',
         });
 
         setOpenForm(true);
@@ -125,37 +137,42 @@ export default function ManageCompany() {
 
     const onSubmit = (e: FormEvent) => {
         e.preventDefault();
-        const data = {
-            ...form,
-            ...(selectedCompany ? { id_perusahaan: selectedCompany.id } : {}),
-        };
+
+        const formData = new FormData();
+        Object.entries(form).forEach(([key, value]) => {
+            if (value !== null) formData.append(key, value);
+        });
+
+        // append file logo jika ada upload baru
+        if (companyLogoFile) formData.append('company_logo', companyLogoFile);
 
         if (selectedCompany) {
-            router.put(`/perusahaan/${selectedCompany.id}`, data, {
+            formData.append('_method', 'PUT');
+            router.post(`/perusahaan/${selectedCompany.id}`, formData, {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
-                    resetFormAndClose();
                     toast.success('Perusahaan berhasil diperbarui');
-
+                    resetFormAndClose();
                     router.reload({ only: ['companies'] });
                 },
                 onError: (errors) => {
-                    console.error('Update Errors:', errors);
-                    toast.error('Gagal memperbarui perusahaan. Periksa konsol untuk detail.');
+                    console.error(errors);
+                    toast.error('Gagal memperbarui perusahaan');
                 },
             });
         } else {
-            router.post('/perusahaan', data, {
+            router.post('/perusahaan', formData, {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
-                    resetFormAndClose();
                     toast.success('Perusahaan berhasil ditambahkan');
-
+                    resetFormAndClose();
                     router.reload({ only: ['companies'] });
                 },
                 onError: (errors) => {
-                    console.error('Create Errors:', errors);
-                    toast.error('Gagal menambah perusahaan. Periksa konsol untuk detail.');
+                    console.error(errors);
+                    toast.error('Gagal menambah perusahaan');
                 },
             });
         }
@@ -214,12 +231,14 @@ export default function ManageCompany() {
                                             value={form[key as keyof FormState]}
                                             onChange={(e) => handleUserChange(key as keyof FormState, e.target.value)}
                                         >
-                                            <option value="">Pilih {label}</option>
-                                            {props.users?.map((user: any) => (
-                                                <option key={user.id} value={user.id}>
-                                                    {user.name}
-                                                </option>
-                                            ))}
+                                            <div className="text-black">
+                                                <option value="">Pilih {label}</option>
+                                                {props.users?.map((user: any) => (
+                                                    <option key={user.id} value={user.id}>
+                                                        {user.name}
+                                                    </option>
+                                                ))}
+                                            </div>
                                         </select>
                                     </div>
                                 ))}
