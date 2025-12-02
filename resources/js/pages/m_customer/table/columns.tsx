@@ -152,6 +152,21 @@ export const columns = (): ColumnDef<MasterCustomer>[] => {
             accessorKey: 'status_2_timestamps',
             header: () => <div className="hidden"></div>,
             cell: () => null,
+
+            filterFn: (row, columnId, filterValue) => {
+                const value = row.getValue(columnId);
+
+                if (filterValue === 'sudah') {
+                    return value !== null && value !== '' && value !== undefined;
+                }
+
+                if (filterValue === 'belum') {
+                    return value === null || value === '' || value === undefined;
+                }
+
+                // untuk "all" atau default
+                return true;
+            },
         },
         {
             id: 'actions',
