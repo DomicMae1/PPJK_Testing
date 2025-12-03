@@ -13,11 +13,35 @@ services:
       - db
     env_file:
       - .env
-    command: >
-      sh -c "composer install &&
-             npm install --prefix ./resources/js &&
-             npm run dev --prefix ./resources/js &
-             php artisan serve --host=0.0.0.0 --port=8000"
+
+    environment:
+      # PENTING: Ganti 127.0.0.1 menjadi nama service database ('db')
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      # Menggunakan variabel dari .env Anda untuk kredensial
+      - DB_DATABASE=${DB_SECOND_DATABASE}
+      - DB_USERNAME=${DB_SECOND_USERNAME}
+      - DB_PASSWORD=${DB_SECOND_PASSWORD}
+
+      # Jika Anda juga menggunakan koneksi kedua (Perusahaan) ke database yang sama:
+      - DB_TAKO_HOST=db
+      - DB_TAKO_PORT=5432
+
+      # Memastikan host kedua juga mengarah ke container 'db'
+      - DB_SECOND_HOST=db
+      - DB_SECOND_PORT=5432
+
+    # Beri tanda pagar (#) pada command lama agar tidak hilang (comment)
+    # command: >
+    #   sh -c "composer install &&
+    #          npm install --prefix ./resources/js &&
+    #          npm run dev --prefix ./resources/js &
+    #          php artisan serve --host=0.0.0.0 --port=8000"
+
+    # Masukkan command baru di sini:
+    command: tail -f /dev/null
+
     ports:
       - '8000:8000'
 
