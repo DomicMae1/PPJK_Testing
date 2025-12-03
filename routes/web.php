@@ -11,6 +11,7 @@ use App\Http\Controllers\UserController;
 use App\Models\Customers_Status;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\FileController;
 
 Route::get('/', function () {
     // return Inertia::render('welcome');
@@ -24,6 +25,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('customer/share', [CustomerController::class, 'share'])->name('customer.share');
     // Di routes/web.php
     Route::post('/submit-customer-status', [CustomersStatusController::class, 'submit'])->name('customer-status.submit');
+
+    Route::post('/customer/check-npwp', [CustomerController::class, 'checkNpwp'])
+    ->name('customer.check-npwp');
+
+
+    // Route::post('/send-customer-notification', [CustomerController::class, 'sendNotification'])->name('customer.sendNotification');
 
     Route::get('/customer-status-check', [CustomersStatusController::class, 'index']);
 
