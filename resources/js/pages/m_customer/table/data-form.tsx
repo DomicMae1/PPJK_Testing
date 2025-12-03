@@ -212,6 +212,48 @@ export default function CustomerForm({
 
         setIsLoading(true);
 
+        try {
+            const res = await axios.post(route('customer.check-npwp'), {
+                no_npwp: data.no_npwp,
+                no_npwp_16: data.no_npwp_16,
+            });
+
+            const { exists, lawyer_rejected, note, auditor_note, auditor_note_text } = res.data;
+
+            // Jika NPWP tidak ditemukan → lanjut ke validasi lain
+            if (!exists) {
+                // lanjut ke validasi berikutnya
+            } else {
+                let message = '';
+
+                // ---- Logic Lawyer & Auditor ----
+
+                if (lawyer_rejected && auditor_note) {
+                    // Lawyer + Auditor
+                    message =
+                        `⚠️ NPWP ini memiliki catatan review:\n\n` +
+                        `📝 Dari Lawyer:\n"${note ?? 'Tidak ada keterangan'}"\n\n` +
+                        `📝 Dari Auditor:\n"${auditor_note_text ?? 'Tidak ada keterangan'}"`;
+                } else if (lawyer_rejected && !auditor_note) {
+                    // Hanya Lawyer
+                    message = `⚠️ NPWP ini memiliki catatan dari Lawyer:\n\n` + `"${note ?? 'Tidak ada keterangan'}"`;
+                } else if (!lawyer_rejected && auditor_note) {
+                    // Hanya Auditor
+                    message = `⚠️ NPWP ini memiliki catatan dari Auditor:\n\n` + `"${auditor_note_text ?? 'Tidak ada keterangan'}"`;
+                } else {
+                    // NPWP sudah terdaftar tanpa catatan lawyer / auditor
+                    message = `⚠️ NPWP ini sudah terdaftar pada customer lain.`;
+                }
+
+                alert(message);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Terjadi kesalahan saat pengecekan NPWP.');
+            setIsLoading(false);
+            return;
+        }
+
         if (!data.kategori_usaha) {
             const message = 'Kategori usaha wajib dipilih';
             setErrors((prev) => ({ ...prev, kategori_usaha: message }));
