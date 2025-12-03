@@ -828,4 +828,60 @@ class CustomerController extends Controller
 
         return redirect('/')->with('success', 'Data berhasil dikirim.');
     }
+
+    public function checkNpwp(Request $request)
+    {
+        $request->validate([
+            'no_npwp' => 'required|string',
+            'no_npwp_16' => 'nullable|string',
+        ]);
+
+        // 1. Cari customer berdasarkan NPWP 15 digit atau NPWP 16 digit
+        $customer = Customer::where('no_npwp', $request->no_npwp)
+            ->orWhere('no_npwp_16', $request->no_npwp_16)
+            ->first();
+
+        // Jika customer tidak ditemukan
+        if (!$customer) {
+            return response()->json([
+                'exists' => false,
+            ]);
+        }
+
+        // 2. Ambil id customer
+        $customerId = $customer->id;
+
+        // 3. Ambil data status dari tabel customer_statuses
+        $status = Customers_Status::where('id_Customer', $customerId)->first();
+
+        // Jika tidak ada record status
+        if (!$status) {
+
+            return response()->json([
+                'exists' => true,
+                'lawyer_rejected' => false,
+                'note' => null,
+                'auditor_note' => false,
+                'auditor_note_text' => null,
+            ]);
+
+        }
+
+        // 4. Cek lawyer reject (status_3)
+        $isRejected = strtolower($status->status_3 ?? '') === 'rejected';
+
+        // 5. Cek apakah auditor menambahkan catatan (status_4_keterangan)
+        $auditorHasNote = !empty($status->status_4_keterangan);
+
+        return response()->json([
+            'exists' => true,
+            // Lawyer reject
+            'lawyer_rejected' => $isRejected,
+            'note' => $isRejected ? ($status->status_3_keterangan ?? null) : null,
+            // Auditor note
+            'auditor_note' => $auditorHasNote,
+            'auditor_note_text' => $auditorHasNote ? $status->status_4_keterangan : null,
+        ]);
+    }
+
 }
