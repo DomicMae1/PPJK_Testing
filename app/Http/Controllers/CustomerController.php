@@ -391,20 +391,136 @@ class CustomerController extends Controller
         }
     }
 
+    // public function upload(Request $request)
+    // {
+    //     $file = $request->file('file');
+
+    //     $filename = time() . '_' . $file->getClientOriginalName();
+
+    //     $path = $file->storeAs('customers', $filename, 'public');
+
+    //     $url = url(Storage::url($path)); 
+
+    //     return response()->json([
+    //         'path' => $url,           
+    //         'nama_file' => $filename,
+    //     ]);
+    // }
+
     public function upload(Request $request)
     {
-        $file = $request->file('file');
+        // File Name Validation & Preparation
+        $file = $request->file('pdf') ?? $request->file('file');
+        if (!$file) return response()->json(['error' => 'File tidak ditemukan'], 400);
 
-        $filename = time() . '_' . $file->getClientOriginalName();
+        $order       = $request->input('order');         
+        $npwpNumber  = $request->input('npwp_number'); 
+        $type        = $request->input('type');         
 
-        $path = $file->storeAs('customers', $filename, 'public');
+        // Process make file by ur format 
+        $order = str_pad(intval($order), 3, '0', STR_PAD_LEFT);
+        $npwpSanitized = preg_replace('/[^0-9]/', '', $npwpNumber);
+        $type = strtolower($type);
 
-        $url = url(Storage::url($path)); 
+        $ext = $file->getClientOriginalExtension();
 
-        return response()->json([
-            'path' => $url,           
-            'nama_file' => $filename,
-        ]);
+        // example: 001-123456789012345-file.pdf
+        $filename = "{$npwpSanitized}-{$order}-{$type}.{$ext}";
+        $mode = $request->input('mode', 'medium');
+        $idPerusahaan = $request->input('id_perusahaan');
+        
+        $companySlug = 'general'; // Default folder if there's no company folder
+        $customDomain = null;
+
+        if ($idPerusahaan) {
+            $perusahaan = Perusahaan::find($idPerusahaan);
+            if ($perusahaan) {
+                // Convert name of company (example: "PT Alpha" -> "pt-alpha")
+                $companySlug = Str::slug($perusahaan->nama_perusahaan);
+
+                if ($perusahaan->tenant && $perusahaan->tenant->domains->isNotEmpty()) {
+                    $customDomain = $perusahaan->tenant->domains->first()->domain;
+                }
+            }
+        }
+
+        $protocol = $request->secure() ? 'https://' : 'http://';
+        $baseUrl = $customDomain ? ($protocol . $customDomain) : $request->getSchemeAndHttpHost();
+
+        $folderPathRel = $companySlug . '/customers'; 
+        $publicPathRel = $folderPathRel . '/' . $filename; 
+        
+        // URL Final example: http://alpha.test/file/view/pt-alpha/1234_file.pdf
+        $finalUrl = $baseUrl . '/file/view/' . $companySlug . '/customers/' . $filename;
+
+        // Create a Folder If It Doesn't Exist (IMPORTANT!)
+        if (!Storage::disk('customers_external')->exists($folderPathRel)) {
+            Storage::disk('customers_external')->makeDirectory($folderPathRel);
+        }
+
+        // Process Files (PDF / Non-PDF)
+        
+        if ($file->getClientMimeType() === 'application/pdf') {
+            
+            $tempPathRaw = $file->storeAs('temp', 'raw_' . $filename, 'local');
+            $inputPath = Storage::disk('local')->path($tempPathRaw);
+            $outputPath = Storage::disk('customers_external')->path($publicPathRel);
+
+            $inputPathWin = str_replace('/', '\\', $inputPath);
+            $outputPathWin = str_replace('/', '\\', $outputPath);
+
+            $settings = [
+                'ultra_small' => ['-dPDFSETTINGS=/screen', '-dColorImageResolution=72', '-dGrayImageResolution=72', '-dMonoImageResolution=72', '-dDownsampleColorImages=true'],
+                'small'       => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=150', '-dGrayImageResolution=150', '-dMonoImageResolution=150'],
+                'medium'      => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=200', '-dGrayImageResolution=200', '-dMonoImageResolution=200'],
+                'high'        => ['-dPDFSETTINGS=/printer', '-dColorImageResolution=300', '-dGrayImageResolution=300', '-dMonoImageResolution=300'],
+                'extreme'     => ['-dPDFSETTINGS=/screen', '-dColorImageResolution=50', '-dGrayImageResolution=50', '-dMonoImageResolution=50'],
+                'insane'      => [
+                    '-dPDFSETTINGS=/screen', '-dColorImageResolution=40', '-dGrayImageResolution=40', '-dMonoImageResolution=40',
+                    '-sColorConversionStrategy=Gray', '-sProcessColorModel=DeviceGray', '-dOverrideICC=true'
+                ]
+            ];
+            //Default compress 'medium'
+            $selectedConfig = $settings[$mode] ?? $settings['medium'];
+            $gsExe = 'C:\Program Files\gs\gs10.05.1\bin\gswin64c.exe';
+            $commandArgs = array_merge(
+                [$gsExe, '-q', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4'],
+                $selectedConfig,
+                ['-dEmbedAllFonts=false', '-dSubsetFonts=true', '-dColorImageDownsampleType=/Bicubic', '-dGrayImageDownsampleType=/Bicubic', '-dMonoImageDownsampleType=/Bicubic', '-o', $outputPathWin, $inputPathWin]
+            );
+            $gsTempDir = storage_path('app/gs_temp');
+            if (!file_exists($gsTempDir)) mkdir($gsTempDir, 0777, true);
+            $gsTempDirWin = str_replace('/', '\\', $gsTempDir);
+            $process = new Process(command: $commandArgs, env: ['TEMP' => $gsTempDirWin, 'TMP' => $gsTempDirWin, 'SystemRoot' => getenv('SystemRoot'), 'Path' => getenv('Path')]);
+            $process->setTimeout(300);
+            $process->run();
+
+            if ($process->isSuccessful() && file_exists($outputPath)) {
+                @unlink($inputPath);
+                return response()->json([
+                    'path' => $finalUrl,
+                    'nama_file' => $filename,
+                    'info' => 'Compressed (' . $mode . ')'
+                ]);
+            } else {
+                Storage::disk('customers_external')->put($publicPathRel, file_get_contents($inputPath));
+                @unlink($inputPath);
+
+                return response()->json([
+                    'path' => $finalUrl,
+                    'nama_file' => $filename,
+                    'warning' => 'Compression failed, using original file.'
+                ]);
+            }
+        } 
+        else {
+            $file->storeAs($folderPathRel, $filename, 'customers_external');
+            
+            return response()->json([
+                'path' => $finalUrl,           
+                'nama_file' => $filename,
+            ]);
+        }
     }
 
 
