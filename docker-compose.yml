@@ -2,7 +2,8 @@ version: '3.9'
 
 services:
   app:
-    image: php:8.2-fpm
+    # image: php:8.2-fpm
+    build: .
     container_name: laravel-app
     working_dir: /var/www/html
     volumes:
