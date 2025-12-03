@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Perusahaan;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Stancl\Tenancy\Database\Models\Domain;
 
 class PerusahaanController extends Controller
 {
@@ -49,40 +53,77 @@ class PerusahaanController extends Controller
     {
         $validated = $request->validate([
             'nama_perusahaan' => 'required|string|max:255',
-            'id_User_1' => 'nullable|integer|exists:users,id',
-            'id_User_2' => 'nullable|integer|exists:users,id',
-            'id_User_3' => 'nullable|integer|exists:users,id',
-            'id_User' => 'nullable|integer|exists:users,id',
+
+            'id_User_1' => 'nullable|integer|exists:users,id', // manager
+            'id_User_2' => 'nullable|integer|exists:users,id', // direktur
+            'id_User_3' => 'nullable|integer|exists:users,id', // lawyer
+            'id_User'   => 'nullable|integer|exists:users,id', // user
+
             'notify_1' => 'nullable|string',
             'notify_2' => 'nullable|string',
+
+            'company_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp,svg|max:2048',
         ]);
 
-        $perusahaanData = collect($validated)->only([
-            'nama_perusahaan',
-            'notify_1',
-            'notify_2'
-        ])->toArray();
+        $logoPath = null;
+        if ($request->hasFile('company_logo')) {
+            $logoPath = $request->file('company_logo')->store('company_logo', 'public');
+        }
 
-        $perusahaan = Perusahaan::create($perusahaanData);
+        $perusahaan = Perusahaan::create([
+            'nama_perusahaan'   => $validated['nama_perusahaan'],
+            'notify_1'          => $validated['notify_1'] ?? null,
+            'notify_2'          => $validated['notify_2'] ?? null,
+            'path_company_logo' => $logoPath,
+        ]);
 
-        $userRoles = [
+        $appDomain = env('APP_DOMAIN'); // Ambil dari .env (misal: customer-review-tako.test)
+        $baseSlug = Str::slug($validated['nama_perusahaan']);
+        
+        // Pastikan subdomain unik di tabel DOMAINS
+        $subdomain = $baseSlug;
+        $counter = 1;
+        while (Domain::where('domain', "{$subdomain}.{$appDomain}")->exists()) {
+            $subdomain = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        $fullDomain = "{$subdomain}.{$appDomain}";
+
+        // Buat Tenant Baru
+        // ID Tenant kita samakan dengan subdomain agar mudah dibaca (opsional, bisa juga UUID)
+        $tenant = Tenant::create([
+            'id' => $subdomain, 
+            'perusahaan_id' => $perusahaan->id, // Sambungkan Relasi ke Perusahaan
+        ]);
+
+        // Buat Domain untuk Tenant tersebut
+        $tenant->domains()->create([
+            'domain' => $fullDomain
+        ]);
+
+        // ========================================
+        // 4. Simpan user roles
+        // ========================================
+        $roles = [
             $validated['id_User_1'] ?? null => 'manager',
             $validated['id_User_2'] ?? null => 'direktur',
             $validated['id_User_3'] ?? null => 'lawyer',
-            $validated['id_User']   ?? null => 'user', 
+            $validated['id_User']   ?? null => 'user',
         ];
 
-        foreach ($userRoles as $userId => $role) {
+        foreach ($roles as $userId => $role) {
             if ($userId) {
                 $perusahaan->users()->attach($userId, ['role' => $role]);
 
-                 User::where('id', $userId)->update([
-                'id_perusahaan' => $perusahaan->id
-            ]);
+                // Opsional: Update id_perusahaan di tabel users jika perlu fallback
+                User::where('id', $userId)->update([
+                    'id_perusahaan' => $perusahaan->id
+                ]);
             }
         }
 
-        return back()->with('success', 'Perusahaan berhasil ditambahkan.');
+        return back()->with('success', 'Perusahaan berhasil ditambahkan. Domain: ' . $fullDomain);
     }
 
     /**
