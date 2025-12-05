@@ -98,9 +98,11 @@ export default function ManageCompany() {
         const direktur = company.users.find((u: any) => u.pivot.role === 'direktur');
         const lawyer = company.users.find((u: any) => u.pivot.role === 'lawyer');
 
+        const existingDomain = company.tenant?.domains?.[0]?.domain || '';
+
         setForm({
             nama_perusahaan: company.nama_perusahaan || '',
-            domain: '',
+            domain: existingDomain,
             id_User_1: manager ? String(manager.id) : '',
             id_User_2: direktur ? String(direktur.id) : '',
             id_User_3: lawyer ? String(lawyer.id) : '',
@@ -219,6 +221,19 @@ export default function ManageCompany() {
                                     placeholder="Contoh: PT. Maju Sejahtera"
                                     required
                                 />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="domain">Domain Lengkap</Label>
+                                <Input
+                                    id="domain"
+                                    name="domain"
+                                    value={form.domain}
+                                    onChange={handleInputChange}
+                                    placeholder="Contoh: alpha.registration.tako.co.id"
+                                    required
+                                />
+                                <p className="text-muted-foreground mt-1 text-xs">Masukkan alamat domain lengkap (Full URL) untuk perusahaan ini.</p>
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

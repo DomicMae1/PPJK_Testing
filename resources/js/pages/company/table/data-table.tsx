@@ -18,7 +18,7 @@ import {
     VisibilityState,
 } from '@tanstack/react-table';
 import * as React from 'react';
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { DataTableViewOptions } from './data-table-view-options';
 import { DataTablePagination } from './pagination';
 
@@ -29,6 +29,7 @@ interface User {
 
 interface FormState {
     nama_perusahaan: string;
+    domain: string;
     id_User_1: string;
     id_User_2: string;
     id_User_3: string;
@@ -54,8 +55,14 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
 
     const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
 
+    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setForm((prev) => ({ ...prev, [name]: value }));
+    };
+
     const [form, setForm] = useState<FormState>({
         nama_perusahaan: '',
+        domain: '',
         id_User_1: '',
         id_User_2: '',
         id_User_3: '',
@@ -85,6 +92,7 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                 setOpenCreate(false);
                 setForm({
                     nama_perusahaan: '',
+                    domain: '',
                     id_User_1: '',
                     id_User_2: '',
                     id_User_3: '',
@@ -188,6 +196,19 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                             />
                         </div>
 
+                        <div>
+                            <Label htmlFor="domain">Domain Lengkap</Label>
+                            <Input
+                                id="domain"
+                                name="domain"
+                                value={form.domain}
+                                onChange={handleInputChange}
+                                placeholder="Contoh: alpha.registration.tako.co.id"
+                                required
+                            />
+                            <p className="text-muted-foreground mt-1 text-xs">Masukkan domain lengkap secara manual (Full URL).</p>
+                        </div>
+
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             {userRoles.map(({ key, label }) => (
                                 <div key={key}>
@@ -226,6 +247,16 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                                 onChange={(e) => setForm({ ...form, notify_1: e.target.value })}
                                 placeholder="email1@contoh.com, email2@contoh.com"
                             />
+                            <div>
+                                <Label htmlFor="notify_2">Notifikasi Email 2</Label>
+                                <Input
+                                    id="notify_2"
+                                    name="notify_2"
+                                    value={form.notify_2}
+                                    onChange={handleInputChange}
+                                    placeholder="email2@contoh.com"
+                                />
+                            </div>
                         </div>
                     </div>
 

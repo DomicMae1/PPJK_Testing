@@ -54,6 +54,8 @@ class PerusahaanController extends Controller
         $validated = $request->validate([
             'nama_perusahaan' => 'required|string|max:255',
 
+            'domain'          => 'required|string|max:255|unique:domains,domain',
+
             'id_User_1' => 'nullable|integer|exists:users,id', // manager
             'id_User_2' => 'nullable|integer|exists:users,id', // direktur
             'id_User_3' => 'nullable|integer|exists:users,id', // lawyer
@@ -77,29 +79,33 @@ class PerusahaanController extends Controller
             'path_company_logo' => $logoPath,
         ]);
 
-        $appDomain = env('APP_DOMAIN'); // Ambil dari .env (misal: customer-review-tako.test)
-        $baseSlug = Str::slug($validated['nama_perusahaan']);
-        
-        // Pastikan subdomain unik di tabel DOMAINS
-        $subdomain = $baseSlug;
-        $counter = 1;
-        while (Domain::where('domain', "{$subdomain}.{$appDomain}")->exists()) {
-            $subdomain = "{$baseSlug}-{$counter}";
-            $counter++;
-        }
+        $rawDomain = $validated['domain'];
 
-        $fullDomain = "{$subdomain}.{$appDomain}";
+        $tenantId = Str::slug($rawDomain);
+
+        // $appDomain = env('APP_DOMAIN', 'registration.tako.co.id'); // Ambil dari .env (misal: registration.tako.co.id)
+        // $baseSlug = Str::slug($validated['nama_perusahaan']);
+        
+        // // Pastikan subdomain unik di tabel DOMAINS
+        // $subdomain = $baseSlug;
+        // $counter = 1;
+        // while (Domain::where('domain', "registration.{$subdomain}.{$appDomain}")->exists()) {
+        //     $subdomain = "{$baseSlug}-{$counter}";
+        //     $counter++;
+        // }
+
+        // $fullDomain = "{$subdomain}.{$appDomain}";
 
         // Buat Tenant Baru
         // ID Tenant kita samakan dengan subdomain agar mudah dibaca (opsional, bisa juga UUID)
         $tenant = Tenant::create([
-            'id' => $subdomain, 
+            'id' => $tenantId, 
             'perusahaan_id' => $perusahaan->id, // Sambungkan Relasi ke Perusahaan
         ]);
 
         // Buat Domain untuk Tenant tersebut
         $tenant->domains()->create([
-            'domain' => $fullDomain
+            'domain' => $rawDomain
         ]);
 
         // ========================================
