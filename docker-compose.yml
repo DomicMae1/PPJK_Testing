@@ -45,9 +45,9 @@ services:
     restart: always
     environment:
       # Membuat user dan password master dari .env
-      POSTGRES_DB: ${DB_SECOND_DATABASE}
-      POSTGRES_USER: ${DB_SECOND_USERNAME}
-      POSTGRES_PASSWORD: ${DB_SECOND_PASSWORD}
+      POSTGRES_DB: ${DB_TAKO_DATABASE}
+      POSTGRES_USER: ${DB_TAKO_USERNAME}
+      POSTGRES_PASSWORD: ${DB_TAKO_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
