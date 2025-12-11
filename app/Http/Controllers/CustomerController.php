@@ -452,7 +452,7 @@ class CustomerController extends Controller
         $folderPathRel = $companySlug . '/customers'; 
         
         // URL Final example: http://alpha.test/file/view/pt-alpha/1234_file.pdf
-        $finalUrl = $baseUrl . '/file/view/' . $companySlug . '/customers/' . $filename;
+        $finalUrl = $companySlug . '/customers/' . $filename;
 
         // Create a Folder If It Doesn't Exist (IMPORTANT!)
         if (!$disk->exists($folderPathRel)) {

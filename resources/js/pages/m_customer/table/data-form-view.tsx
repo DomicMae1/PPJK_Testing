@@ -463,7 +463,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                                     {/* LINK UNTUK MEMBUKA PDF */}
                                     <a
-                                        href={file.path}
+                                        href={`/file/view/${file.path}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-sm text-blue-400 underline transition-colors hover:text-blue-600"

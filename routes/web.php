@@ -53,9 +53,8 @@ Route::post('/form/{token}', [CustomerController::class, 'submitPublicForm'])->n
 Route::post('customer/store-public', [CustomerController::class, 'storePublic'])->name('customer.public.submit');
 Route::get('/secure-attachment/{hash}', [SecureFileController::class, 'show'])->middleware('auth')->name('secure.attachment.show');
 
-// Tambahkan parameter {company} di tengah
 Route::get('/file/view/{path}', [FileController::class, 'view'])
-    ->where('path', '.*') // <--- INI WAJIB ADA! Regex untuk izinkan slash
+    ->where('path', '.*') 
     ->name('file.view');
 
 require __DIR__ . '/settings.php';
