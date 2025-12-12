@@ -163,8 +163,80 @@ class CustomersStatusController extends Controller
 
         if ($request->filled('attach_path') && $request->filled('attach_filename')) {
 
-            $path = $request->attach_path;
-            $filename = $request->attach_filename;
+            $tempPath = $request->attach_path;  
+            $tempFull = Storage::disk('customers_external')->path($tempPath);
+
+            $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
+                ->get()
+                ->map(function ($row) {
+                    $parts = explode('-', $row->nama_file);
+                    if (count($parts) < 3) return 0;
+                    return intval($parts[1]);
+                })
+                ->max() ?? 0;
+
+            $status = Customers_Status::where('id_Customer', $customer->id)->first();
+            $statusFields = [
+                'submit_1_nama_file', 'status_1_nama_file',
+                'status_2_nama_file', 'submit_3_nama_file',
+                'status_4_nama_file',
+            ];
+
+            $lastFromStatus = 0;
+            if ($status) {
+                foreach ($statusFields as $field) {
+                    $fileName = $status->$field;
+                    if (!$fileName) continue;
+
+                    $parts = explode('-', $fileName);
+                    if (count($parts) < 3) continue;
+
+                    $orderNum = intval($parts[1]);
+                    $lastFromStatus = max($lastFromStatus, $orderNum);
+                }
+            }
+
+            $newOrder = max($lastFromAttach, $lastFromStatus) + 1;
+            $order = str_pad($newOrder, 3, '0', STR_PAD_LEFT);
+
+            $npwpRaw = $customer->no_npwp ?? '';
+            $npwpSanitized = preg_replace('/[^0-9]/', '', $npwpRaw);
+            if (!$npwpSanitized) {
+                $npwpSanitized = '0000000000000000';
+            }
+
+            $docType = match ($role) {
+                'user'     => 'marketing_review',
+                'manager'  => 'manager_review',
+                'direktur' => 'director_review',
+                'lawyer'   => 'lawyer_review',
+                'auditor'  => 'audit_review',
+                default    => 'attachment'
+            };
+
+            $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
+
+            $filename = "{$npwpSanitized}-{$order}-{$docType}.{$ext}";
+
+            $folderPath = $companySlug . '/attachment';
+
+            if (!Storage::disk('customers_external')->exists($folderPath)) {
+                Storage::disk('customers_external')->makeDirectory($folderPath);
+            }
+
+            $publicRelative = $folderPath . '/' . $filename;
+
+            // copy file dari local/temp → disk customers_external
+            Storage::disk('customers_external')->put(
+                $publicRelative,
+                file_get_contents($tempFull)
+            );
+
+            // hapus file temp
+            @unlink($tempFull);
+
+            $path = $publicRelative;
+
         }
 
         elseif ($request->hasFile('attach') || $request->hasFile('file')) {
@@ -313,9 +385,39 @@ class CustomersStatusController extends Controller
                 }
             }
 
-            if (!$path || !$filename) {
-                return back()->with('error', 'Gagal memproses file attachment');
-            }
+            // if ($file->getClientMimeType() === 'application/pdf') {
+
+            //     // 1. Simpan raw PDF sementara
+            //     $tempRaw = $file->storeAs('temp', 'raw_' . $filename, 'local');
+            //     $inputPath = Storage::disk('local')->path($tempRaw);
+
+            //     // 2. Pastikan folder final tersedia
+            //     if (!Storage::disk('customers_external')->exists($folderPath)) {
+            //         Storage::disk('customers_external')->makeDirectory($folderPath);
+            //     }
+
+            //     $outputFullPath = Storage::disk('customers_external')->path($publicRelative);
+
+            //     // 3. PANGGIL FUNCTION PRIVATE KOMPRESI
+            //     $success = $this->compressPdf($inputPath, $outputFullPath);
+
+            //     if ($success && file_exists($outputFullPath)) {
+
+            //         @unlink($inputPath); // hapus raw
+            //         $path = $publicRelative;
+
+            //     } else {
+
+            //         // Fallback → copy original
+            //         Storage::disk('customers_external')->put($publicRelative, file_get_contents($inputPath));
+            //         @unlink($inputPath);
+
+            //         $path = $publicRelative;
+            //     }
+            // }
+            // else {
+            //     $path = $file->storeAs($folderPath, $filename, 'customers_external');
+            // }
         }
 
         $customer = $status->customer;
@@ -456,4 +558,43 @@ class CustomersStatusController extends Controller
 
         return back()->with('success', 'Data berhasil disubmit.');
     }
+
+    // private function compressPdf($input, $output)
+    // {
+    //     try {
+
+    //         $cmd = [
+    //             'gs',
+    //             '-sDEVICE=pdfwrite',
+    //             '-dCompatibilityLevel=1.4',
+
+    //             // 🔥 AGGRESSIVE COMPRESSION
+    //             '-dPDFSETTINGS=/screen',
+
+    //             // Optional untuk kompres gambar lebih kuat
+    //             '-dDownsampleColorImages=true',
+    //             '-dColorImageResolution=72',
+    //             '-dDownsampleGrayImages=true',
+    //             '-dGrayImageResolution=72',
+    //             '-dDownsampleMonoImages=true',
+    //             '-dMonoImageResolution=72',
+
+    //             '-dNOPAUSE',
+    //             '-dQUIET',
+    //             '-dBATCH',
+    //             "-sOutputFile={$output}",
+    //             $input
+    //         ];
+
+    //         $process = new Process($cmd);
+    //         $process->setTimeout(90);
+    //         $process->run();
+
+    //         return $process->isSuccessful();
+
+    //     } catch (\Exception $e) {
+    //         Log::error("Ghostscript Compress Error: " . $e->getMessage());
+    //         return false;
+    //     }
+    // }
 }
