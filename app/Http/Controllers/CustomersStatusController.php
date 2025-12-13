@@ -142,7 +142,19 @@ class CustomersStatusController extends Controller
 
         $user = Auth::user();
         $userId = $user->id;
-        $role = $user->getRoleNames()->first();
+        $rawRole  = strtolower($user->getRoleNames()->first());
+
+        $roleMap = [
+            'marketing' => 'user',
+            'user'      => 'user',
+            'manager'   => 'manager',
+            'direktur'  => 'direktur',
+            'director'  => 'direktur',
+            'lawyer'    => 'lawyer',
+            'auditor'   => 'auditor',
+        ];
+
+        $role = $roleMap[$rawRole] ?? $rawRole;
         $now = Carbon::now();
         $nama = $user->name;
 
@@ -158,105 +170,49 @@ class CustomersStatusController extends Controller
         $isDirekturCreator = ($customer->id_user === $userId && $role === 'direktur');
         $isManagerCreator = ($customer->id_user === $userId && $role === 'manager');
 
+        $customer = $status->customer;
+
+        if ($request->hasFile('attach') && !$request->filled('attach_path')) {
+
+            $file = $request->file('attach');
+
+            $tempName = 'temp_' . uniqid() . '.pdf';
+            $tempPath = 'temp/' . $tempName;
+
+            Storage::disk('customers_external')->put(
+                $tempPath,
+                file_get_contents($file->getRealPath())
+            );
+
+            $request->merge([
+                'attach_path'     => $tempPath,
+                'attach_filename' => $file->getClientOriginalName(),
+            ]);
+        }
+
         $filename = null;
         $path = null;
 
-        if (in_array($role, ['user', 'manager', 'direktur', 'lawyer', 'auditor']) && $request->filled('attach_path') && $request->filled('attach_filename')) {
+        if (
+            in_array($role, ['user','manager','direktur','lawyer','auditor'])
+            && $request->filled('attach_path')
+            && $request->filled('attach_filename')
+        ) {
 
-            $tempPath = $request->attach_path;  
+            $tempPath = $request->attach_path;
             $tempFull = Storage::disk('customers_external')->path($tempPath);
 
+            Log::info('PDF BEFORE', [
+                'path' => $tempFull,
+                'size_kb' => round(filesize($tempFull) / 1024, 2),
+            ]);
+
+
+            /* === HITUNG ORDER FILE === */
             $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
                 ->get()
-                ->map(function ($row) {
-                    $parts = explode('-', $row->nama_file);
-                    if (count($parts) < 3) return 0;
-                    return intval($parts[1]);
-                })
+                ->map(fn($r) => intval(explode('-', $r->nama_file)[1] ?? 0))
                 ->max() ?? 0;
-
-            $status = Customers_Status::where('id_Customer', $customer->id)->first();
-            $statusFields = [
-                'submit_1_nama_file', 'status_1_nama_file',
-                'status_2_nama_file', 'submit_3_nama_file',
-                'status_4_nama_file',
-            ];
-
-            $lastFromStatus = 0;
-            if ($status) {
-                foreach ($statusFields as $field) {
-                    $fileName = $status->$field;
-                    if (!$fileName) continue;
-
-                    $parts = explode('-', $fileName);
-                    if (count($parts) < 3) continue;
-
-                    $orderNum = intval($parts[1]);
-                    $lastFromStatus = max($lastFromStatus, $orderNum);
-                }
-            }
-
-            $newOrder = max($lastFromAttach, $lastFromStatus) + 1;
-            $order = str_pad($newOrder, 3, '0', STR_PAD_LEFT);
-
-            $npwpRaw = $customer->no_npwp ?? '';
-            $npwpSanitized = preg_replace('/[^0-9]/', '', $npwpRaw);
-            if (!$npwpSanitized) {
-                $npwpSanitized = '0000000000000000';
-            }
-
-            $docType = match ($role) {
-                'user'     => 'marketing_review',
-                'manager'  => 'manager_review',
-                'direktur' => 'director_review',
-                'lawyer'   => 'lawyer_review',
-                'auditor'  => 'audit_review',
-                default    => 'attachment'
-            };
-
-            $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
-
-            $filename = "{$npwpSanitized}-{$order}-{$docType}.{$ext}";
-
-            $folderPath = $companySlug . '/attachment';
-
-            if (!Storage::disk('customers_external')->exists($folderPath)) {
-                Storage::disk('customers_external')->makeDirectory($folderPath);
-            }
-
-            $publicRelative = $folderPath . '/' . $filename;
-
-            // copy file dari local/temp → disk customers_external
-            Storage::disk('customers_external')->put(
-                $publicRelative,
-                file_get_contents($tempFull)
-            );
-
-            // hapus file temp
-            @unlink($tempFull);
-
-            $path = $publicRelative;
-
-        }
-
-        elseif ($request->hasFile('attach') || $request->hasFile('file')) {
-
-            $file = $request->file('attach') ?? $request->file('file');
-            $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
-                ->get()
-                ->map(function ($row) {
-                    $file = $row->nama_file;
-
-                    // pisahkan berdasarkan "-"
-                    $parts = explode('-', $file);
-                    if (count($parts) < 3) return 0;
-
-                    // ORDER ada di index ke-1 → e.g. 003
-                    return intval($parts[1]);
-                })
-                ->max() ?? 0;
-
-            $status = Customers_Status::where('id_Customer', $customer->id)->first();
 
             $statusFields = [
                 'submit_1_nama_file',
@@ -266,161 +222,66 @@ class CustomersStatusController extends Controller
                 'status_4_nama_file',
             ];
 
-            $lastFromStatus = 0;
+            $lastFromStatus = collect($statusFields)
+                ->map(fn($f) => intval(explode('-', $status->$f ?? '')[1] ?? 0))
+                ->max() ?? 0;
 
-            if ($status) {
-                foreach ($statusFields as $field) {
+            $order = str_pad(max($lastFromAttach, $lastFromStatus) + 1, 3, '0', STR_PAD_LEFT);
 
-                    $fileName = $status->$field;
-                    if (!$fileName) continue;
+            /* === BUILD FILE NAME === */
+            $npwp = preg_replace('/\D/', '', $customer->no_npwp ?? '') ?: '0000000000000000';
 
-                    $parts = explode('-', $fileName);
-                    if (count($parts) < 3) continue;
-
-                    // ORDER = index ke-1
-                    $orderNum = intval($parts[1]);
-
-                    $lastFromStatus = max($lastFromStatus, $orderNum);
-                }
-            }
-
-            // Urutan baru
-            $lastOrder = max($lastFromAttach, $lastFromStatus);
-            $newOrder = $lastOrder + 1;
-
-            // Format 3 digit → 001, 002, 003, ...
-            $order = str_pad($newOrder, 3, '0', STR_PAD_LEFT);
-
-            $npwpRaw = $customer->no_npwp ?? '0000000000000000';
-            $npwpSanitized = preg_replace('/[^0-9]/', '', $npwpRaw);
-            
-            // 3. Tipe Dokumen (Berdasarkan Role yang Upload)
             $docType = match ($role) {
                 'user'     => 'marketing_review',
                 'manager'  => 'manager_review',
                 'direktur' => 'director_review',
                 'lawyer'   => 'lawyer_review',
                 'auditor'  => 'audit_review',
-                default    => 'attachment'
             };
 
-            // B. BENTUK NAMA FILE
-            // Format: 001-123456789-marketing_att.pdf
-            $ext = $file->getClientOriginalExtension();
-            $filename = "{$npwpSanitized}-{$order}-{$docType}.{$ext}";
+            $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
+            $filename = "{$npwp}-{$order}-{$docType}.{$ext}";
 
-            // Folder final: {companySlug}/attachment
-            $folderPath = $companySlug . '/attachment';
+            $folder = "{$companySlug}/attachment";
+            Storage::disk('customers_external')->makeDirectory($folder);
 
-            if (!Storage::disk('customers_external')->exists($folderPath)) {
-                Storage::disk('customers_external')->makeDirectory($folderPath);
-            }
-
-            // Path final (full)
-            $publicRelative = $folderPath . '/' . $filename;
+            $publicRelative = "{$folder}/{$filename}";
             $outputFullPath = Storage::disk('customers_external')->path($publicRelative);
 
-            if ($file->getClientMimeType() === 'application/pdf') {
+            /* ===============================
+            * GHOSTSCRIPT COMPRESS
+            * =============================== */
+            $gsExe = '/usr/bin/gs';
 
-                // 1. Simpan raw PDF sementara di storage lokal
-                $tempRaw = $file->storeAs('temp', 'raw_' . $filename, 'local');
-                $inputPath = Storage::disk('local')->path($tempRaw);
+            $command = [
+                $gsExe,
+                '-q',
+                '-dSAFER',
+                '-sDEVICE=pdfwrite',
+                '-dCompatibilityLevel=1.4',
+                '-dPDFSETTINGS=/ebook',
+                '-dColorImageResolution=200',
+                '-dGrayImageResolution=200',
+                '-dMonoImageResolution=200',
+                '-o', $outputFullPath,
+                $tempFull,
+            ];
 
-                // CONFIG Ghostscript
-                $settings = [
-                    'medium' => [
-                        '-dPDFSETTINGS=/ebook',
-                        '-dColorImageResolution=200',
-                        '-dGrayImageResolution=200',
-                        '-dMonoImageResolution=200',
-                    ],
-                ];
+            $process = new \Symfony\Component\Process\Process($command);
+            $process->setTimeout(300);
+            $process->run();
 
-                $config = $settings['medium'];
-                $gsExe = '/usr/bin/gs';
-
-                $command = array_merge(
-                    [
-                        $gsExe,
-                        '-q',
-                        '-dSAFER',
-                        '-sDEVICE=pdfwrite',
-                        '-dCompatibilityLevel=1.4'
-                    ],
-                    $config,
-                    [
-                        '-o',
-                        $outputFullPath,
-                        $inputPath
-                    ]
+            if (!$process->isSuccessful() || !file_exists($outputFullPath)) {
+                // fallback copy original
+                Storage::disk('customers_external')->put(
+                    $publicRelative,
+                    file_get_contents($tempFull)
                 );
-
-                $gsTemp = storage_path('app/gs_temp');
-                if (!file_exists($gsTemp)) mkdir($gsTemp, 0777, true);
-
-                $process = new Process(
-                    command: $command,
-                    env: [
-                        'TMPDIR' => $gsTemp,
-                        'TEMP'   => $gsTemp,
-                        'TMP'    => $gsTemp,
-                    ]
-                );
-                $process->setTimeout(300);
-                $process->run();
-
-                // Jika sukses
-                if ($process->isSuccessful() && file_exists($outputFullPath)) {
-
-                    @unlink($inputPath); // hapus raw
-
-                    $path = $publicRelative; // simpan path final
-                }
-                // Jika gagal compress → fallback ke copy original
-                else {
-                    Storage::disk('customers_external')->put($publicRelative, file_get_contents($inputPath));
-                    @unlink($inputPath);
-
-                    $path = $publicRelative;
-                }
             }
 
-            // if ($file->getClientMimeType() === 'application/pdf') {
-
-            //     // 1. Simpan raw PDF sementara
-            //     $tempRaw = $file->storeAs('temp', 'raw_' . $filename, 'local');
-            //     $inputPath = Storage::disk('local')->path($tempRaw);
-
-            //     // 2. Pastikan folder final tersedia
-            //     if (!Storage::disk('customers_external')->exists($folderPath)) {
-            //         Storage::disk('customers_external')->makeDirectory($folderPath);
-            //     }
-
-            //     $outputFullPath = Storage::disk('customers_external')->path($publicRelative);
-
-            //     // 3. PANGGIL FUNCTION PRIVATE KOMPRESI
-            //     $success = $this->compressPdf($inputPath, $outputFullPath);
-
-            //     if ($success && file_exists($outputFullPath)) {
-
-            //         @unlink($inputPath); // hapus raw
-            //         $path = $publicRelative;
-
-            //     } else {
-
-            //         // Fallback → copy original
-            //         Storage::disk('customers_external')->put($publicRelative, file_get_contents($inputPath));
-            //         @unlink($inputPath);
-
-            //         $path = $publicRelative;
-            //     }
-            // }
-            // else {
-            //     $path = $file->storeAs($folderPath, $filename, 'customers_external');
-            // }
+            @unlink($tempFull);
+            $path = $publicRelative;
         }
-
-        $customer = $status->customer;
 
         switch ($role) {
             case 'user':
@@ -547,54 +408,24 @@ class CustomersStatusController extends Controller
                 return back()->with('error', 'Role tidak dikenali.');
         }
 
-        Log::info("Submit oleh {$nama} ({$role})", [
-            'customer_id' => $request->customer_id,
-            'timestamp' => $now->toDateTimeString(),
-            'keterangan' => $request->keterangan,
-            'attachment' => $path
+        if (file_exists($outputFullPath)) {
+            Log::info('PDF AFTER', [
+                'path' => $outputFullPath,
+                'size_kb' => round(filesize($outputFullPath) / 1024, 2),
+            ]);
+        }
+
+
+        Log::info('COMPRESS INPUT', [
+            'role' => $role,
+            'tempFull' => $tempFull,
+            'exists' => file_exists($tempFull),
+            'size' => file_exists($tempFull) ? filesize($tempFull) : 0,
         ]);
+
 
         $status->save();
 
         return back()->with('success', 'Data berhasil disubmit.');
     }
-
-    // private function compressPdf($input, $output)
-    // {
-    //     try {
-
-    //         $cmd = [
-    //             'gs',
-    //             '-sDEVICE=pdfwrite',
-    //             '-dCompatibilityLevel=1.4',
-
-    //             // 🔥 AGGRESSIVE COMPRESSION
-    //             '-dPDFSETTINGS=/screen',
-
-    //             // Optional untuk kompres gambar lebih kuat
-    //             '-dDownsampleColorImages=true',
-    //             '-dColorImageResolution=72',
-    //             '-dDownsampleGrayImages=true',
-    //             '-dGrayImageResolution=72',
-    //             '-dDownsampleMonoImages=true',
-    //             '-dMonoImageResolution=72',
-
-    //             '-dNOPAUSE',
-    //             '-dQUIET',
-    //             '-dBATCH',
-    //             "-sOutputFile={$output}",
-    //             $input
-    //         ];
-
-    //         $process = new Process($cmd);
-    //         $process->setTimeout(90);
-    //         $process->run();
-
-    //         return $process->isSuccessful();
-
-    //     } catch (\Exception $e) {
-    //         Log::error("Ghostscript Compress Error: " . $e->getMessage());
-    //         return false;
-    //     }
-    // }
 }
