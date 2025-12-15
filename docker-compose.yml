@@ -33,8 +33,8 @@ services:
     volumes:
       - ./:/var/www/html
       - ./storage/app/public:/var/www/html/storage/app/public
-      - ./docker/apache/sites-available:/etc/apache2/sites-available
-      - ./docker/apache/sites-enabled:/etc/apache2/sites-enabled
+      - /home/it-admin/sites-available:/etc/apache2/sites-available
+      - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
 
     depends_on:
       - db
