@@ -33,6 +33,7 @@ services:
     volumes:
       - ./:/var/www/html
       - ./storage/app/public:/var/www/html/storage/app/public
+      - /mnt/Customer_Registration:/mnt/Customer_Registration
       - /home/it-admin/sites-available:/etc/apache2/sites-available
       - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
       - /home/it-admin/letsencrypt:/etc/letsencrypt
