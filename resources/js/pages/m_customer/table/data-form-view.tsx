@@ -136,33 +136,33 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
         const formData = new FormData();
 
-        if (showExtraFields && attachFile) {
-            try {
-                const formDataAttach = new FormData();
-                formDataAttach.append('file', attachFile);
+        // if (showExtraFields && attachFile) {
+        //     try {
+        //         const formDataAttach = new FormData();
+        //         formDataAttach.append('file', attachFile);
 
-                const resAttach = await axios.post('/customer/upload-temp', formDataAttach, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                });
+        //         const resAttach = await axios.post('/customer/upload-temp', formDataAttach, {
+        //             headers: {
+        //                 'Content-Type': 'multipart/form-data',
+        //             },
+        //         });
 
-                uploadedAttachments.push({
-                    id: 0,
-                    customer_id: customer?.id ?? 0,
-                    nama_file: resAttach.data.nama_file,
-                    path: resAttach.data.path,
-                    type: 'note',
-                });
-                formData.append('attach_path', resAttach.data.path);
-                formData.append('attach_filename', resAttach.data.nama_file);
-            } catch (error) {
-                console.error('Upload gagal:', error);
-                alert('❌ Upload file gagal.');
-                setIsLoading(false);
-                return;
-            }
-        }
+        //         uploadedAttachments.push({
+        //             id: 0,
+        //             customer_id: customer?.id ?? 0,
+        //             nama_file: resAttach.data.nama_file,
+        //             path: resAttach.data.path,
+        //             type: 'note',
+        //         });
+        //         formData.append('attach_path', resAttach.data.path);
+        //         formData.append('attach_filename', resAttach.data.nama_file);
+        //     } catch (error) {
+        //         console.error('Upload gagal:', error);
+        //         alert('❌ Upload file gagal.');
+        //         setIsLoading(false);
+        //         return;
+        //     }
+        // }
 
         formData.append('customer_id', customer.id.toString());
         formData.append('status_1_by', String(props.auth.user.id));
