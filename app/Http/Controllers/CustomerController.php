@@ -515,7 +515,7 @@ class CustomerController extends Controller
                 $envVars['SystemRoot'] = getenv('SystemRoot');
                 $envVars['Path'] = getenv('Path');
             }
-            $process = new Process(command: $commandArgs, env: ['TEMP' => $gsTempDirWin, 'TMP' => $gsTempDirWin, 'SystemRoot' => getenv('SystemRoot'), 'Path' => getenv('Path')]);
+            $process = new Process(command: $commandArgs, env: $envVars);
             $process->setTimeout(300);
             $process->run();
 
