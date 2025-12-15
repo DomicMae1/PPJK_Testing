@@ -35,6 +35,7 @@ services:
       - ./storage/app/public:/var/www/html/storage/app/public
       - /home/it-admin/sites-available:/etc/apache2/sites-available
       - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
+      - /home/it-admin/letsencrypt:/etc/letsencrypt
 
     depends_on:
       - db
