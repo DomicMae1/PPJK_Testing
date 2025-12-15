@@ -65,6 +65,14 @@ chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache\n\
 chown -R www-data:www-data /mnt/Customer_Registration\n\
 chmod -R 775 /mnt/Customer_Registration\n\
 \n\
+\n\
+if [ -f /tmp/hosts_external ]; then\n\
+    echo "" >> /etc/hosts\n\
+    echo "# --- IMPORTED FROM HOST SERVER ---" >> /etc/hosts\n\
+    cat /tmp/hosts_external | grep -v "127.0.0.1" | grep -v "::1" >> /etc/hosts\n\
+    echo "✅ Success append host /etc/hosts to container"\n\
+fi\n\
+\n\
 # Jalankan storage:link\n\
 # Ini akan membaca config filesystems.php Anda dan membuat symlink\n\
 # baik untuk public/storage maupun public/storage/external\n\
