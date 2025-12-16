@@ -11,11 +11,16 @@ import axios from 'axios';
 import { File, Loader2, SquareCheck, SquareX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+interface UploadedFileState {
+    path: string;
+    nama_file: string;
+}
+
 export default function ViewCustomerForm({ customer }: { customer: MasterCustomer }) {
     const [keterangan, setKeterangan] = useState('');
     // const [attach, setAttach] = useState<File | null>(null);
-    const [attachFile, setAttachFile] = useState<File | null>(null);
-    const [attachFileUser, setAttachFileUser] = useState<File | null>(null);
+    const [attachFile, setAttachFile] = useState<UploadedFileState | null>(null);
+    const [attachFileUser, setAttachFileUser] = useState<UploadedFileState | null>(null);
     const [attachFileStatuses, setAttachFileStatuses] = useState<any[]>([]);
     const [statusData, setStatusData] = useState<any | null>(null);
     const [auditorStartReview, setAuditorStartReview] = useState(false);
@@ -50,6 +55,18 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
     const userRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
     const allowedRoles = ['manager', 'direktur', 'lawyer', 'auditor'];
     const showExtraFields = allowedRoles.includes(userRole);
+
+    const handleUploadSuccess = (file: File | null, response: any, stateSetter: (val: UploadedFileState | null) => void) => {
+        if (file && response) {
+            // Kita simpan path (dari server) dan nama file asli/server
+            stateSetter({
+                path: response.path,
+                nama_file: response.nama_file || file.name,
+            });
+        } else {
+            stateSetter(null);
+        }
+    };
 
     useEffect(() => {
         if (customer?.id) {
@@ -171,13 +188,18 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
         }
 
         if (userRole === 'user' && attachFileUser) {
-            formData.append('attach', attachFileUser);
+            // Kirim PATH yang didapat dari temp upload
+            formData.append('attach_path', attachFileUser.path);
+            formData.append('attach_filename', attachFileUser.nama_file);
         }
 
+        // --- UPDATE LOGIC KIRIM FILE (REVIEWER: Lawyer/Auditor/dll) ---
         if (showExtraFields) {
             formData.append('keterangan', keterangan);
             if (attachFile) {
-                formData.append('attach', attachFile);
+                // Kirim PATH yang didapat dari temp upload
+                formData.append('attach_path', attachFile.path);
+                formData.append('attach_filename', attachFile.nama_file);
             }
         }
 
@@ -212,6 +234,7 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             onSuccess: () => {
                 alert('✅ Data berhasil disubmit!');
                 setAttachFile(null);
+                setAttachFileUser(null);
                 setAttachFileStatuses([]);
                 setIsLoading(false);
                 router.visit(`/customer/${customer.id}`, { replace: true, preserveState: false });
@@ -482,7 +505,17 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                 <>
                     {userRole === 'user' && (
                         <div className="mt-6 w-full md:w-1/3">
-                            <ResettableDropzone label="Upload Lampiran Penawaran Marketing (PDF)" onFileChange={setAttachFileUser} />
+                            <ResettableDropzone
+                                label="Upload Lampiran Penawaran Marketing (PDF)"
+                                uploadConfig={{
+                                    url: '/customer/upload-temp', // GANTI dengan endpoint upload Anda
+                                    payload: {
+                                        type: 'lampiran_marketing',
+                                        // Tambahkan data lain jika perlu, misal ID user
+                                    },
+                                }}
+                                onFileChange={(file, response) => handleUploadSuccess(file, response, setAttachFileUser)}
+                            />
                         </div>
                     )}
                 </>
@@ -503,7 +536,17 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
                         </div>
 
                         <div className="w-full md:w-1/2">
-                            <ResettableDropzone label="Upload Lampiran" onFileChange={setAttachFile} />
+                            <ResettableDropzone
+                                label="Upload Lampiran"
+                                uploadConfig={{
+                                    url: '/customer/upload-temp', // GANTI dengan endpoint upload Anda
+                                    payload: {
+                                        type: 'lampiran_auditor',
+                                        // id_transaksi: id, // Contoh payload tambahan
+                                    },
+                                }}
+                                onFileChange={(file, response) => handleUploadSuccess(file, response, setAttachFile)}
+                            />
                             <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
                         </div>
                     </div>
@@ -530,7 +573,17 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
 
                             {/* Dropzone */}
                             <div className="w-full md:w-1/2">
-                                <ResettableDropzone label="Upload Lampiran" onFileChange={setAttachFile} />
+                                <ResettableDropzone
+                                    label="Upload Lampiran"
+                                    uploadConfig={{
+                                        url: '/customer/upload-temp', // GANTI dengan endpoint upload Anda
+                                        payload: {
+                                            type: 'lampiran_review_general',
+                                            role: userRole,
+                                        },
+                                    }}
+                                    onFileChange={(file, response) => handleUploadSuccess(file, response, setAttachFile)}
+                                />
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah file PDF maksimal 5MB</p>
                             </div>
                         </div>

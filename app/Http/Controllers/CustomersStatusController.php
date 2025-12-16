@@ -107,7 +107,8 @@ class CustomersStatusController extends Controller
         $request->validate([
             'customer_id' => 'required|exists:customers_statuses,id_Customer',
             'keterangan' => 'nullable|string',
-            'attach' => 'nullable|file|mimes:pdf|max:5120',
+            'attach_path'         => 'nullable|string', 
+            'attach_filename'     => 'nullable|string',
             'submit_1_timestamps' => 'nullable|date',
             'status_1_timestamps' => 'nullable|date',
             'status_2_timestamps' => 'nullable|date',
@@ -190,105 +191,87 @@ class CustomersStatusController extends Controller
             ]);
         }
 
-        $filename = null;
-        $path = null;
+        $finalFilename = null;
+        $finalPath = null;
 
         if (
             in_array($role, ['user','manager','direktur','lawyer','auditor'])
             && $request->filled('attach_path')
             && $request->filled('attach_filename')
         ) {
-
+            $disk = Storage::disk('customers_external');
             $tempPath = $request->attach_path;
-            $tempFull = Storage::disk('customers_external')->path($tempPath);
-
-            Log::info('PDF BEFORE', [
-                'path' => $tempFull,
-                'size_kb' => round(filesize($tempFull) / 1024, 2),
-            ]);
+            // $tempFull = Storage::disk('customers_external')->path($tempPath);
 
 
-            /* === HITUNG ORDER FILE === */
-            $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
-                ->get()
-                ->map(fn($r) => intval(explode('-', $r->nama_file)[1] ?? 0))
-                ->max() ?? 0;
+            if ($disk->exists($tempPath)) {
 
-            $statusFields = [
-                'submit_1_nama_file',
-                'status_1_nama_file',
-                'status_2_nama_file',
-                'submit_3_nama_file',
-                'status_4_nama_file',
-            ];
+                /* --- A. HITUNG URUTAN FILE (ORDER) --- */
+                $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
+                    ->get()
+                    ->map(fn($r) => intval(explode('-', $r->nama_file)[1] ?? 0))
+                    ->max() ?? 0;
 
-            $lastFromStatus = collect($statusFields)
-                ->map(fn($f) => intval(explode('-', $status->$f ?? '')[1] ?? 0))
-                ->max() ?? 0;
+                $statusFields = [
+                    'submit_1_nama_file', 'status_1_nama_file', 
+                    'status_2_nama_file', 'submit_3_nama_file', 'status_4_nama_file'
+                ];
 
-            $order = str_pad(max($lastFromAttach, $lastFromStatus) + 1, 3, '0', STR_PAD_LEFT);
+                $lastFromStatus = collect($statusFields)
+                    ->map(fn($f) => intval(explode('-', $status->$f ?? '')[1] ?? 0))
+                    ->max() ?? 0;
 
-            /* === BUILD FILE NAME === */
-            $npwp = preg_replace('/\D/', '', $customer->no_npwp ?? '') ?: '0000000000000000';
+                $order = str_pad(max($lastFromAttach, $lastFromStatus) + 1, 3, '0', STR_PAD_LEFT);
 
-            $docType = match ($role) {
-                'user'     => 'marketing_review',
-                'manager'  => 'manager_review',
-                'direktur' => 'director_review',
-                'lawyer'   => 'lawyer_review',
-                'auditor'  => 'audit_review',
-            };
+                /* --- B. GENERATE NAMA FILE BARU --- */
+                $npwp = preg_replace('/\D/', '', $customer->no_npwp ?? '') ?: '0000000000000000';
+                
+                $docType = match ($role) {
+                    'user'     => 'marketing_review',
+                    'manager'  => 'manager_review',
+                    'direktur' => 'director_review',
+                    'lawyer'   => 'lawyer_review',
+                    'auditor'  => 'audit_review',
+                    default    => 'document'
+                };
 
-            $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
-            $filename = "{$npwp}-{$order}-{$docType}.{$ext}";
+                // Ambil ekstensi dari nama file asli yang dikirim frontend
+                $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
+                $finalFilename = "{$npwp}-{$order}-{$docType}.{$ext}";
 
-            $folder = "{$companySlug}/attachment";
-            Storage::disk('customers_external')->makeDirectory($folder);
+                /* --- C. SIAPKAN FOLDER TUJUAN --- */
+                $targetFolder = "{$companySlug}/attachment";
+                if (!$disk->exists($targetFolder)) {
+                    $disk->makeDirectory($targetFolder);
+                }
 
-            $publicRelative = "{$folder}/{$filename}";
-            $outputFullPath = Storage::disk('customers_external')->path($publicRelative);
+                $finalPath = "{$targetFolder}/{$finalFilename}";
 
-            /* ===============================
-            * GHOSTSCRIPT COMPRESS
-            * =============================== */
-            $gsExe = '/usr/bin/gs';
-
-            $command = [
-                $gsExe,
-                '-q',
-                '-dSAFER',
-                '-sDEVICE=pdfwrite',
-                '-dCompatibilityLevel=1.4',
-                '-dPDFSETTINGS=/ebook',
-                '-dColorImageResolution=200',
-                '-dGrayImageResolution=200',
-                '-dMonoImageResolution=200',
-                '-o', $outputFullPath,
-                $tempFull,
-            ];
-
-            $process = new \Symfony\Component\Process\Process($command);
-            $process->setTimeout(300);
-            $process->run();
-
-            if (!$process->isSuccessful() || !file_exists($outputFullPath)) {
-                // fallback copy original
-                Storage::disk('customers_external')->put(
-                    $publicRelative,
-                    file_get_contents($tempFull)
-                );
+                /* --- D. PINDAHKAN FILE (MOVE) --- */
+                try {
+                    // Pindahkan dari temp ke folder tujuan dengan nama baru
+                    $disk->move($tempPath, $finalPath);
+                    
+                    Log::info('FILE MOVED SUCCESS', [
+                        'from' => $tempPath,
+                        'to'   => $finalPath
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('FILE MOVE FAILED', ['error' => $e->getMessage()]);
+                    return back()->with('error', 'Gagal memindahkan file lampiran.');
+                }
+            } else {
+                Log::warning('TEMP FILE NOT FOUND', ['path' => $tempPath]);
+                // Opsional: return error atau lanjut tanpa update file
             }
-
-            @unlink($tempFull);
-            $path = $publicRelative;
         }
 
         switch ($role) {
             case 'user':
                 $status->submit_1_timestamps = $now;
-                if ($filename) {
-                    $status->submit_1_nama_file = $filename;
-                    $status->submit_1_path = $path;
+                if ($finalFilename && $finalPath) {
+                    $status->submit_1_nama_file = $finalFilename;
+                    $status->submit_1_path = $finalPath;
                 }
 
                 // 🔹 Kirim email hanya jika perusahaan TIDAK punya manager
@@ -312,9 +295,9 @@ class CustomersStatusController extends Controller
                 $status->status_1_by = $userId;
                 $status->status_1_timestamps = $now;
                 $status->status_1_keterangan = $request->keterangan;
-                if ($filename) {
-                    $status->status_1_nama_file = $filename;
-                    $status->status_1_path = $path;
+                if ($finalFilename && $finalPath) {
+                    $status->status_1_nama_file = $finalFilename;
+                    $status->status_1_path = $finalPath;
                 }
                 if ($isManagerCreator) {
                     if (empty($status->submit_1_timestamps)) {
@@ -340,9 +323,9 @@ class CustomersStatusController extends Controller
                 $status->status_2_by = $userId;
                 $status->status_2_timestamps = $now;
                 $status->status_2_keterangan = $request->keterangan;
-                if ($filename) {
-                    $status->status_2_nama_file = $filename;
-                    $status->status_2_path = $path;
+                if ($finalFilename && $finalPath) {
+                    $status->status_2_nama_file = $finalFilename;
+                    $status->status_2_path = $finalPath;
                 }
 
                 if ($isDirekturCreator) {
@@ -361,9 +344,9 @@ class CustomersStatusController extends Controller
                 $status->status_3_by = $userId;
                 $status->status_3_timestamps = $now;
                 $status->status_3_keterangan = $request->keterangan;
-                if ($filename) {
-                    $status->submit_3_nama_file = $filename;
-                    $status->submit_3_path = $path;
+                if ($finalFilename && $finalPath) {
+                    $status->submit_3_nama_file = $finalFilename;
+                    $status->submit_3_path = $finalPath;
                 }
 
                 if ($request->has('status_3')) {
@@ -398,31 +381,15 @@ class CustomersStatusController extends Controller
                 $status->status_4_by = $userId;
                 $status->status_4_timestamps = $now;
                 $status->status_4_keterangan = $request->keterangan;
-                if ($filename) {
-                    $status->status_4_nama_file = $filename;
-                    $status->status_4_path = $path;
+                if ($finalFilename && $finalPath) {
+                    $status->status_4_nama_file = $finalFilename;
+                    $status->status_4_path = $finalPath;
                 }
                 break;
 
             default:
                 return back()->with('error', 'Role tidak dikenali.');
         }
-
-        if (file_exists($outputFullPath)) {
-            Log::info('PDF AFTER', [
-                'path' => $outputFullPath,
-                'size_kb' => round(filesize($outputFullPath) / 1024, 2),
-            ]);
-        }
-
-
-        Log::info('COMPRESS INPUT', [
-            'role' => $role,
-            'tempFull' => $tempFull,
-            'exists' => file_exists($tempFull),
-            'size' => file_exists($tempFull) ? filesize($tempFull) : 0,
-        ]);
-
 
         $status->save();
 

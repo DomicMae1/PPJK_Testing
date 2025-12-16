@@ -97,8 +97,6 @@ export default function CustomerForm({
         attachments?: string;
     }>({});
 
-    const [npwpFile, setNpwpFile] = useState<File | null>(null);
-
     const [npwpFileStatuses, setNpwpFileStatuses] = useState<any[]>([]);
 
     const [nibFileStatuses, setNibFileStatuses] = useState<any[]>([]);
@@ -106,9 +104,38 @@ export default function CustomerForm({
     const [sppkpFileStatuses, setSppkpFileStatuses] = useState<any[]>([]);
 
     const [ktpFileStatuses, setKtpFileStatuses] = useState<any[]>([]);
-    const [nibFile, setNibFile] = useState<File | null>(null);
-    const [sppkpFile, setSppkpFile] = useState<File | null>(null);
-    const [ktpFile, setKtpFile] = useState<File | null>(null);
+
+    const [npwpAttachment, setNpwpAttachment] = useState<Attachment | null>(null);
+    const [nibAttachment, setNibAttachment] = useState<Attachment | null>(null);
+    const [sppkpAttachment, setSppkpAttachment] = useState<Attachment | null>(null);
+    const [ktpAttachment, setKtpAttachment] = useState<Attachment | null>(null);
+
+    const handleUploadSuccess = (type: AttachmentType, file: File | null, response: any) => {
+        if (!file) {
+            // Jika file dihapus
+            if (type === 'npwp') setNpwpAttachment(null);
+            if (type === 'nib') setNibAttachment(null);
+            if (type === 'sppkp') setSppkpAttachment(null);
+            if (type === 'ktp') setKtpAttachment(null);
+            return;
+        }
+
+        if (response) {
+            // Buat object attachment berdasarkan response backend
+            const attachment: Attachment = {
+                id: 0,
+                customer_id: customer?.id ?? 0,
+                nama_file: response.nama_file,
+                path: response.path,
+                type: type,
+            };
+
+            if (type === 'npwp') setNpwpAttachment(attachment);
+            if (type === 'nib') setNibAttachment(attachment);
+            if (type === 'sppkp') setSppkpAttachment(attachment);
+            if (type === 'ktp') setKtpAttachment(attachment);
+        }
+    };
     // const [isModalOpen, setIsModalOpen] = useState(false);
 
     function formatNpwp16(input: string): string {
@@ -247,268 +274,238 @@ export default function CustomerForm({
 
                 alert(message);
             }
-        } catch (error) {
-            console.error(error);
-            alert('Terjadi kesalahan saat pengecekan NPWP.');
-            setIsLoading(false);
-            return;
-        }
 
-        if (!data.kategori_usaha) {
-            const message = 'Kategori usaha wajib dipilih';
-            setErrors((prev) => ({ ...prev, kategori_usaha: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (data.kategori_usaha === 'lain2' && !lainKategori.trim()) {
-            const message = 'Kategori lainnya wajib diisi';
-            setErrors((prev) => ({ ...prev, lain_kategori: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.nama_perusahaan) {
-            const message = 'Nama Perusahaan wajib diisi';
-            setErrors((prev) => ({ ...prev, nama_perusahaan: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.bentuk_badan_usaha) {
-            const message = 'Bentuk badan usaha wajib dipilih';
-            setErrors((prev) => ({ ...prev, bentuk_badan_usaha: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.alamat_lengkap || !data.alamat_lengkap.trim()) {
-            const message = 'Alamat lengkap wajib diisi';
-            setErrors((prev) => ({ ...prev, alamat_lengkap: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.kota || !data.kota.trim()) {
-            const message = 'Kota wajib diisi';
-            setErrors((prev) => ({ ...prev, kota: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_telp || data.no_telp.trim().length <= 3) {
-            const message = 'No Telpon Perusahaan wajib diisi';
-            setErrors((prev) => ({ ...prev, no_telp: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.alamat_penagihan || !data.alamat_penagihan.trim()) {
-            const message = 'Alamat Perusahaan wajib diisi';
-            setErrors((prev) => ({ ...prev, alamat_penagihan: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.email || !data.email.trim()) {
-            const message = 'Email Perusahaan wajib diisi';
-            setErrors((prev) => ({ ...prev, email: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.top || !data.top.trim()) {
-            const message = 'Term of Payment wajib diisi';
-            setErrors((prev) => ({ ...prev, top: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.status_perpajakan) {
-            const message = 'Status perpajakan wajib dipilih';
-            setErrors((prev) => ({ ...prev, status_perpajakan: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_npwp || !data.no_npwp.trim()) {
-            const message = 'Nomer NPWP wajib diisi';
-            setErrors((prev) => ({ ...prev, no_npwp: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_npwp_16 || !data.no_npwp_16.trim()) {
-            const message = 'Nomer NPWP 16 wajib diisi';
-            setErrors((prev) => ({ ...prev, no_npwp_16: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.nama_pj || !data.nama_pj.trim()) {
-            const message = 'Nama Direktur wajib diisi';
-            setErrors((prev) => ({ ...prev, nama_pj: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_ktp_pj || !data.no_ktp_pj.trim()) {
-            const message = 'NIK Direktur wajib diisi';
-            setErrors((prev) => ({ ...prev, no_ktp_pj: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_telp_pj || data.no_telp_pj.trim().length <= 3) {
-            const message = 'No Telp Direktur wajib diisi';
-            setErrors((prev) => ({ ...prev, no_telp_pj: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.nama_personal || !data.nama_personal.trim()) {
-            const message = 'Nama Personal wajib diisi';
-            setErrors((prev) => ({ ...prev, nama_personal: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.jabatan_personal || !data.jabatan_personal.trim()) {
-            const message = 'Jabatan Personal wajib diisi';
-            setErrors((prev) => ({ ...prev, jabatan_personal: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.no_telp_personal || data.no_telp_personal.trim().length <= 3) {
-            const message = 'No Telp Personal wajib diisi';
-            setErrors((prev) => ({ ...prev, no_telp_personal: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!data.email_personal || !data.email_personal.trim()) {
-            const message = 'Email Personal wajib diisi';
-            setErrors((prev) => ({ ...prev, email_personal: message }));
-            alert(message);
-            setIsLoading(false);
-            return;
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
-            return;
-        }
-
-        const hasExistingNpwp = customer?.attachments?.some((a) => a.type === 'npwp');
-        if (!npwpFile && !hasExistingNpwp) {
-            const message = 'Dokumen NPWP wajib diunggah.';
-            alert(message);
-            return;
-        }
-
-        const hasExistingNib = customer?.attachments?.some((a) => a.type === 'nib');
-        if (!nibFile && !hasExistingNib) {
-            const message = 'Dokumen NIB wajib diunggah.';
-            alert(message);
-            return;
-        }
-
-        const hasExistingKtp = customer?.attachments?.some((a) => a.type === 'ktp');
-        if (!ktpFile && !hasExistingKtp) {
-            const message = 'Dokumen KTP wajib diunggah.';
-            alert(message);
-            return;
-        }
-
-        setErrors(newErrors);
-        setIsLoading(true);
-
-        try {
-            const uploadedAttachments: Attachment[] = [];
-
-            if (npwpFile) {
-                const npwp = await uploadAttachment(npwpFile, 'npwp', data.no_npwp);
-                uploadedAttachments.push(npwp);
+            if (!data.kategori_usaha) {
+                const message = 'Kategori usaha wajib dipilih';
+                setErrors((prev) => ({ ...prev, kategori_usaha: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
             }
 
-            if (nibFile) {
-                const nib = await uploadAttachment(nibFile, 'nib', data.no_npwp);
-                uploadedAttachments.push(nib);
+            if (data.kategori_usaha === 'lain2' && !lainKategori.trim()) {
+                const message = 'Kategori lainnya wajib diisi';
+                setErrors((prev) => ({ ...prev, lain_kategori: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
             }
 
-            if (sppkpFile) {
-                const sppkp = await uploadAttachment(sppkpFile, 'sppkp', data.no_npwp);
-                uploadedAttachments.push(sppkp);
+            if (!data.nama_perusahaan) {
+                const message = 'Nama Perusahaan wajib diisi';
+                setErrors((prev) => ({ ...prev, nama_perusahaan: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
             }
 
-            if (ktpFile) {
-                const ktp = await uploadAttachment(ktpFile, 'ktp', data.no_npwp);
-                uploadedAttachments.push(ktp);
+            if (!data.bentuk_badan_usaha) {
+                const message = 'Bentuk badan usaha wajib dipilih';
+                setErrors((prev) => ({ ...prev, bentuk_badan_usaha: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
             }
 
-            const isBlob = (path: string) => path?.startsWith('blob:');
+            if (!data.alamat_lengkap || !data.alamat_lengkap.trim()) {
+                const message = 'Alamat lengkap wajib diisi';
+                setErrors((prev) => ({ ...prev, alamat_lengkap: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
 
-            const oldAttachments = [
-                !npwpFile && npwpFileStatuses.length > 0 && !isBlob(npwpFileStatuses[0].result)
-                    ? extractAttachmentFromStatus(npwpFileStatuses, 'npwp')
-                    : null,
-                !nibFile && nibFileStatuses.length > 0 && !isBlob(nibFileStatuses[0].result)
-                    ? extractAttachmentFromStatus(nibFileStatuses, 'nib')
-                    : null,
-                !sppkpFile && sppkpFileStatuses.length > 0 && !isBlob(sppkpFileStatuses[0].result)
-                    ? extractAttachmentFromStatus(sppkpFileStatuses, 'sppkp')
-                    : null,
-                !ktpFile && ktpFileStatuses.length > 0 && !isBlob(ktpFileStatuses[0].result)
-                    ? extractAttachmentFromStatus(ktpFileStatuses, 'ktp')
-                    : null,
-            ].filter(Boolean) as Attachment[];
+            if (!data.kota || !data.kota.trim()) {
+                const message = 'Kota wajib diisi';
+                setErrors((prev) => ({ ...prev, kota: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
 
-            const updatedAttachments = [...uploadedAttachments, ...oldAttachments];
+            if (!data.no_telp || data.no_telp.trim().length <= 3) {
+                const message = 'No Telpon Perusahaan wajib diisi';
+                setErrors((prev) => ({ ...prev, no_telp: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.alamat_penagihan || !data.alamat_penagihan.trim()) {
+                const message = 'Alamat Perusahaan wajib diisi';
+                setErrors((prev) => ({ ...prev, alamat_penagihan: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.email || !data.email.trim()) {
+                const message = 'Email Perusahaan wajib diisi';
+                setErrors((prev) => ({ ...prev, email: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.top || !data.top.trim()) {
+                const message = 'Term of Payment wajib diisi';
+                setErrors((prev) => ({ ...prev, top: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.status_perpajakan) {
+                const message = 'Status perpajakan wajib dipilih';
+                setErrors((prev) => ({ ...prev, status_perpajakan: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.no_npwp || !data.no_npwp.trim()) {
+                const message = 'Nomer NPWP wajib diisi';
+                setErrors((prev) => ({ ...prev, no_npwp: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.no_npwp_16 || !data.no_npwp_16.trim()) {
+                const message = 'Nomer NPWP 16 wajib diisi';
+                setErrors((prev) => ({ ...prev, no_npwp_16: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.nama_pj || !data.nama_pj.trim()) {
+                const message = 'Nama Direktur wajib diisi';
+                setErrors((prev) => ({ ...prev, nama_pj: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.no_ktp_pj || !data.no_ktp_pj.trim()) {
+                const message = 'NIK Direktur wajib diisi';
+                setErrors((prev) => ({ ...prev, no_ktp_pj: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.no_telp_pj || data.no_telp_pj.trim().length <= 3) {
+                const message = 'No Telp Direktur wajib diisi';
+                setErrors((prev) => ({ ...prev, no_telp_pj: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.nama_personal || !data.nama_personal.trim()) {
+                const message = 'Nama Personal wajib diisi';
+                setErrors((prev) => ({ ...prev, nama_personal: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.jabatan_personal || !data.jabatan_personal.trim()) {
+                const message = 'Jabatan Personal wajib diisi';
+                setErrors((prev) => ({ ...prev, jabatan_personal: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.no_telp_personal || data.no_telp_personal.trim().length <= 3) {
+                const message = 'No Telp Personal wajib diisi';
+                setErrors((prev) => ({ ...prev, no_telp_personal: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.email_personal || !data.email_personal.trim()) {
+                const message = 'Email Personal wajib diisi';
+                setErrors((prev) => ({ ...prev, email_personal: message }));
+                alert(message);
+                setIsLoading(false);
+                return;
+            }
+
+            if (Object.keys(newErrors).length > 0) {
+                setErrors(newErrors);
+                alert('Mohon lengkapi data formulir.');
+                setIsLoading(false);
+                return;
+            }
+
+            const getFinalAttachment = (newFile: Attachment | null, type: AttachmentType): Attachment | null => {
+                // 1. Jika user baru saja upload file baru, gunakan itu
+                if (newFile) return newFile;
+
+                // 2. Jika tidak upload baru, cek apakah ada file lama di database customer
+                const existing = customer?.attachments?.find((a) => a.type === type);
+                if (existing) return existing;
+
+                // 3. Jika tidak ada keduanya
+                return null;
+            };
+
+            const finalNpwp = getFinalAttachment(npwpAttachment, 'npwp');
+            const finalNib = getFinalAttachment(nibAttachment, 'nib');
+            const finalSppkp = getFinalAttachment(sppkpAttachment, 'sppkp');
+            const finalKtp = getFinalAttachment(ktpAttachment, 'ktp');
+
+            // Validasi Ketersediaan File Wajib
+            if (!finalNpwp) {
+                alert('Dokumen NPWP wajib diunggah (atau tunggu hingga progress selesai).');
+                setIsLoading(false);
+                return;
+            }
+            if (!finalNib) {
+                alert('Dokumen NIB wajib diunggah.');
+                setIsLoading(false);
+                return;
+            }
+            if (!finalKtp) {
+                alert('Dokumen KTP wajib diunggah.');
+                setIsLoading(false);
+                return;
+            }
+
+            const allAttachments = [finalNpwp, finalNib, finalSppkp, finalKtp].filter(Boolean) as Attachment[];
 
             const finalPayload = {
                 ...data,
-                id_perusahaan: data.id_perusahaan,
-                attachments: updatedAttachments,
+                id_perusahaan: auth.user.id_perusahaan,
+                attachments: allAttachments, // Array berisi object { nama_file, path, type }
             };
 
             if (customer?.id) {
+                // UPDATE DATA
                 router.put(route('customer.update', customer.id), finalPayload, {
                     onSuccess: () => {
                         window.alert('✅ Data berhasil diperbarui!');
-                        onSuccess?.();
+                        onSuccess?.(); // Callback jika ada (misal tutup modal)
                         setIsLoading(false);
                     },
-                    onError: (errors: unknown) => {
+                    onError: (errors) => {
+                        console.error('Update error:', errors);
                         setIsLoading(false);
                     },
                 });
             } else {
+                // CREATE DATA BARU
                 router.post(route('customer.store'), finalPayload, {
                     onSuccess: () => {
                         window.alert('✅ Data berhasil disimpan!');
                         setIsLoading(false);
                     },
-                    onError: (errors: unknown) => {
+                    onError: (errors) => {
+                        console.error('Store error:', errors);
                         setIsLoading(false);
                     },
                 });
@@ -905,37 +902,84 @@ export default function CustomerForm({
 
                         {/* 4 Dropzone Kolom */}
                         <div className="col-span-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                            {/* NPWP Upload */}
                             <div className="w-full">
                                 <ResettableDropzone
                                     label="Upload NPWP"
                                     isRequired={true}
-                                    onFileChange={setNpwpFile}
-                                    existingFile={customer?.attachments?.find((a) => a.type === 'npwp')}
+                                    // Kirim config untuk Auto Upload
+                                    uploadConfig={{
+                                        url: '/customer/upload-temp',
+                                        payload: {
+                                            type: 'npwp',
+                                            npwp_number: data.no_npwp, // Pastikan ini tidak kosong
+                                            id_perusahaan: auth.user.id_perusahaan,
+                                            order: '1',
+                                            mode: 'medium', // Opsi kompresi
+                                        },
+                                    }}
+                                    // Tangkap hasil response
+                                    onFileChange={(file, response) => handleUploadSuccess('npwp', file, response)}
+                                    // Tampilkan file jika sudah ada (baik dari DB atau baru diupload)
+                                    existingFile={npwpAttachment || customer?.attachments?.find((a) => a.type === 'npwp')}
                                 />
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah NPWP dalam format PDF</p>
                             </div>
+
+                            {/* NIB Upload */}
                             <div className="w-full">
                                 <ResettableDropzone
                                     label="Upload NIB"
                                     isRequired={true}
-                                    onFileChange={setNibFile}
-                                    existingFile={customer?.attachments?.find((a) => a.type === 'nib')}
+                                    uploadConfig={{
+                                        url: '/customer/upload-temp',
+                                        payload: {
+                                            type: 'nib',
+                                            npwp_number: data.no_npwp,
+                                            id_perusahaan: auth.user.id_perusahaan,
+                                            order: '2',
+                                        },
+                                    }}
+                                    onFileChange={(file, response) => handleUploadSuccess('nib', file, response)}
+                                    existingFile={nibAttachment || customer?.attachments?.find((a) => a.type === 'nib')}
                                 />
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah NIB dalam format PDF</p>
                             </div>
+
+                            {/* SPPKP Upload */}
                             <div className="w-full">
                                 <ResettableDropzone
-                                    label="Upload SPTKP"
-                                    onFileChange={setSppkpFile}
-                                    existingFile={customer?.attachments?.find((a) => a.type === 'sppkp')}
+                                    label="Upload SPPKP"
+                                    uploadConfig={{
+                                        url: '/customer/upload-temp',
+                                        payload: {
+                                            type: 'sppkp',
+                                            npwp_number: data.no_npwp,
+                                            id_perusahaan: auth.user.id_perusahaan,
+                                            order: '3',
+                                        },
+                                    }}
+                                    onFileChange={(file, response) => handleUploadSuccess('sppkp', file, response)}
+                                    existingFile={sppkpAttachment || customer?.attachments?.find((a) => a.type === 'sppkp')}
                                 />
                             </div>
+
+                            {/* KTP Upload */}
                             <div className="w-full">
                                 <ResettableDropzone
                                     label="Upload KTP"
                                     isRequired={true}
-                                    onFileChange={setKtpFile}
-                                    existingFile={customer?.attachments?.find((a) => a.type === 'ktp')}
+                                    uploadConfig={{
+                                        url: '/customer/upload-temp',
+                                        payload: {
+                                            type: 'ktp',
+                                            npwp_number: data.no_npwp,
+                                            id_perusahaan: auth.user.id_perusahaan,
+                                            order: '4',
+                                        },
+                                    }}
+                                    onFileChange={(file, response) => handleUploadSuccess('ktp', file, response)}
+                                    existingFile={ktpAttachment || customer?.attachments?.find((a) => a.type === 'ktp')}
                                 />
                                 <p className="mt-1 text-xs text-red-500">* Wajib unggah KTP dalam format PDF</p>
                             </div>

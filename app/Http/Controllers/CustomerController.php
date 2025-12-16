@@ -76,29 +76,29 @@ class CustomerController extends Controller
             $userName = null;
             $note = null;
 
-            if ($status->status_3_timestamps) {
+            if ($status?->status_3_timestamps) {
                 $tanggal = $status->status_3_timestamps;
                 $label = 'direview';
                 $userName = $status->status3Approver?->name ?? '-';
                 $note = $status->status_3_keterangan;
-            } elseif ($status->status_2_timestamps) {
+            } elseif ($status?->status_2_timestamps) {
                 $tanggal = $status->status_2_timestamps;
                 $label = 'diketahui';
                 $userName = $status->status2Approver?->name ?? '-';
                 $note = $status->status_2_keterangan;
-            } elseif ($status->status_1_timestamps) {
+            } elseif ($status?->status_1_timestamps) {
                 $tanggal = $status->status_1_timestamps;
                 $label = 'diverifikasi';
                 $userName = $status->status1Approver?->name ?? '-';
                 $note = $status->status_1_keterangan;
-            } elseif ($status->submit_1_timestamps) {
+            } elseif ($status?->submit_1_timestamps) {
                 $tanggal = $status->submit_1_timestamps;
                 $label = 'disubmit';
                 $userName = $status->submit1By?->name ?? '-';
             } else {
                 $tanggal = $customer->created_at;
                 $label = 'diinput';
-                $userName = $customer->creator->name ?? '-';
+                $userName = $customer->creator?->name ?? '-';
             }
 
             return [
@@ -107,23 +107,24 @@ class CustomerController extends Controller
                 'nama_customer' => $customer->nama_perusahaan ?? '-',
                 'tanggal_status' => $tanggal,
                 'status_label' => $label,
-                'status' => $customer->status->status_3 ?? '-',
+                'status' => $status?->status_3 ?? '-',
                 'note' => $note,
                 'nama_user' => $userName,
-                'creator_name' => $customer->creator->name ?? '-',
+                'creator_name' => $customer->creator?->name ?? '-',
                 'no_telp_personal' => $customer->no_telp_personal,
                 'creator' => [
-                    'name' => $customer->creator->name ?? null,
-                    'role' => $customer->creator?->roles?->first()?->name ?? null,
+                    'name' => $customer->creator?->name,
+                    'role' => $customer->creator?->roles?->first()?->name,
                 ],
-                'submit_1_timestamps' => $status->submit_1_timestamps,
-                'status_2_timestamps' => $status->status_2_timestamps,
+                'submit_1_timestamps' => $status?->submit_1_timestamps,
+                'status_2_timestamps' => $status?->status_2_timestamps,
                 'customer_link' => [
-                    'url' => $customer->customer_links->url ?? null,
+                    'url' => $customer->customer_links?->url,
                 ],
                 'user_id' => $customer->user_id,
             ];
         });
+
 
         return Inertia::render('m_customer/page', [
             'customers' => $customerData,
@@ -245,7 +246,20 @@ class CustomerController extends Controller
             ]));
 
             if (!empty($validated['attachments'])) {
-                foreach ($validated['attachments'] as $attachment) {
+                if ($idPerusahaan) {
+                    $perusahaan = Perusahaan::find($idPerusahaan);
+                    if ($perusahaan) {
+                        // Convert name of company (example: "PT Alpha" -> "pt-alpha")
+                        $companySlug = Str::slug($perusahaan->nama_perusahaan);
+
+                        if ($perusahaan->tenant && $perusahaan->tenant->domains->isNotEmpty()) {
+                            $customDomain = $perusahaan->tenant->domains->first()->domain;
+                        }
+                    }
+                }
+
+                $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $companySlug);
+                foreach ($finalAttachments as $attachment) {
                     if (!str_starts_with($attachment['path'], 'blob:')) {
                         CustomerAttach::create([
                             'customer_id' => $customer->id,
@@ -345,7 +359,8 @@ class CustomerController extends Controller
 
 
             if (!empty($validated['attachments'])) {
-                foreach ($validated['attachments'] as $attachment) {
+                $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $validated['nama_perusahaan']);
+                foreach ($finalAttachments as $attachment) {
                     if (!str_starts_with($attachment['path'], 'blob:')) {
                         CustomerAttach::create([
                             'customer_id' => $customer->id,
@@ -389,6 +404,41 @@ class CustomerController extends Controller
             DB::rollBack();
             return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()], 500);
         }
+    }
+
+    private function processAndMoveFiles(array $attachments, string $namaPerusahaan)
+    {
+        $processedAttachments = [];
+        $disk = Storage::disk('customers_external'); // Pastikan config disk ini benar
+
+        foreach ($attachments as $att) {
+            $currentPath = $att['path'];
+            $fileName = $att['nama_file'];
+
+            // Cek apakah path diawali dengan 'temp/' (artinya file baru upload)
+            if (Str::startsWith($currentPath, 'temp/')) {
+                $newPath = $namaPerusahaan . '/customers/' . $fileName;
+
+                // Cek apakah file fisik benar-benar ada di temp
+                if ($disk->exists($currentPath)) {
+                    // Hapus file lama di tujuan jika ada (overwrite conflict)
+                    if ($disk->exists($newPath)) {
+                        $disk->delete($newPath);
+                    }
+
+                    // Pindahkan file
+                    $disk->move($currentPath, $newPath);
+                    
+                    // Update path di array untuk disimpan ke DB
+                    $att['path'] = $newPath;
+                }
+            } 
+            
+            // Masukkan ke array hasil (baik yang dipindah maupun yang sudah lama)
+            $processedAttachments[] = $att;
+        }
+
+        return $processedAttachments;
     }
 
     // public function upload(Request $request)
@@ -448,16 +498,22 @@ class CustomerController extends Controller
         $baseUrl = $customDomain ? ($protocol . $customDomain) : $request->getSchemeAndHttpHost();
 
         $disk = Storage::disk('customers_external');
+        $tempFolder = 'temp'; 
+        $tempPathRel = $tempFolder . '/' . $filename;
 
-        $folderPathRel = $companySlug . '/customers'; 
+        // $folderPathRel = $companySlug . '/customers'; 
         
-        // URL Final example: http://alpha.test/file/view/pt-alpha/1234_file.pdf
-        $finalUrl = $companySlug . '/customers/' . $filename;
+        // // URL Final example: http://alpha.test/file/view/pt-alpha/1234_file.pdf
+        // $finalUrl = $companySlug . '/customers/' . $filename;
 
         // Create a Folder If It Doesn't Exist (IMPORTANT!)
-        if (!$disk->exists($folderPathRel)) {
-            $disk->makeDirectory($folderPathRel);
+        if (!$disk->exists($tempFolder)) {
+            $disk->makeDirectory($tempFolder);
         }
+
+        $inputPath = $file->storeAs('temp_raw', 'raw_' . $filename, 'local'); // Raw di local storage app
+        $inputFullPath = Storage::disk('local')->path($inputPath);
+        $outputFullPath = $disk->path($tempPathRel);
 
         // Process Files (PDF / Non-PDF)
         
@@ -467,7 +523,7 @@ class CustomerController extends Controller
             $inputPath = Storage::disk('local')->path($tempPathRaw);
             
             // Path Output (Target ke /mnt/CR lewat mapping docker)
-            $publicPathRel = $folderPathRel . '/' . $filename;
+            $publicPathRel = $tempPathRel . '/' . $filename;
             $outputPath = $disk->path($publicPathRel);
 
             if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -519,29 +575,33 @@ class CustomerController extends Controller
             $process->setTimeout(300);
             $process->run();
 
-            if ($process->isSuccessful() && file_exists($outputPath)) {
-                @unlink($inputPath);
+            if ($process->isSuccessful() && file_exists($outputFullPath)) {
+                @unlink($inputFullPath);
                 return response()->json([
-                    'path' => $finalUrl,
+                    'status' => 'success',
+                    'path' => $tempPathRel,
                     'nama_file' => $filename,
-                    'info' => 'Compressed (' . $mode . ')'
+                    'info' => 'Compressed (' . $mode . ')',
+                    'is_temp' => true
                 ]);
             } else {
-                $disk->put($publicPathRel, file_get_contents($inputPath));
-                @unlink($inputPath);
+                $disk->put($tempPathRel, file_get_contents($inputFullPath));
+                @unlink($inputFullPath);
 
                 return response()->json([
-                    'path' => $finalUrl,
+                    'status' => 'warning',
+                    'path' => $tempPathRel,
                     'nama_file' => $filename,
-                    'warning' => 'Compression failed, using original file.'
+                    'warning' => 'Compression failed, using original file.',
+                    'is_temp' => true
                 ]);
             }
         } 
         else {
-            $file->storeAs($folderPathRel, $filename, 'customers_external');
+            $file->storeAs($tempPathRel, $filename, 'customers_external');
             
             return response()->json([
-                'path' => $finalUrl,           
+                'path' => $tempPathRel,           
                 'nama_file' => $filename,
             ]);
         }
@@ -655,9 +715,26 @@ class CustomerController extends Controller
             DB::beginTransaction();
 
             $customer->update($validated);
+            $roles = $user->getRoleNames();
+
+            if ($roles->contains('user')) {
+                $idPerusahaan = $user->id_perusahaan;
+            } elseif ($roles->contains('manager') || $roles->contains('direktur')) {
+                $idPerusahaan = $request->id_perusahaan;
+            }
+
+            if ($idPerusahaan) {
+                    $perusahaan = Perusahaan::find($idPerusahaan);
+                    if ($perusahaan) {
+                        // Convert name of company (example: "PT Alpha" -> "pt-alpha")
+                        $companySlug = Str::slug($perusahaan->nama_perusahaan);
+                    }
+                }
+
+            $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $companySlug);
 
             CustomerAttach::where('customer_id', $customer->id)->delete();
-            foreach ($validated['attachments'] as $attachment) {
+            foreach ($finalAttachments as $attachment) {
                 CustomerAttach::create([
                     'customer_id' => $customer->id,
                     'nama_file' => $attachment['nama_file'],

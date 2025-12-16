@@ -53,9 +53,14 @@ Route::post('/form/{token}', [CustomerController::class, 'submitPublicForm'])->n
 Route::post('customer/store-public', [CustomerController::class, 'storePublic'])->name('customer.public.submit');
 Route::get('/secure-attachment/{hash}', [SecureFileController::class, 'show'])->middleware('auth')->name('secure.attachment.show');
 
-Route::get('/file/view/{path}', [FileController::class, 'view'])
+Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')
     ->where('path', '.*') 
     ->name('file.view');
+
+Route::get('/customer/{path}', [FileController::class, 'view'])
+    ->where('path', '.*') 
+    ->name('file.view');
+
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
