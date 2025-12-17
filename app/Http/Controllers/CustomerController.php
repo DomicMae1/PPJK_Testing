@@ -347,14 +347,14 @@ class CustomerController extends Controller
 
 
             if (!empty($validated['attachments'])) {
-                $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $validated['nama_perusahaan']);
-                foreach ($finalAttachments as $attachment) {
+                foreach ($validated['attachments'] as $attachment) {
+                    // Ensure we only save string paths, skip blobs if any
                     if (!str_starts_with($attachment['path'], 'blob:')) {
                         CustomerAttach::create([
                             'customer_id' => $customer->id,
-                            'nama_file' => $attachment['nama_file'],
-                            'path' => $attachment['path'],
-                            'type' => $attachment['type'],
+                            'nama_file'   => $attachment['nama_file'],
+                            'path'        => $attachment['path'], // Expected: Final path string
+                            'type'        => $attachment['type'],
                         ]);
                     }
                 }
@@ -492,13 +492,19 @@ class CustomerController extends Controller
             'path' => 'required|string',
             'nama_file' => 'required|string',
             'id_perusahaan' => 'nullable|integer',
-            'mode' => 'nullable|string'
+            'mode' => 'nullable|string',
+            'role' => 'nullable|string',
+            'type' => 'nullable|string',
+            'npwp_number' => 'nullable|string',
+            'customer_id' => 'required|integer', // TAMBAHAN: Butuh ID Customer untuk cek urutan file terakhir
         ]);
 
-        $tempPath = $request->path; // Path di storage external (temp/file.pdf)
-        $fileName = $request->nama_file;
+        $tempPath = $request->path;
+        $originalName = $request->nama_file;
         $mode = $request->mode ?? 'medium';
         $idPerusahaan = $request->id_perusahaan;
+        $role = strtolower($request->role ?? 'user');
+        $customerId = $request->customer_id;
 
         // 1. Setup Disk & Slug
         $disk = Storage::disk('customers_external');
@@ -515,67 +521,113 @@ class CustomerController extends Controller
             return response()->json(['error' => 'File temp tidak ditemukan'], 404);
         }
 
-        // 2. Siapkan Path Final (External)
-        $targetDir = "{$companySlug}/customers";
+        // =========================================================
+        // A. HITUNG NOMOR URUT (AUTO INCREMENT ORDER)
+        // =========================================================
+        
+        // 1. Cek Max Order dari tabel Attachments
+        $lastFromAttach = CustomerAttach::where('customer_id', $customerId)
+            ->get()
+            ->map(fn($r) => intval(explode('-', $r->nama_file)[1] ?? 0))
+            ->max() ?? 0;
+
+        // 2. Cek Max Order dari tabel Status (file approval)
+        $status = Customers_Status::where('id_Customer', $customerId)->first();
+        $statusFields = [
+            'submit_1_nama_file', 'status_1_nama_file', 
+            'status_2_nama_file', 'submit_3_nama_file', 'status_4_nama_file'
+        ];
+
+        $lastFromStatus = 0;
+        if ($status) {
+            $lastFromStatus = collect($statusFields)
+                ->map(fn($f) => intval(explode('-', $status->$f ?? '')[1] ?? 0))
+                ->max() ?? 0;
+        }
+
+        // 3. Ambil nilai terbesar + 1
+        $nextOrder = max($lastFromAttach, $lastFromStatus) + 1;
+        $orderString = str_pad($nextOrder, 3, '0', STR_PAD_LEFT);
+
+        // =========================================================
+        // B. GENERATE NAMA FILE BARU
+        // =========================================================
+        
+        $npwp = preg_replace('/[^0-9]/', '', $request->npwp_number) ?: '0000000000000000';
+        
+        $docType = $request->type ? strtolower($request->type) : 'document';
+        
+        // Mapping tipe dokumen
+        if ($docType === 'lampiran_marketing') $docType = 'marketing_review';
+        if ($docType === 'lampiran_auditor') $docType = 'audit_review';
+        if ($docType === 'lampiran_review_general') {
+             $docType = match ($role) {
+                'manager'  => 'manager_review',
+                'direktur' => 'director_review',
+                'lawyer'   => 'lawyer_review',
+                'auditor'  => 'audit_review',
+                default    => 'document'
+            };
+        }
+
+        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        // Gunakan $orderString hasil perhitungan di atas
+        $newFileName = "{$npwp}-{$orderString}-{$docType}.{$ext}";
+
+        // =========================================================
+        // C. TENTUKAN FOLDER TUJUAN
+        // =========================================================
+        
+        $subFolder = ($role === 'user') ? 'attachment' : 'customers';
+        if (in_array($docType, ['npwp', 'nib', 'sppkp', 'ktp'])) {
+            $subFolder = 'attachment';
+        }
+
+        $targetDir = "{$companySlug}/{$subFolder}";
         if (!$disk->exists($targetDir)) {
             $disk->makeDirectory($targetDir);
         }
-        $finalRelPath = "{$targetDir}/{$fileName}";
+        
+        $finalRelPath = "{$targetDir}/{$newFileName}";
 
-        // 3. Proses Kompresi (Pake Local Temp sebagai perantara aman)
-        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        // =========================================================
+        // D. PROSES KOMPRESI & PINDAH (LOGIC TETAP SAMA)
+        // =========================================================
+
         $success = false;
 
         if ($ext === 'pdf') {
-            // -- LANGKAH A: Copy External Temp -> Local Input --
-            // Kita pakai folder 'gs_processing' di storage/app lokal
             $localInputName = 'gs_in_' . uniqid() . '.pdf';
             $localOutputName = 'gs_out_' . uniqid() . '.pdf';
             
-            // Baca content dari external, tulis ke local
             Storage::disk('local')->put("gs_processing/{$localInputName}", $disk->get($tempPath));
             
-            // Dapatkan Absolute Path Lokal
             $localInputPath = Storage::disk('local')->path("gs_processing/{$localInputName}");
             $localOutputPath = Storage::disk('local')->path("gs_processing/{$localOutputName}");
 
-            // -- LANGKAH B: Jalankan Ghostscript (Local to Local) --
-            // Ini jauh lebih reliable daripada GS baca langsung dari mounted drive
             $compressResult = $this->runGhostscript($localInputPath, $localOutputPath, $mode);
 
-            // -- LANGKAH C: Upload Balik Hasil Kompresi ke External Final --
             if ($compressResult && file_exists($localOutputPath)) {
-                // Simpan hasil kompres ke tujuan final external
                 $disk->put($finalRelPath, file_get_contents($localOutputPath));
                 $success = true;
-                
-                // Cleanup Local Output
                 @unlink($localOutputPath);
             } else {
                 Log::warning("Ghostscript Gagal. Menggunakan file asli.");
             }
-
-            // Cleanup Local Input
             @unlink($localInputPath);
         }
 
-        // 4. Fallback / Non-PDF Handling
         if (!$success) {
-            // Jika bukan PDF atau GS gagal, pindahkan file asli (Raw Move)
-            // Hapus target jika ada
             if ($disk->exists($finalRelPath)) $disk->delete($finalRelPath);
-            
-            // Move file asli dari temp external ke final external
             $disk->move($tempPath, $finalRelPath);
         } else {
-            // Jika kompresi sukses, jangan lupa hapus file temp external yang lama
             if ($disk->exists($tempPath)) $disk->delete($tempPath);
         }
 
         return response()->json([
             'status' => 'success',
             'final_path' => $finalRelPath,
-            'nama_file' => $fileName,
+            'nama_file' => $newFileName,
             'compressed' => $success
         ]);
     }
@@ -737,31 +789,21 @@ class CustomerController extends Controller
             $customer->update($validated);
             $roles = $user->getRoleNames();
 
-            if ($roles->contains('user')) {
-                $idPerusahaan = $user->id_perusahaan;
-            } elseif ($roles->contains('manager') || $roles->contains('direktur')) {
-                $idPerusahaan = $request->id_perusahaan;
-            }
-
-            if ($idPerusahaan) {
-                    $perusahaan = Perusahaan::find($idPerusahaan);
-                    if ($perusahaan) {
-                        // Convert name of company (example: "PT Alpha" -> "pt-alpha")
-                        $companySlug = Str::slug($perusahaan->nama_perusahaan);
-                    }
-                }
-
-            $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $companySlug);
-
+            if (isset($validated['attachments'])) {
             CustomerAttach::where('customer_id', $customer->id)->delete();
-            foreach ($finalAttachments as $attachment) {
-                CustomerAttach::create([
-                    'customer_id' => $customer->id,
-                    'nama_file' => $attachment['nama_file'],
-                    'path' => $attachment['path'],
-                    'type' => $attachment['type'],
-                ]);
+
+            foreach ($validated['attachments'] as $attachment) {
+                // Pastikan path bukan blob local (hanya defensive check)
+                if (!str_starts_with($attachment['path'], 'blob:')) {
+                    CustomerAttach::create([
+                        'customer_id' => $customer->id,
+                        'nama_file'   => $attachment['nama_file'],
+                        'path'        => $attachment['path'], // Path ini SUDAH FINAL dari proses frontend
+                        'type'        => $attachment['type'],
+                    ]);
+                }
             }
+        }
 
             DB::commit();
             return redirect()->route('customer.index')->with('success', 'Data Customer berhasil diperbarui!');

@@ -53,7 +53,6 @@ export function ResettableDropzone({
                 fileName: existingFile.nama_file,
                 previewUrl: existingFile.path,
             });
-            console.log(existingFile.path);
         }
     }, [existingFile]);
 

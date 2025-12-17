@@ -157,7 +157,6 @@ class CustomersStatusController extends Controller
 
         $role = $roleMap[$rawRole] ?? $rawRole;
         $now = Carbon::now();
-        $nama = $user->name;
 
         if ($request->filled('submit_1_timestamps')) $status->submit_1_timestamps = $request->input('submit_1_timestamps');
         if ($request->filled('status_1_timestamps')) {
@@ -171,99 +170,32 @@ class CustomersStatusController extends Controller
         $isDirekturCreator = ($customer->id_user === $userId && $role === 'direktur');
         $isManagerCreator = ($customer->id_user === $userId && $role === 'manager');
 
-        $customer = $status->customer;
+        // $customer = $status->customer;
 
-        if ($request->hasFile('attach') && !$request->filled('attach_path')) {
+        // if ($request->hasFile('attach') && !$request->filled('attach_path')) {
 
-            $file = $request->file('attach');
+        //     $file = $request->file('attach');
 
-            $tempName = 'temp_' . uniqid() . '.pdf';
-            $tempPath = 'temp/' . $tempName;
+        //     $tempName = 'temp_' . uniqid() . '.pdf';
+        //     $tempPath = 'temp/' . $tempName;
 
-            Storage::disk('customers_external')->put(
-                $tempPath,
-                file_get_contents($file->getRealPath())
-            );
+        //     Storage::disk('customers_external')->put(
+        //         $tempPath,
+        //         file_get_contents($file->getRealPath())
+        //     );
 
-            $request->merge([
-                'attach_path'     => $tempPath,
-                'attach_filename' => $file->getClientOriginalName(),
-            ]);
-        }
+        //     $request->merge([
+        //         'attach_path'     => $tempPath,
+        //         'attach_filename' => $file->getClientOriginalName(),
+        //     ]);
+        // }
 
-        $finalFilename = null;
-        $finalPath = null;
+        $finalFilename = $request->input('attach_filename');
+        $finalPath = $request->input('attach_path');
 
-        if (
-            in_array($role, ['user','manager','direktur','lawyer','auditor'])
-            && $request->filled('attach_path')
-            && $request->filled('attach_filename')
-        ) {
-            $disk = Storage::disk('customers_external');
-            $tempPath = $request->attach_path;
-            // $tempFull = Storage::disk('customers_external')->path($tempPath);
-
-
-            if ($disk->exists($tempPath)) {
-
-                /* --- A. HITUNG URUTAN FILE (ORDER) --- */
-                $lastFromAttach = CustomerAttach::where('customer_id', $customer->id)
-                    ->get()
-                    ->map(fn($r) => intval(explode('-', $r->nama_file)[1] ?? 0))
-                    ->max() ?? 0;
-
-                $statusFields = [
-                    'submit_1_nama_file', 'status_1_nama_file', 
-                    'status_2_nama_file', 'submit_3_nama_file', 'status_4_nama_file'
-                ];
-
-                $lastFromStatus = collect($statusFields)
-                    ->map(fn($f) => intval(explode('-', $status->$f ?? '')[1] ?? 0))
-                    ->max() ?? 0;
-
-                $order = str_pad(max($lastFromAttach, $lastFromStatus) + 1, 3, '0', STR_PAD_LEFT);
-
-                /* --- B. GENERATE NAMA FILE BARU --- */
-                $npwp = preg_replace('/\D/', '', $customer->no_npwp ?? '') ?: '0000000000000000';
-                
-                $docType = match ($role) {
-                    'user'     => 'marketing_review',
-                    'manager'  => 'manager_review',
-                    'direktur' => 'director_review',
-                    'lawyer'   => 'lawyer_review',
-                    'auditor'  => 'audit_review',
-                    default    => 'document'
-                };
-
-                // Ambil ekstensi dari nama file asli yang dikirim frontend
-                $ext = pathinfo($request->attach_filename, PATHINFO_EXTENSION);
-                $finalFilename = "{$npwp}-{$order}-{$docType}.{$ext}";
-
-                /* --- C. SIAPKAN FOLDER TUJUAN --- */
-                $targetFolder = "{$companySlug}/attachment";
-                if (!$disk->exists($targetFolder)) {
-                    $disk->makeDirectory($targetFolder);
-                }
-
-                $finalPath = "{$targetFolder}/{$finalFilename}";
-
-                /* --- D. PINDAHKAN FILE (MOVE) --- */
-                try {
-                    // Pindahkan dari temp ke folder tujuan dengan nama baru
-                    $disk->move($tempPath, $finalPath);
-                    
-                    Log::info('FILE MOVED SUCCESS', [
-                        'from' => $tempPath,
-                        'to'   => $finalPath
-                    ]);
-                } catch (\Exception $e) {
-                    Log::error('FILE MOVE FAILED', ['error' => $e->getMessage()]);
-                    return back()->with('error', 'Gagal memindahkan file lampiran.');
-                }
-            } else {
-                Log::warning('TEMP FILE NOT FOUND', ['path' => $tempPath]);
-                // Opsional: return error atau lanjut tanpa update file
-            }
+        if (!in_array($role, ['user','manager','direktur','lawyer','auditor'])) {
+            $finalFilename = null;
+            $finalPath = null;
         }
 
         switch ($role) {

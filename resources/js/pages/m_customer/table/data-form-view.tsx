@@ -151,6 +151,65 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             setAttachmentError(null);
         }
 
+        // =========================================================
+        // TAHAP 1: PROSES FILE (COMPRESS & MOVE) VIA API
+        // =========================================================
+
+        // Tentukan file mana yang sedang aktif (User vs Reviewer)
+        let activeFile = null;
+        let fileType = 'document';
+
+        if (userRole === 'user') {
+            activeFile = attachFileUser;
+            fileType = 'lampiran_marketing'; // Type untuk user
+        } else if (showExtraFields) {
+            activeFile = attachFile;
+            // Tentukan type berdasarkan role reviewer
+            if (userRole === 'auditor') fileType = 'lampiran_auditor';
+            else fileType = 'lampiran_review_general';
+        }
+
+        let finalAttachmentData = { path: '', filename: '' };
+
+        // Hanya proses jika ada file DAN path-nya masih di folder 'temp/'
+        if (activeFile && activeFile.path.startsWith('temp/')) {
+            try {
+                // Panggil API process-attachment
+                const processRes = await axios.post('/customer/process-attachment', {
+                    path: activeFile.path,
+                    nama_file: activeFile.nama_file,
+                    // Gunakan ID Perusahaan dari customer yang sedang dilihat
+                    id_perusahaan: customer.id_perusahaan,
+                    mode: 'medium',
+                    role: userRole,
+                    type: fileType,
+                    npwp_number: customer.no_npwp, // Ambil NPWP dari data customer yang sedang di-view
+                    customer_id: customer.id,
+                });
+
+                // Simpan path baru yang sudah dipindah ke folder final
+                finalAttachmentData = {
+                    path: processRes.data.final_path,
+                    filename: processRes.data.nama_file,
+                };
+            } catch (err) {
+                console.error('Gagal memproses file:', err);
+                alert('❌ Gagal memproses/mengompres dokumen. Silakan coba lagi.');
+                setIsLoading(false);
+                return; // Stop proses submit
+            }
+        } else if (activeFile) {
+            // Jika file sudah ada (bukan temp), gunakan data lama
+            finalAttachmentData = {
+                path: activeFile.path,
+                filename: activeFile.nama_file,
+            };
+        }
+
+        // =========================================================
+        // TAHAP 2: FINAL SUBMIT (KIRIM PATH FINAL)
+        // =========================================================
+
         const formData = new FormData();
 
         // if (showExtraFields && attachFile) {
@@ -187,20 +246,14 @@ export default function ViewCustomerForm({ customer }: { customer: MasterCustome
             formData.append('id_perusahaan', customer.id_perusahaan.toString());
         }
 
-        if (userRole === 'user' && attachFileUser) {
-            // Kirim PATH yang didapat dari temp upload
-            formData.append('attach_path', attachFileUser.path);
-            formData.append('attach_filename', attachFileUser.nama_file);
+        if (finalAttachmentData.path) {
+            formData.append('attach_path', finalAttachmentData.path);
+            formData.append('attach_filename', finalAttachmentData.filename);
         }
 
-        // --- UPDATE LOGIC KIRIM FILE (REVIEWER: Lawyer/Auditor/dll) ---
-        if (showExtraFields) {
+        // Kirim Keterangan (Jika ada)
+        if (showExtraFields && keterangan) {
             formData.append('keterangan', keterangan);
-            if (attachFile) {
-                // Kirim PATH yang didapat dari temp upload
-                formData.append('attach_path', attachFile.path);
-                formData.append('attach_filename', attachFile.nama_file);
-            }
         }
 
         let isDirekturCreatorSubmit = false;
