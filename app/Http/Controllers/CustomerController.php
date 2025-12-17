@@ -246,26 +246,14 @@ class CustomerController extends Controller
             ]));
 
             if (!empty($validated['attachments'])) {
-                if ($idPerusahaan) {
-                    $perusahaan = Perusahaan::find($idPerusahaan);
-                    if ($perusahaan) {
-                        // Convert name of company (example: "PT Alpha" -> "pt-alpha")
-                        $companySlug = Str::slug($perusahaan->nama_perusahaan);
 
-                        if ($perusahaan->tenant && $perusahaan->tenant->domains->isNotEmpty()) {
-                            $customDomain = $perusahaan->tenant->domains->first()->domain;
-                        }
-                    }
-                }
-
-                $finalAttachments = $this->processAndMoveFiles($validated['attachments'], $companySlug);
-                foreach ($finalAttachments as $attachment) {
+                foreach ($validated['attachments'] as $attachment) {
                     if (!str_starts_with($attachment['path'], 'blob:')) {
                         CustomerAttach::create([
                             'customer_id' => $customer->id,
-                            'nama_file' => $attachment['nama_file'],
-                            'path' => $attachment['path'],
-                            'type' => $attachment['type'],
+                            'nama_file'   => $attachment['nama_file'],
+                            'path'        => $attachment['path'],
+                            'type'        => $attachment['type'],
                         ]);
                     }
                 }
@@ -459,154 +447,186 @@ class CustomerController extends Controller
 
     public function upload(Request $request)
     {
-        // File Name Validation & Preparation
+        // Validasi File
         $file = $request->file('pdf') ?? $request->file('file');
-        if (!$file) return response()->json(['error' => 'File tidak ditemukan'], 400);
+        if (!$file) {
+            return response()->json(['error' => 'File tidak ditemukan'], 400);
+        }
 
-        $order       = $request->input('order');         
-        $npwpNumber  = $request->input('npwp_number'); 
-        $type        = $request->input('type');         
-
-        // Process make file by ur format 
-        $order = str_pad(intval($order), 3, '0', STR_PAD_LEFT);
-        $npwpSanitized = preg_replace('/[^0-9]/', '', $npwpNumber);
-        $type = strtolower($type);
-
-        $ext = $file->getClientOriginalExtension();
-
-        // example: 001-123456789012345-file.pdf
-        $filename = "{$npwpSanitized}-{$order}-{$type}.{$ext}";
-        $mode = $request->input('mode', 'medium');
-        $idPerusahaan = $request->input('id_perusahaan');
+        // Ambil Parameter untuk Nama File
+        $order       = str_pad((int)$request->input('order'), 3, '0', STR_PAD_LEFT);
+        $npwp        = preg_replace('/[^0-9]/', '', $request->input('npwp_number'));
+        $type        = strtolower($request->input('type'));
         
-        $companySlug = 'general'; // Default folder if there's no company folder
-        $customDomain = null;
+        // Simpan mode kompresi di nama file atau return ke frontend agar bisa dikirim balik saat store
+        // Di sini kita hanya butuh nama file temp yang unik
+        $ext         = $file->getClientOriginalExtension();
+        $filename    = "{$npwp}-{$order}-{$type}.{$ext}";
 
+        $disk        = Storage::disk('customers_external');
+        $tempDir     = 'temp';
+
+        // Buat folder temp jika belum ada
+        if (!$disk->exists($tempDir)) {
+            $disk->makeDirectory($tempDir);
+        }
+
+        // Simpan File RAW langsung ke Temp (Tanpa Kompresi)
+        $tempRel = "{$tempDir}/{$filename}";
+        
+        // Gunakan stream untuk efisiensi memori saat save
+        $disk->put($tempRel, file_get_contents($file->getRealPath()));
+
+        return response()->json([
+            'status'    => 'success',
+            'path'      => $tempRel,        // Path ini akan dikirim balik saat submit
+            'nama_file' => $filename,
+            'is_temp'   => true,
+            'info'      => 'File uploaded to temp (uncompressed)'
+        ]);
+    }
+
+    public function processAttachment(Request $request)
+    {
+        $request->validate([
+            'path' => 'required|string',
+            'nama_file' => 'required|string',
+            'id_perusahaan' => 'nullable|integer',
+            'mode' => 'nullable|string'
+        ]);
+
+        $tempPath = $request->path; // Path di storage external (temp/file.pdf)
+        $fileName = $request->nama_file;
+        $mode = $request->mode ?? 'medium';
+        $idPerusahaan = $request->id_perusahaan;
+
+        // 1. Setup Disk & Slug
+        $disk = Storage::disk('customers_external');
+        
+        $companySlug = 'general';
         if ($idPerusahaan) {
             $perusahaan = Perusahaan::find($idPerusahaan);
             if ($perusahaan) {
-                // Convert name of company (example: "PT Alpha" -> "pt-alpha")
                 $companySlug = Str::slug($perusahaan->nama_perusahaan);
-
-                if ($perusahaan->tenant && $perusahaan->tenant->domains->isNotEmpty()) {
-                    $customDomain = $perusahaan->tenant->domains->first()->domain;
-                }
             }
         }
 
-        $protocol = $request->secure() ? 'https://' : 'http://';
-        $baseUrl = $customDomain ? ($protocol . $customDomain) : $request->getSchemeAndHttpHost();
-
-        $disk = Storage::disk('customers_external');
-        $tempFolder = 'temp'; 
-        $tempPathRel = $tempFolder . '/' . $filename;
-
-        // $folderPathRel = $companySlug . '/customers'; 
-        
-        // // URL Final example: http://alpha.test/file/view/pt-alpha/1234_file.pdf
-        // $finalUrl = $companySlug . '/customers/' . $filename;
-
-        // Create a Folder If It Doesn't Exist (IMPORTANT!)
-        if (!$disk->exists($tempFolder)) {
-            $disk->makeDirectory($tempFolder);
+        if (!$disk->exists($tempPath)) {
+            return response()->json(['error' => 'File temp tidak ditemukan'], 404);
         }
 
-        $inputPath = $file->storeAs('temp_raw', 'raw_' . $filename, 'local'); // Raw di local storage app
-        $inputFullPath = Storage::disk('local')->path($inputPath);
-        $outputFullPath = $disk->path($tempPathRel);
+        // 2. Siapkan Path Final (External)
+        $targetDir = "{$companySlug}/customers";
+        if (!$disk->exists($targetDir)) {
+            $disk->makeDirectory($targetDir);
+        }
+        $finalRelPath = "{$targetDir}/{$fileName}";
 
-        // Process Files (PDF / Non-PDF)
-        
-        if ($file->getClientMimeType() === 'application/pdf') {
-            
-            $tempPathRaw = $file->storeAs('temp', 'raw_' . $filename, 'local');
-            $inputPath = Storage::disk('local')->path($tempPathRaw);
-            
-            // Path Output (Target ke /mnt/CR lewat mapping docker)
-            $publicPathRel = $tempPathRel . '/' . $filename;
-            $outputPath = $disk->path($publicPathRel);
+        // 3. Proses Kompresi (Pake Local Temp sebagai perantara aman)
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $success = false;
 
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $inputOSPath  = str_replace('/', '\\', $inputPath);
-                $outputOSPath = str_replace('/', '\\', $outputPath);
+        if ($ext === 'pdf') {
+            // -- LANGKAH A: Copy External Temp -> Local Input --
+            // Kita pakai folder 'gs_processing' di storage/app lokal
+            $localInputName = 'gs_in_' . uniqid() . '.pdf';
+            $localOutputName = 'gs_out_' . uniqid() . '.pdf';
+            
+            // Baca content dari external, tulis ke local
+            Storage::disk('local')->put("gs_processing/{$localInputName}", $disk->get($tempPath));
+            
+            // Dapatkan Absolute Path Lokal
+            $localInputPath = Storage::disk('local')->path("gs_processing/{$localInputName}");
+            $localOutputPath = Storage::disk('local')->path("gs_processing/{$localOutputName}");
+
+            // -- LANGKAH B: Jalankan Ghostscript (Local to Local) --
+            // Ini jauh lebih reliable daripada GS baca langsung dari mounted drive
+            $compressResult = $this->runGhostscript($localInputPath, $localOutputPath, $mode);
+
+            // -- LANGKAH C: Upload Balik Hasil Kompresi ke External Final --
+            if ($compressResult && file_exists($localOutputPath)) {
+                // Simpan hasil kompres ke tujuan final external
+                $disk->put($finalRelPath, file_get_contents($localOutputPath));
+                $success = true;
+                
+                // Cleanup Local Output
+                @unlink($localOutputPath);
             } else {
-                $inputOSPath  = $inputPath;
-                $outputOSPath = $outputPath;
+                Log::warning("Ghostscript Gagal. Menggunakan file asli.");
             }
 
-            $settings = [
-                'ultra_small' => ['-dPDFSETTINGS=/screen', '-dColorImageResolution=72', '-dGrayImageResolution=72', '-dMonoImageResolution=72', '-dDownsampleColorImages=true'],
-                'small'       => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=150', '-dGrayImageResolution=150', '-dMonoImageResolution=150'],
-                'medium'      => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=200', '-dGrayImageResolution=200', '-dMonoImageResolution=200'],
-                'high'        => ['-dPDFSETTINGS=/printer', '-dColorImageResolution=300', '-dGrayImageResolution=300', '-dMonoImageResolution=300'],
-                'extreme'     => ['-dPDFSETTINGS=/screen', '-dColorImageResolution=50', '-dGrayImageResolution=50', '-dMonoImageResolution=50'],
-                'insane'      => [
-                    '-dPDFSETTINGS=/screen', '-dColorImageResolution=40', '-dGrayImageResolution=40', '-dMonoImageResolution=40',
-                    '-sColorConversionStrategy=Gray', '-sProcessColorModel=DeviceGray', '-dOverrideICC=true'
-                ]
-            ];
-            //Default compress 'medium'
-            $selectedConfig = $settings[$mode] ?? $settings['medium'];
-            $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
-            $gsExe = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN'
-                ? 'C:\Program Files\gs\gs10.05.1\bin\gswin64c.exe'
-                : '/usr/bin/gs';
-            $commandArgs = array_merge(
-                [$gsExe, '-q', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4'],
-                $selectedConfig,
-                ['-dEmbedAllFonts=false', '-dSubsetFonts=true', '-dColorImageDownsampleType=/Bicubic', '-dGrayImageDownsampleType=/Bicubic', '-dMonoImageDownsampleType=/Bicubic', '-o', $outputOSPath, $inputOSPath]
-            );
-            $gsTempDir = storage_path('app/gs_temp');
-            if (!file_exists($gsTempDir)) mkdir($gsTempDir, 0777, true);
-            $gsTempEnv = $isWindows ? str_replace('/', '\\', $gsTempDir) : $gsTempDir;
-
-            // Setup Environment Variables
-            $envVars = [
-                'TEMP' => $gsTempEnv,
-                'TMP'  => $gsTempEnv,
-            ];
-
-            // Tambahan untuk Windows agar GS bisa jalan
-            if ($isWindows) {
-                $envVars['SystemRoot'] = getenv('SystemRoot');
-                $envVars['Path'] = getenv('Path');
-            }
-            $process = new Process(command: $commandArgs, env: $envVars);
-            $process->setTimeout(300);
-            $process->run();
-
-            if ($process->isSuccessful() && file_exists($outputFullPath)) {
-                @unlink($inputFullPath);
-                return response()->json([
-                    'status' => 'success',
-                    'path' => $tempPathRel,
-                    'nama_file' => $filename,
-                    'info' => 'Compressed (' . $mode . ')',
-                    'is_temp' => true
-                ]);
-            } else {
-                $disk->put($tempPathRel, file_get_contents($inputFullPath));
-                @unlink($inputFullPath);
-
-                return response()->json([
-                    'status' => 'warning',
-                    'path' => $tempPathRel,
-                    'nama_file' => $filename,
-                    'warning' => 'Compression failed, using original file.',
-                    'is_temp' => true
-                ]);
-            }
-        } 
-        else {
-            $file->storeAs($tempPathRel, $filename, 'customers_external');
-            
-            return response()->json([
-                'path' => $tempPathRel,           
-                'nama_file' => $filename,
-            ]);
+            // Cleanup Local Input
+            @unlink($localInputPath);
         }
+
+        // 4. Fallback / Non-PDF Handling
+        if (!$success) {
+            // Jika bukan PDF atau GS gagal, pindahkan file asli (Raw Move)
+            // Hapus target jika ada
+            if ($disk->exists($finalRelPath)) $disk->delete($finalRelPath);
+            
+            // Move file asli dari temp external ke final external
+            $disk->move($tempPath, $finalRelPath);
+        } else {
+            // Jika kompresi sukses, jangan lupa hapus file temp external yang lama
+            if ($disk->exists($tempPath)) $disk->delete($tempPath);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'final_path' => $finalRelPath,
+            'nama_file' => $fileName,
+            'compressed' => $success
+        ]);
     }
 
+    // Helper Ghostscript (Private)
+    private function runGhostscript($inputPath, $outputPath, $mode)
+    {
+        $settings = [
+            'small'  => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=150', '-dGrayImageResolution=150', '-dMonoImageResolution=150'],
+            'medium' => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=200', '-dGrayImageResolution=200', '-dMonoImageResolution=200'],
+            'high'   => ['-dPDFSETTINGS=/printer', '-dColorImageResolution=300', '-dGrayImageResolution=300', '-dMonoImageResolution=300'],
+        ];
+        $config = $settings[$mode] ?? $settings['medium'];
+
+        // Deteksi OS untuk Path Ghostscript
+        $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+        $gsExe = $isWindows ? 'C:\Program Files\gs\gs10.05.1\bin\gswin64c.exe' : '/usr/bin/gs';
+
+        // Pastikan input path kompatibel dengan OS (terutama Windows backslashes)
+        if ($isWindows) {
+            $inputPath = str_replace('/', '\\', $inputPath);
+            $outputPath = str_replace('/', '\\', $outputPath);
+        }
+
+        $cmd = array_merge([
+            $gsExe, 
+            '-q', 
+            '-dSAFER', 
+            '-sDEVICE=pdfwrite', 
+            '-dCompatibilityLevel=1.4', 
+            '-o', $outputPath, 
+            $inputPath
+        ], $config);
+
+        try {
+            $process = new Process($cmd);
+            $process->setTimeout(300); 
+            $process->run();
+
+            // Log Error Output jika gagal (Sangat membantu debugging)
+            if (!$process->isSuccessful()) {
+                Log::error('Ghostscript Error Output: ' . $process->getErrorOutput());
+                return false;
+            }
+
+            return file_exists($outputPath) && filesize($outputPath) > 0;
+        } catch (\Exception $e) {
+            Log::error("GS Process Exception: " . $e->getMessage());
+            return false;
+        }
+    }
 
     /**
      * Display the specified resource.

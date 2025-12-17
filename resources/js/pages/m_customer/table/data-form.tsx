@@ -110,30 +110,29 @@ export default function CustomerForm({
     const [sppkpAttachment, setSppkpAttachment] = useState<Attachment | null>(null);
     const [ktpAttachment, setKtpAttachment] = useState<Attachment | null>(null);
 
-    const handleUploadSuccess = (type: AttachmentType, file: File | null, response: any) => {
-        if (!file) {
-            // Jika file dihapus
+    const handleUploadSuccess = (type: string, file: File | null, response: any) => {
+        if (file && response) {
+            // Simpan data dari response backend (path temp, nama file)
+            const newAttachment: Attachment = {
+                id: 0, // ID dummy
+                customer_id: 0,
+                nama_file: response.nama_file,
+                path: response.path, // Ini path 'temp/...'
+                type: type,
+                // Opsional: simpan mode kompresi jika ingin dikirim balik
+                mode: 'medium',
+            };
+
+            if (type === 'npwp') setNpwpAttachment(newAttachment);
+            if (type === 'nib') setNibAttachment(newAttachment);
+            if (type === 'sppkp') setSppkpAttachment(newAttachment);
+            if (type === 'ktp') setKtpAttachment(newAttachment);
+        } else {
+            // Reset jika user menghapus file
             if (type === 'npwp') setNpwpAttachment(null);
             if (type === 'nib') setNibAttachment(null);
             if (type === 'sppkp') setSppkpAttachment(null);
             if (type === 'ktp') setKtpAttachment(null);
-            return;
-        }
-
-        if (response) {
-            // Buat object attachment berdasarkan response backend
-            const attachment: Attachment = {
-                id: 0,
-                customer_id: customer?.id ?? 0,
-                nama_file: response.nama_file,
-                path: response.path,
-                type: type,
-            };
-
-            if (type === 'npwp') setNpwpAttachment(attachment);
-            if (type === 'nib') setNibAttachment(attachment);
-            if (type === 'sppkp') setSppkpAttachment(attachment);
-            if (type === 'ktp') setKtpAttachment(attachment);
         }
     };
     // const [isModalOpen, setIsModalOpen] = useState(false);
@@ -443,14 +442,9 @@ export default function CustomerForm({
             }
 
             const getFinalAttachment = (newFile: Attachment | null, type: AttachmentType): Attachment | null => {
-                // 1. Jika user baru saja upload file baru, gunakan itu
-                if (newFile) return newFile;
-
-                // 2. Jika tidak upload baru, cek apakah ada file lama di database customer
-                const existing = customer?.attachments?.find((a) => a.type === type);
+                if (newFile) return newFile; // File baru dari state
+                const existing = customer?.attachments?.find((a) => a.type === type); // File lama dari props
                 if (existing) return existing;
-
-                // 3. Jika tidak ada keduanya
                 return null;
             };
 
@@ -476,12 +470,47 @@ export default function CustomerForm({
                 return;
             }
 
-            const allAttachments = [finalNpwp, finalNib, finalSppkp, finalKtp].filter(Boolean) as Attachment[];
+            const rawAttachments = [finalNpwp, finalNib, finalSppkp, finalKtp].filter(Boolean) as Attachment[];
+            const processedAttachments: any[] = [];
+
+            try {
+                const processResults = await Promise.all(
+                    rawAttachments.map(async (att) => {
+                        // Cek: Apakah path diawali 'temp/'? (Artinya file baru upload)
+                        if (att.path.startsWith('temp/')) {
+                            // Panggil API process-attachment
+                            const processRes = await axios.post(route('customer.process-attachment'), {
+                                path: att.path,
+                                nama_file: att.nama_file,
+                                id_perusahaan: auth.user.id_perusahaan,
+                                mode: 'medium', // Mode kompresi default
+                            });
+
+                            // Kembalikan object attachment dengan PATH BARU (Final Path)
+                            return {
+                                ...att,
+                                path: processRes.data.final_path, // Path di folder 'slug/attachment/...'
+                            };
+                        } else {
+                            // Jika file lama (tidak di temp), kembalikan apa adanya
+                            return att;
+                        }
+                    }),
+                );
+
+                // Simpan hasil proses ke array final
+                processedAttachments.push(...processResults);
+            } catch (processError) {
+                console.error('Gagal memproses dokumen:', processError);
+                alert('Gagal memproses/mengompres dokumen. Silakan coba lagi.');
+                setIsLoading(false);
+                return; // Hentikan proses submit jika gagal kompres
+            }
 
             const finalPayload = {
                 ...data,
                 id_perusahaan: auth.user.id_perusahaan,
-                attachments: allAttachments, // Array berisi object { nama_file, path, type }
+                attachments: processedAttachments,
             };
 
             if (customer?.id) {
