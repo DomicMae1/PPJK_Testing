@@ -12,82 +12,39 @@ class Customer extends Model
 {
     use SoftDeletes;
 
-    protected $connection = 'tako-customer';
+    protected $connection = 'tako-user';
     protected $table = 'customers';
-    protected $primaryKey = 'id'; 
+    protected $primaryKey = 'id_customer';
 
     protected $fillable = [
-        'uid',
-        'id_user',
-        'id_perusahaan',
-        'kategori_usaha',
         'nama_perusahaan',
-        'bentuk_badan_usaha',
-        'alamat_lengkap',
-        'kota',
-        'no_telp',
-        'no_fax',
-        'alamat_penagihan',
+        'type',
+        'ownership',
         'email',
-        'website',
-        'top',
-        'status_perpajakan',
-        'no_npwp',
-        'no_npwp_16',
-        'nama_pj',
-        'no_ktp_pj',
-        'no_telp_pj',
-        'nama_personal',
-        'jabatan_personal',
-        'no_telp_personal',
-        'email_personal',
+        'nama',
+        'created_by',
     ];
-
-    protected static function booted()
-    {
-        static::created(function ($customer) {
-            // Kita ambil tahun dan bulan saat ini
-            $prefix = now()->format('Y-m'); // Hasil: 2025-11
-            
-            // Update kolom uid
-            $customer->uid = $prefix . '-' . $customer->id;
-            
-            // Simpan perubahan tanpa memicu event 'updated' (agar hemat resource)
-            $customer->saveQuietly();
-        });
-    }
-
-    /**
-     * Relasi ke user pembuat (dari database tako-perusahaan).
-     */
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'id_user');
-    }
 
     /**
      * Relasi ke perusahaan (dari database tako-perusahaan).
      */
     public function perusahaan()
     {
-        return $this->belongsTo(Perusahaan::class, 'id_perusahaan');
+        return $this->belongsTo(Perusahaan::class, 'ownership', 'id_perusahaan');
+    }
+
+    public function creator()
+    {
+        // Parameter 2: Foreign Key di table customers (created_by)
+        // Parameter 3: Primary Key di table users (id_user)
+        return $this->belongsTo(User::class, 'created_by', 'id_user');
     }
 
     /**
      * Relasi ke lampiran dokumen customer.
      */
-    public function attachments()
+    public function users()
     {
-        return $this->hasMany(CustomerAttach::class, 'customer_id', 'id');
-    }
-
-    public function status()
-    {
-        return $this->hasOne(Customers_Status::class, 'id_Customer');
-    }
-
-    public function customer_links()
-    {
-        return $this->hasOne(CustomerLink::class, 'id_customer');
+        return $this->hasMany(User::class, 'id_customer', 'id_customer');
     }
 }

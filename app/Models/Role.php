@@ -6,5 +6,5 @@ use Spatie\Permission\Models\Role as SpatieRole;
 
 class Role extends SpatieRole
 {
-    protected $connection = 'tako-perusahaan';
+    protected $connection = 'tako-user';
 }
