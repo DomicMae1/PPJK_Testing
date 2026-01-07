@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
 use App\Models\Customer;
-use App\Models\CustomerLink;
-use App\Models\CustomerAttach;
+use App\Models\HsCode;
+use App\Models\Spk;
 use App\Models\Perusahaan;
+use App\Models\Tenant;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -20,25 +21,82 @@ use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\Process\Process;
 
-class CustomerController extends Controller
+class ShippingController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $user = auth('web')->user();
+        $externalCustomers = [];
 
-        if (!$user->hasPermissionTo('view-master-customer')) {
-            throw UnauthorizedException::forPermissions(['view-master-customer']);
+        // LOGIC 1: Jika User Adalah EKSTERNAL
+        if ($user->role === 'eksternal') {
+            // Ambil data perusahaan milik user tersebut berdasarkan id_customer di tabel users
+            // Hasilnya hanya 1 data (Perusahaan dia sendiri)
+            $externalCustomers = Customer::where('id_customer', $user->id_customer)
+                ->select('id_customer', 'nama_perusahaan as nama') // Alias 'nama' agar frontend konsisten
+                ->get();
+        }
+        else {
+            // Ambil daftar user yang role-nya 'eksternal'
+            // Ambil 'name' dari tabel users, tapi value-nya tetap id_customer
+            $externalCustomers = User::where('role', 'eksternal')
+                ->whereNotNull('id_customer') // Pastikan user tersebut terhubung ke customer
+                ->select('id_customer', 'name as nama') // Ambil nama user sebagai label
+                ->get();
+            
+            // Opsional: Jika ingin menghilangkan duplikasi (misal ada 2 user dari PT yang sama)
+            // $externalCustomers = $externalCustomers->unique('id_customer')->values();
         }
 
-        $query = Customer::with([
-            'creator',
-            'perusahaan',
-        ]);
+        if (!$user->hasPermissionTo('view-master-shipping')) {
+            throw UnauthorizedException::forPermissions(['view-master-shipping']);
+        }
 
-        return Inertia::render('m_customer/page', [
+        $tenant = null;
+
+        if ($user->id_perusahaan) {
+            // Jika User Internal, ambil tenant dari id_perusahaan user
+            $tenant = \App\Models\Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            // Jika User Eksternal, cari customer dulu, baru ambil tenant dari ownership
+            $customer = \App\Models\Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = \App\Models\Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        $spkData = [];
+
+        // --- 3. JIKA TENANT KETEMU, BARU QUERY DATA ---
+        if ($tenant) {
+            // Pindah koneksi ke Database Tenant
+            tenancy()->initialize($tenant);
+
+            // Query ke tabel SPK (di database tenant)
+            $query = \App\Models\Spk::with(['customer', 'creator']);
+
+            // Jika user eksternal, filter hanya data miliknya
+            if ($user->role === 'eksternal' && $user->id_customer) {
+                $query->where('id_customer', $user->id_customer);
+            }
+
+            // Mapping data agar sesuai dengan kolom Frontend
+            $spkData = $query->latest()->get()->map(function ($item) {
+                return [
+                    'id'              => $item->id,
+                    'spk_code'        => $item->spk_code, // Sesuai permintaan
+                    'nama_customer'   => $item->customer->nama_perusahaan ?? '-', // Sesuai permintaan
+                    'tanggal_status'  => $item->created_at, // Sesuai permintaan
+                    'status_label'    => 'diinput',
+                    'nama_user'       => $item->creator->name ?? 'System',
+                    'jalur'           => 'hijau', // Sesuai permintaan (Dummy dulu)
+                ];
+            });
+        }
+
+        return Inertia::render('m_shipping/page', [
+            'customers' => $spkData,
+            'externalCustomers' => $externalCustomers,
             'company' => [
                 'id' => session('company_id'),
                 'name' => session('company_name'),
@@ -58,11 +116,11 @@ class CustomerController extends Controller
     {
         $user = auth('web')->user();
 
-        if (!$user->hasPermissionTo('create-master-customer')) {
-            throw UnauthorizedException::forPermissions(['create-master-customer']);
+        if (!$user->hasPermissionTo('create-master-shipping')) {
+            throw UnauthorizedException::forPermissions(['create-master-shipping']);
         }
 
-        return Inertia::render('m_customer/table/add-data-form', [
+        return Inertia::render('m_shipping/table/add-data-form', [
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error')
@@ -77,11 +135,11 @@ class CustomerController extends Controller
     {
         $user = auth('web')->user();
 
-        if (!$user->hasPermissionTo('create-master-customer')) {
-            throw UnauthorizedException::forPermissions(['create-master-customer']);
+        if (!$user->hasPermissionTo('create-master-shipping')) {
+            throw UnauthorizedException::forPermissions(['create-master-shipping']);
         }
 
-        return Inertia::render('m_customer/table/generate-data-form', [
+        return Inertia::render('m_shipping/table/generate-data-form', [
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error')
@@ -96,72 +154,113 @@ class CustomerController extends Controller
     {
         $user = auth('web')->user();
 
-        if (!$user->hasPermissionTo('create-master-customer')) {
-            throw UnauthorizedException::forPermissions(['create-master-customer']);
+        // 1. Cek Permission
+        if (!$user->hasPermissionTo('create-master-shipping')) {
+            throw UnauthorizedException::forPermissions(['create-master-shipping']);
         }
+
+        // 2. Validasi Input dari Frontend (React Dialog)
+        $validated = $request->validate([
+            'shipment_type' => 'required|in:Import,Export',
+            'bl_number'     => 'required|string', // BL atau SI Number
+            'id_customer'   => 'required|exists:customers,id_customer', // Pastikan nama kolom PK customer benar
+            
+            // Validasi Array HS Code
+            'hs_codes'         => 'required|array|min:1',
+            'hs_codes.*.code'  => 'required|string',
+            'hs_codes.*.link'  => 'nullable|string', // Frontend kirim string kosong ''
+            'hs_codes.*.file'  => 'nullable|file|image|mimes:jpeg,png,jpg|max:5120', // Max 5MB
+        ]);
+
+        $tenant = null;
+
+        // Opsi A: User Internal (Punya id_perusahaan langsung)
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } 
+        // Opsi B: User Eksternal (Cari via Customer Ownership)
+        elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) {
+            return redirect()->back()->withErrors([
+                'error' => 'Gagal menentukan Tenant. Hubungi Administrator.'
+            ]);
+        }
+
+        // 2. Inisialisasi Tenancy (Pindah Koneksi ke Database Tenant)
+        // Ini akan otomatis mengubah koneksi default ke database 'tako_tenant_xxx'
+        tenancy()->initialize($tenant);
 
         DB::beginTransaction();
 
-        $validated = $request->validate([
-            'kategori_usaha' => 'required|string',
-            'nama_perusahaan' => 'required|string',
-            'bentuk_badan_usaha' => 'required|string',
-            'alamat_lengkap' => 'required|string',
-            'kota' => 'required|string',
-            'no_telp' => 'nullable|string',
-            'no_fax' => 'nullable|string',
-            'alamat_penagihan' => 'required|string',
-            'email' => 'required|email',
-            'website' => 'nullable|string',
-            'top' => 'nullable|string',
-            'status_perpajakan' => 'nullable|string',
-            'no_npwp' => 'nullable|string',
-            'no_npwp_16' => 'nullable|string',
-            'nama_pj' => 'nullable|string',
-            'no_ktp_pj' => 'nullable|string',
-            'no_telp_pj' => 'nullable|string',
-            'nama_personal' => 'nullable|string',
-            'jabatan_personal' => 'nullable|string',
-            'no_telp_personal' => 'nullable|string',
-            'email_personal' => 'nullable|email',
-            'keterangan_reject' => 'nullable|string',
-            'user_id' => 'required|exists:users,id',
-            'approved_1_by' => 'nullable|integer',
-            'approved_2_by' => 'nullable|integer',
-            'rejected_1_by' => 'nullable|integer',
-            'rejected_2_by' => 'nullable|integer',
-            'keterangan' => 'nullable|string',
-            'tgl_approval_1' => 'nullable|date',
-            'tgl_approval_2' => 'nullable|date',
-            'tgl_customer' => 'nullable|date',
-
-            'attachments' => 'required|array',
-            'attachments.*.nama_file' => 'required|string',
-            'attachments.*.path' => 'required|string',
-            'attachments.*.type' => 'required|in:npwp,sppkp,ktp,nib',
-        ]);
-
-
         try {
-            $roles = $user->getRoleNames();
+            $createdHsCodeIds = [];
 
-            if ($roles->contains('user')) {
-                $idPerusahaan = $user->id_perusahaan;
-            } elseif ($roles->contains('manager') || $roles->contains('direktur')) {
-                $idPerusahaan = $request->id_perusahaan;
+            foreach ($validated['hs_codes'] as $hsData) {
+                $filePath = null; // Untuk kolom path_link_insw
+                
+                if (isset($hsData['file']) && $hsData['file'] instanceof \Illuminate\Http\UploadedFile) {
+                    // 1. Generate nama file unik
+                    $extension = $hsData['file']->getClientOriginalExtension();
+                    $fileName = $hsData['code'] . '.' . $extension;
+                    
+                    // 2. Simpan fisik file ke C:/Users/IT/Herd/customers/...
+                    $path = $hsData['file']->storeAs(
+                        'documents/hs_codes', 
+                        $fileName, 
+                        'customers_external' // Disk custom Anda
+                    );
+                    
+                    // 3. Set Variable untuk Database
+                    $filePath = $path; // Simpan Path Internal (Relative)
+                    
+                    // // Generate URL Publik berdasarkan konfigurasi disk 'customers_external'
+                    // $fileUrl = Storage::disk('customers_external')->url($path);
+                }
+
+                // CREATE DATA 
+                $newHsCode = \App\Models\HsCode::create([
+                    'hs_code'        => $hsData['code'],
+                    
+                    // LOGIC: Jika ada file, 'link_insw' diisi URL file. Jika tidak, ambil dari input (kosong)
+                    'link_insw'      => $fileName ?? ($hsData['link'] ?? null),
+                    
+                    // Simpan Path Internal agar sistem tahu lokasi filenya
+                    'path_link_insw' => $filePath, 
+                    
+                    'created_at'     => now(),
+                    'updated_by'     => $user->id, 
+                    'logs'           => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
+                ]);
+
+                $createdHsCodeIds[] = $newHsCode->id_hscode;
             }
 
-            $customer = Customer::create(array_merge($validated, [
-                'id_user' => $user->id,
-                'id_perusahaan' => $idPerusahaan,
-            ]));
+            $primaryHsCodeId = !empty($createdHsCodeIds) ? $createdHsCodeIds[0] : null;
+
+            // CREATE SPK (Masuk ke DB Tenant)
+            $spk = Spk::create([
+                'spk_code'          => $validated['bl_number'],
+                'shipment_type'     => $validated['shipment_type'],
+                'id_perusahaan_int' => $user->id_perusahaan,
+                'id_customer'       => $validated['id_customer'],
+                'created_by'        => $user->id,
+                'id_hscode'         => $primaryHsCodeId,
+                'log'               => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
+            ]);
 
             DB::commit();
 
-            return Inertia::location(route('customer.show', $customer->id));
+            return Inertia::location(route('shipping.show', $spk->id));
+
         } catch (\Throwable $th) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()]);
+            return redirect()->back()->withErrors(['error' => 'Gagal menyimpan data: ' . $th->getMessage()]);
         }
     }
 
@@ -450,23 +549,73 @@ class CustomerController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show()
+    public function show($id)
     {
         $user = auth('web')->user();
 
-        return Inertia::render('m_customer/table/view-data-form', []);
+        // 2. LOGIKA MENCARI TENANT (Copy dari function store)
+        // Kita harus tahu dulu user ini milik tenant mana agar bisa buka databasenya
+        $tenant = null;
+
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } 
+        elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) {
+            abort(404, 'Tenant tidak ditemukan untuk user ini.');
+        }
+
+        // 3. INISIALISASI TENANCY (PENTING!)
+        // Ini yang memindahkan koneksi dari 'tako-user' ke 'tako_tenant_xxx'
+        tenancy()->initialize($tenant);
+
+        // 4. Baru sekarang aman untuk Query ke tabel SPK
+        // Karena koneksi sudah pindah ke tenant
+        $spk = Spk::with(['hsCodeData'])->findOrFail($id);
+
+        // 2. Format Data sesuai kebutuhan Frontend (shipmentData)
+        $shipmentData = [
+            'id_spk'    => $spk->id,
+            // Format tanggal: 12/11/25 17.14 WIB
+            'spkDate'   => Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
+            'type'      => $spk->shipment_type,
+            'siNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
+            'hsCodes'   => [],
+        ];
+
+        // 3. Mapping HS Code
+        // Catatan: Karena struktur DB saat ini one-to-one (spk belongsTo hsCode),
+        // maka array ini hanya akan berisi 1 item.
+        if ($spk->hsCodeData) {
+            $shipmentData['hsCodes'][] = [
+                'id'   => $spk->hsCodeData->id_hscode,
+                'code' => $spk->hsCodeData->hs_code,
+                'link' => $spk->hsCodeData->path_link_insw, // Link INSW
+            ];
+        }
+
+        return Inertia::render('m_shipping/table/view-data-form', [
+            'customer' => $spk->customer,
+            'shipmentDataProp' => $shipmentData,
+        ]);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Customer $customer)
+    public function edit(Spk $customer)
     {
         $user = auth('web')->user();
 
         $customer->load('attachments');
 
-        return Inertia::render('m_customer/table/edit-data-form', [
+        return Inertia::render('m_shipping/table/edit-data-form', [
             'customer' => $customer->load('attachments'),
         ]);
     }
@@ -475,7 +624,7 @@ class CustomerController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Customer $customer)
+    public function update(Request $request, Spk $customer)
     {
         $user = auth('web')->user();
 
@@ -530,7 +679,7 @@ class CustomerController extends Controller
             $roles = $user->getRoleNames();
 
             DB::commit();
-            return redirect()->route('customer.index')->with('success', 'Data Customer berhasil diperbarui!');
+            return redirect()->route('shipping.index')->with('success', 'Data Shipping berhasil diperbarui!');
         } catch (\Throwable $th) {
             DB::rollBack();
             return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()]);
@@ -540,7 +689,7 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Customer $customer)
+    public function destroy(Spk $customer)
     {
 
         try {
@@ -550,21 +699,21 @@ class CustomerController extends Controller
 
             DB::commit();
 
-            return redirect()->route('customer.index')
-                ->with('success', 'Data Customer berhasil dihapus (soft delete)!');
+            return redirect()->route('shipping.index')
+                ->with('success', 'Data Shipping berhasil dihapus (soft delete)!');
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return redirect()->route('customer.index')
-                ->with('error', 'Gagal menghapus Data Customer: ' . $e->getMessage());
+            return redirect()->route('shipping.index')
+                ->with('error', 'Gagal menghapus Data Shipping: ' . $e->getMessage());
         }
     }
 
     public function generatePdf($id)
     {
-        Log::info("📄 Mulai generate PDF untuk customer ID: {$id}");
+        Log::info("📄 Mulai generate PDF untuk Shipping ID: {$id}");
 
-        $customer = Customer::with(['attachments', 'perusahaan'])->findOrFail($id);
+        $customer = Spk::with(['attachments', 'perusahaan'])->findOrFail($id);
         $user = auth('web')->user();
 
         $tempDir = storage_path("app/temp");

@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'tako-perusahaan'),
+    'default' => env('DB_CONNECTION', 'tako-user'),
 
     /*
     |--------------------------------------------------------------------------
@@ -111,7 +111,7 @@ return [
             'sslmode' => 'prefer',
         ],
 
-        'tako-customer' => [
+        'tako-user' => [
             'driver' => 'pgsql',
             'host' => env('DB_SECOND_HOST'),
             'port' => env('DB_SECOND_PORT'),
@@ -142,11 +142,11 @@ return [
 
         'central' => [
             'driver' => 'pgsql',
-            'host' => env('DB_TAKO_HOST', '127.0.0.1'),
-            'port' => env('DB_TAKO_PORT', '5432'),
-            'database' => env('DB_TAKO_DATABASE'),
-            'username' => env('DB_TAKO_USERNAME'),
-            'password' => env('DB_TAKO_PASSWORD'),
+            'host' => env('DB_SECOND_HOST', '127.0.0.1'),
+            'port' => env('DB_SECOND_PORT', '5432'),
+            'database' => env('DB_SECOND_DATABASE'),
+            'username' => env('DB_SECOND_USERNAME'),
+            'password' => env('DB_SECOND_PASSWORD'),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,

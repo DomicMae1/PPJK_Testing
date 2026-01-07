@@ -52,14 +52,6 @@ class HandleInertiaRequests extends Middleware
 
                     $perusahaan = $user->perusahaan;
 
-                    if (!$perusahaan && $user->companies->isNotEmpty()) {
-                        $roleNames = $user->roles->pluck('name')->toArray();
-
-                        if (in_array('manager', $roleNames) || in_array('direktur', $roleNames)) {
-                            $perusahaan = $user->companies->first();
-                        }
-                    }
-
                     return array_merge(
                         $user->toArray(),
                         [
