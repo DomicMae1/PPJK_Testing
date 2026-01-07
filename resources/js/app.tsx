@@ -10,7 +10,7 @@ declare global {
     const route: typeof routeFn;
 }
 
-const appName = 'Customer Registration';
+const appName = 'PPJK';
 
 createInertiaApp({
     title: (title) => ` ${appName}`,

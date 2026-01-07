@@ -7,7 +7,7 @@ export default function AppLogo() {
     const { company } = usePage<any>().props; // tambahkan <any> atau tipe yang sesuai
     const { open } = useSidebar();
 
-    const companyName = company?.name ?? 'Customer Registration';
+    const companyName = company?.name ?? 'PPJK';
     const companyLogo = company?.logo ?? null;
 
     return (

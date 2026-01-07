@@ -8,8 +8,8 @@ import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Customers',
-        url: '/customer',
+        title: 'Shipment',
+        url: '/shipping',
         icon: SquareUserRound,
     },
     {
@@ -82,7 +82,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/customer" prefetch>
+                            <Link href="/shipping" prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

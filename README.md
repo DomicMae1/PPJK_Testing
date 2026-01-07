@@ -31,13 +31,29 @@ php artisan key:generate
 
 ## 5. Artisan migrate database
 
-```bash
-php artisan migrate:fresh --database=tako-perusahaan --path=database/migrations/perusahaan
-```
+### new database (user)
 
 ```bash
-php artisan migrate:fresh --database=tako-customer --path=database/migrations/customer
+php artisan migrate --database=tako-user --path=database/migrations/user
 ```
+
+### exist database
+
+```bash
+php artisan migrate:fresh --database=tako-user --path=database/migrations/user
+```
+
+<!-- ### new database (tenants)
+
+```bash
+php artisan tenants:migrate
+```
+
+### exist database
+
+```bash
+php artisan tenants:migrate-fresh
+``` -->
 
 ## 6. Make a Seeder
 

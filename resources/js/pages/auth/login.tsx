@@ -39,14 +39,14 @@ export default function Login({ status, canResetPassword, company }: LoginProps)
         });
     };
 
-    const companyName = company?.nama_perusahaan || 'Welcome to';
+    const companyName = company?.nama_perusahaan || 'Testing';
     const companyLogo = company?.path_company_logo || null;
 
     return (
         <AuthLayout
             company_name={companyName}
             company_logo={companyLogo}
-            app_name="Customer Registration"
+            app_name="PPJK Tracking"
             title="Log in to your account"
             description="Enter your email and password below to log in"
         >

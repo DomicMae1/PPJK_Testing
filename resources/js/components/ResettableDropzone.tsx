@@ -168,7 +168,7 @@ export function ResettableDropzone({
         fileStatus?.previewUrl && fileStatus.previewUrl.startsWith('/')
             ? fileStatus.previewUrl
             : fileStatus?.previewUrl
-              ? `/customer/${fileStatus.previewUrl}`
+              ? `/shipping/${fileStatus.previewUrl}`
               : null;
 
     return (
