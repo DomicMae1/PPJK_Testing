@@ -31,29 +31,17 @@ php artisan key:generate
 
 ## 5. Artisan migrate database
 
-### new database (user)
+### make new database (user)
 
 ```bash
 php artisan migrate --database=tako-user --path=database/migrations/user
 ```
 
-### exist database
+### refresh database
 
 ```bash
 php artisan migrate:fresh --database=tako-user --path=database/migrations/user
 ```
-
-<!-- ### new database (tenants)
-
-```bash
-php artisan tenants:migrate
-```
-
-### exist database
-
-```bash
-php artisan tenants:migrate-fresh
-``` -->
 
 ## 6. Make a Seeder
 
@@ -71,4 +59,20 @@ php artisan serve
 
 ```bash
 npm run dev
+```
+
+## 9. If u want to update all database
+
+### remove all database
+
+```bash
+php artisan db:drop-all
+```
+
+```bash
+php artisan migrate --database=tako-user --path=database/migrations/user
+```
+
+```bash
+php artisan db:seed
 ```
