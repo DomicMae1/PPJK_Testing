@@ -26,7 +26,7 @@ class PerusahaanController extends Controller
         }
 
         $perusahaans = Perusahaan::with(['user', 'users','tenant','tenant.domains'])->get();
-        $users = User::select('id', 'name')->get();
+        $users = User::select('id_user', 'name')->get();
 
         return Inertia::render('company/page', [
             'companies' => $perusahaans,

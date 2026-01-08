@@ -5,10 +5,7 @@ import { User } from '@/types';
 import { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal } from 'lucide-react';
 
-export const columns = (
-    onDeleteClick: (id: number) => void,
-    onEditClick: (id: number) => void,
-): ColumnDef<User>[] => [
+export const columns = (onDeleteClick: (id: number) => void, onEditClick: (id: number) => void): ColumnDef<User>[] => [
     {
         accessorKey: 'name',
         header: 'Name',
@@ -17,14 +14,14 @@ export const columns = (
     {
         accessorKey: 'email',
         header: 'Email',
-        cell: ({ row }) => <div className="px-4 py-2">{row.original.email}</div>,
+        cell: ({ row }) => <div className="py-2">{row.original.email}</div>,
     },
     {
         accessorKey: 'roles',
         header: 'Roles',
         cell: ({ row }) => {
             const roles = row.original.roles;
-            return <div className="px-4 py-2">{roles.map((role) => role.name).join(', ')}</div>;
+            return <div className="py-2">{roles.map((role) => role.name).join(', ')}</div>;
         },
     },
     {

@@ -185,8 +185,21 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
         setActiveSection(sectionId);
     };
 
-    const handleSaveSection = () => {
-        setActiveSection(null); // Menutup semua section
+    const handleSaveSection = (sectionId: string) => {
+        setActiveSection(null);
+        router.post(
+            '/shipping/section-reminder',
+            {
+                section: sectionId,
+                spk_id: shipmentData?.id_spk || shipmentData?.id || null,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    router.visit(window.location.pathname, { replace: true });
+                },
+            }
+        );
     };
 
     const handleModalCheckboxChange = (id: string, checked: boolean) => {
@@ -352,7 +365,7 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
 
                                         {/* Tombol Save akan menutup section */}
                                         <Button
-                                            onClick={handleSaveSection}
+                                            onClick={() => handleSaveSection(section.id)}
                                             className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800"
                                         >
                                             Save

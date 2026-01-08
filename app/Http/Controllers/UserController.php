@@ -28,13 +28,13 @@ class UserController extends Controller
             abort(403, 'Unauthorized access. Only admin can access this page.');
         }
 
-        $users = User::with('roles')->get();
+        $users = User::with(['role_internal', 'roles'])->get();
         $roles = Role::all(['id', 'name']);
 
         return Inertia::render('auth/page', [
             'users' => $users,
             'roles' => $roles,
-            'companies' => Perusahaan::select('id as id', 'nama_perusahaan')->get(),
+            'companies' => Perusahaan::select('id_perusahaan as id', 'nama_perusahaan')->get(),
         ]);
     }
 

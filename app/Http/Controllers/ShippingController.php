@@ -20,6 +20,7 @@ use Clegginabox\PDFMerger\PDFMerger;
 use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\Process\Process;
+use App\Services\SectionReminderService;
 
 class ShippingController extends Controller
 {
@@ -797,5 +798,51 @@ class ShippingController extends Controller
         if ($returnVar !== 0) {
             throw new \Exception("Ghostscript gagal menggabungkan PDF. Kode: {$returnVar}");
         }
+    }
+
+        public function sectionReminder(Request $request)
+    {
+        $validated = $request->validate([
+            'section' => 'required|string',
+            'spk_id' => 'required|integer',
+        ]);
+
+        $user = auth('web')->user();
+
+        if ($user->role === 'eksternal') {
+            // Cari perusahaan terkait
+            $perusahaan = \App\Models\Perusahaan::find($user->id_perusahaan);
+            if (!$perusahaan) {
+                return redirect()->back()->withErrors(['error' => 'Perusahaan tidak ditemukan']);
+            }
+
+            // Cari user internal dengan role staff di perusahaan ini
+            $staff = \App\Models\User::where('id_perusahaan', $perusahaan->id_perusahaan)
+                ->where('role', 'internal')
+                ->where('role_internal', 'staff')
+                ->first();
+
+            // --- INISIALISASI TENANT ---
+            $tenant = \App\Models\Tenant::where('perusahaan_id', $perusahaan->id_perusahaan)->first();
+            if ($tenant) {
+                tenancy()->initialize($tenant);
+            }
+
+            // Ambil data SPK jika ada (sudah di koneksi tenant)
+            $spk = \App\Models\Spk::find($validated['spk_id']);
+
+            if (!$spk) {
+                return redirect()->back()->withErrors(['error' => 'SPK tidak ditemukan pada tenant DB']);
+            }
+
+            try {
+                SectionReminderService::send($validated['section'], $staff, $user, $spk);
+                return redirect()->back()->with('success', 'Reminder berhasil dikirim ke staff.');
+            } catch (\Throwable $e) {
+                return redirect()->back()->withErrors(['error' => 'Gagal mengirim email: ' . $e->getMessage()]);
+            }
+        }
+
+        return redirect()->back();
     }
 }
