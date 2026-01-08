@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { router } from '@inertiajs/react';
-import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleHelp, Clipboard, Image as ImageIcon, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
-import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useState } from 'react';
+import { useState } from 'react';
 
 interface HsCodeItem {
     id: number;
     code: string;
     link: string | null;
+    file?: File | null;
 }
 
 interface ShipmentData {
@@ -54,6 +56,8 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
         siNumber: '-',
         hsCodes: [],
     };
+
+    console.log(shipmentData.hsCodes);
 
     const sectionsConfig = [
         {
@@ -230,69 +234,207 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
                 {/* HS Code Section */}
                 <div className="flex gap-1">
                     <span className="font-bold whitespace-nowrap">HS - Code :</span>
-                    <div className="flex flex-col">
-                        {shipmentData.hsCodes.length > 0 ? (
-                            shipmentData.hsCodes.map(
-                                (
-                                    item: {
-                                        code:
-                                            | string
-                                            | number
-                                            | bigint
-                                            | boolean
-                                            | ReactElement<unknown, string | JSXElementConstructor<any>>
-                                            | Iterable<ReactNode>
-                                            | ReactPortal
-                                            | Promise<
-                                                  | string
-                                                  | number
-                                                  | bigint
-                                                  | boolean
-                                                  | ReactPortal
-                                                  | ReactElement<unknown, string | JSXElementConstructor<any>>
-                                                  | Iterable<ReactNode>
-                                                  | null
-                                                  | undefined
-                                              >
-                                            | null
-                                            | undefined;
-                                        link: string | null;
-                                    },
-                                    index: Key | null | undefined,
-                                ) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                        <span>{item.code}</span>
-
-                                        {/* --- Tombol INSW Dinamis (Diperbaiki) --- */}
-                                        {item.link ? (
-                                            // KONDISI 1: Jika Link Ada -> Gunakan tag <a> sesuai referensi
-                                            <a
-                                                href={`/file/view/${item.link}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="font-bold text-blue-600 hover:underline"
-                                                title="Lihat Dokumen INSW"
-                                            >
-                                                [INSW]
-                                            </a>
-                                        ) : (
-                                            // KONDISI 2: Jika Link Kosong -> Gunakan button alert / disabled
-                                            <button
-                                                type="button"
-                                                onClick={() => alert('Tidak ada link/file INSW untuk kode ini.')}
-                                                className="cursor-not-allowed font-bold text-gray-400"
-                                                title="Tidak ada dokumen"
-                                            >
-                                                [INSW]
-                                            </button>
-                                        )}
-
-                                        <button className="text-gray-500 hover:text-black hover:underline">[edit]</button>
+                    <div className="flex w-full flex-col">
+                        {isEditingHsCodes ? (
+                            // ==========================================
+                            // 1. TAMPILAN MODE EDIT (FORM INPUT)
+                            // ==========================================
+                            <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
+                                <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
+                                    {/* Header Modal */}
+                                    <div className="flex items-center justify-between border-b px-6 py-4">
+                                        <h2 className="text-lg font-bold text-gray-900">Edit Data Hs Code</h2>
+                                        <button onClick={cancelEditMode} className="text-gray-500 hover:text-gray-700">
+                                            <X className="h-5 w-5" />
+                                        </button>
                                     </div>
-                                ),
-                            )
+
+                                    {/* Body Modal (Scrollable) */}
+                                    <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                                        <div className="flex flex-col gap-4">
+                                            {hsCodes.map((item, index) => (
+                                                <div key={item.id} className="relative rounded-lg border bg-white p-4 shadow-sm">
+                                                    {/* TOMBOL DELETE ITEM */}
+                                                    {hsCodes.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeHsCodeField(item.id)}
+                                                            className="absolute top-3 right-3 text-red-500 transition-colors hover:text-red-700"
+                                                            title="Hapus HS Code"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+
+                                                    <div className="grid gap-3 pt-1">
+                                                        {/* Input HS Code */}
+                                                        <div className="space-y-1">
+                                                            <Label className="text-sm">Input HS Code</Label>
+                                                            <Input
+                                                                placeholder="Input Hs Code number"
+                                                                value={item.code}
+                                                                onChange={(e) => updateHsCode(item.id, 'code', e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        {/* File Upload */}
+                                                        <div className="space-y-2">
+                                                            <Label className="text-sm">INSW Link reference</Label>
+                                                            {item.file ? (
+                                                                <div className="relative flex items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+                                                                    {/* Tombol Hapus File */}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => updateHsCode(item.id, 'file', null)}
+                                                                        className="absolute -top-2 -right-2 rounded-full bg-red-500 p-1 text-white shadow-md hover:bg-red-600"
+                                                                    >
+                                                                        <X className="h-4 w-4" />
+                                                                    </button>
+
+                                                                    {/* Preview */}
+                                                                    <div className="flex flex-col items-center gap-2">
+                                                                        {item.file.type.startsWith('image/') ? (
+                                                                            <img
+                                                                                src={URL.createObjectURL(item.file)}
+                                                                                alt="Preview"
+                                                                                className="max-h-32 rounded object-contain"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="flex flex-col items-center text-gray-500">
+                                                                                <ImageIcon className="mb-2 h-10 w-10" />
+                                                                                <span className="text-xs">{item.file.name}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        <span className="text-xs font-medium text-gray-500">{item.file.name}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-3">
+                                                                    {/* 1. Tombol Pilih File */}
+                                                                    <div className="relative">
+                                                                        <Input
+                                                                            type="file"
+                                                                            className="hidden"
+                                                                            id={`file-${item.id}`}
+                                                                            accept="image/*"
+                                                                            onChange={(e) =>
+                                                                                updateHsCode(item.id, 'file', e.target.files?.[0] || null)
+                                                                            }
+                                                                        />
+                                                                        <label
+                                                                            htmlFor={`file-${item.id}`}
+                                                                            className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[#1d64d0] text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
+                                                                        >
+                                                                            <ImageIcon className="h-4 w-4" />
+                                                                            Pilih File Gambar
+                                                                        </label>
+                                                                    </div>
+
+                                                                    {/* 2. Tombol Paste Clipboard */}
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white text-sm font-bold text-[#1d64d0] shadow-sm hover:bg-gray-50"
+                                                                        onClick={async (e) => {
+                                                                            e.preventDefault();
+                                                                            try {
+                                                                                const clipboardItems = await navigator.clipboard.read();
+                                                                                let imageFound = false;
+                                                                                for (const clipItem of clipboardItems) {
+                                                                                    const imageType = clipItem.types.find((type) =>
+                                                                                        type.startsWith('image/'),
+                                                                                    );
+                                                                                    if (imageType) {
+                                                                                        const blob = await clipItem.getType(imageType);
+                                                                                        let extension = imageType.split('/')[1];
+                                                                                        if (extension === 'jpeg') extension = 'jpg';
+                                                                                        const fileName = `clipboard-${Date.now()}.${extension}`;
+                                                                                        const file = new File([blob], fileName, { type: imageType });
+                                                                                        updateHsCode(item.id, 'file', file);
+                                                                                        imageFound = true;
+                                                                                        break;
+                                                                                    }
+                                                                                }
+                                                                                if (!imageFound) alert('Tidak ada gambar di clipboard.');
+                                                                            } catch (err) {
+                                                                                console.error(err);
+                                                                                alert('Gagal mengakses clipboard.');
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <Clipboard className="h-4 w-4" />
+                                                                        Paste Screenshot
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {/* Tombol Tambah Item Baru */}
+                                            <Button variant="outline" onClick={addHsCodeField} className="w-full border-dashed">
+                                                + Tambah HS Code Lain
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer Modal (Actions) */}
+                                    <div className="flex gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
+                                        <Button onClick={handleSaveEdit} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
+                                            <Save className="h-4 w-4" /> Simpan Perubahan
+                                        </Button>
+                                        <Button onClick={cancelEditMode} variant="destructive" className="flex-1 gap-2 text-white">
+                                            <Undo2 className="h-4 w-4" /> Batal
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
-                            <span className="text-gray-400 italic">Tidak ada data HS Code</span>
+                            <div className="flex flex-col">
+                                {shipmentData.hsCodes.length > 0 ? (
+                                    shipmentData.hsCodes.map((item: any, index: number) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <span>{item.code}</span>
+
+                                            {/* Link INSW */}
+                                            {item.link ? (
+                                                <a
+                                                    href={`/file/view/${item.link}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="font-bold text-blue-600 hover:underline"
+                                                    title="Lihat Dokumen INSW"
+                                                >
+                                                    [INSW]
+                                                </a>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => alert('Tidak ada link/file INSW untuk kode ini.')}
+                                                    className="cursor-not-allowed font-bold text-gray-400"
+                                                    title="Tidak ada dokumen"
+                                                >
+                                                    [INSW]
+                                                </button>
+                                            )}
+
+                                            {/* TOMBOL EDIT -> Trigger Edit Mode */}
+                                            <button onClick={enableEditMode} className="text-gray-500 hover:text-black hover:underline">
+                                                [edit]
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 italic">Tidak ada data HS Code</span>
+                                        {/* Jika kosong, beri opsi untuk menambah */}
+                                        <button onClick={enableEditMode} className="text-xs text-blue-500 hover:underline">
+                                            + Tambah
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>

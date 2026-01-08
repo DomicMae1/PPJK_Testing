@@ -154,32 +154,25 @@ class ShippingController extends Controller
     {
         $user = auth('web')->user();
 
-        // 1. Cek Permission
         if (!$user->hasPermissionTo('create-master-shipping')) {
             throw UnauthorizedException::forPermissions(['create-master-shipping']);
         }
 
-        // 2. Validasi Input dari Frontend (React Dialog)
         $validated = $request->validate([
-            'shipment_type' => 'required|in:Import,Export',
-            'bl_number'     => 'required|string', // BL atau SI Number
-            'id_customer'   => 'required|exists:customers,id_customer', // Pastikan nama kolom PK customer benar
-            
-            // Validasi Array HS Code
-            'hs_codes'         => 'required|array|min:1',
-            'hs_codes.*.code'  => 'required|string',
-            'hs_codes.*.link'  => 'nullable|string', // Frontend kirim string kosong ''
-            'hs_codes.*.file'  => 'nullable|file|image|mimes:jpeg,png,jpg|max:5120', // Max 5MB
+            'shipment_type'   => 'required|in:Import,Export',
+            'bl_number'       => 'required|string',
+            'id_customer'     => 'required|exists:customers,id_customer',
+            'hs_codes'        => 'required|array|min:1',
+            'hs_codes.*.code' => 'required|string',
+            'hs_codes.*.link' => 'nullable|string',
+            'hs_codes.*.file' => 'nullable|file|image|mimes:jpeg,png,jpg|max:5120',
         ]);
 
+        // --- Logic Tenant ---
         $tenant = null;
-
-        // Opsi A: User Internal (Punya id_perusahaan langsung)
         if ($user->id_perusahaan) {
             $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
-        } 
-        // Opsi B: User Eksternal (Cari via Customer Ownership)
-        elseif ($user->id_customer) {
+        } elseif ($user->id_customer) {
             $customer = Customer::find($user->id_customer);
             if ($customer && $customer->ownership) {
                 $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
@@ -187,72 +180,60 @@ class ShippingController extends Controller
         }
 
         if (!$tenant) {
-            return redirect()->back()->withErrors([
-                'error' => 'Gagal menentukan Tenant. Hubungi Administrator.'
-            ]);
+            return redirect()->back()->withErrors(['error' => 'Gagal menentukan Tenant.']);
         }
 
-        // 2. Inisialisasi Tenancy (Pindah Koneksi ke Database Tenant)
-        // Ini akan otomatis mengubah koneksi default ke database 'tako_tenant_xxx'
         tenancy()->initialize($tenant);
 
         DB::beginTransaction();
 
         try {
-            $createdHsCodeIds = [];
-
-            foreach ($validated['hs_codes'] as $hsData) {
-                $filePath = null; // Untuk kolom path_link_insw
-                
-                if (isset($hsData['file']) && $hsData['file'] instanceof \Illuminate\Http\UploadedFile) {
-                    // 1. Generate nama file unik
-                    $extension = $hsData['file']->getClientOriginalExtension();
-                    $fileName = $hsData['code'] . '.' . $extension;
-                    
-                    // 2. Simpan fisik file ke C:/Users/IT/Herd/customers/...
-                    $path = $hsData['file']->storeAs(
-                        'documents/hs_codes', 
-                        $fileName, 
-                        'customers_external' // Disk custom Anda
-                    );
-                    
-                    // 3. Set Variable untuk Database
-                    $filePath = $path; // Simpan Path Internal (Relative)
-                    
-                    // // Generate URL Publik berdasarkan konfigurasi disk 'customers_external'
-                    // $fileUrl = Storage::disk('customers_external')->url($path);
-                }
-
-                // CREATE DATA 
-                $newHsCode = \App\Models\HsCode::create([
-                    'hs_code'        => $hsData['code'],
-                    
-                    // LOGIC: Jika ada file, 'link_insw' diisi URL file. Jika tidak, ambil dari input (kosong)
-                    'link_insw'      => $fileName ?? ($hsData['link'] ?? null),
-                    
-                    // Simpan Path Internal agar sistem tahu lokasi filenya
-                    'path_link_insw' => $filePath, 
-                    
-                    'created_at'     => now(),
-                    'updated_by'     => $user->id, 
-                    'logs'           => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
-                ]);
-
-                $createdHsCodeIds[] = $newHsCode->id_hscode;
-            }
-
-            $primaryHsCodeId = !empty($createdHsCodeIds) ? $createdHsCodeIds[0] : null;
-
-            // CREATE SPK (Masuk ke DB Tenant)
+            // 1. CREATE SPK (Hanya Sekali)
             $spk = Spk::create([
                 'spk_code'          => $validated['bl_number'],
                 'shipment_type'     => $validated['shipment_type'],
                 'id_perusahaan_int' => $user->id_perusahaan,
                 'id_customer'       => $validated['id_customer'],
                 'created_by'        => $user->id,
-                'id_hscode'         => $primaryHsCodeId,
                 'log'               => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
             ]);
+
+            $firstHsCodeId = null;
+
+            // 2. LOOP CREATE HS CODES (Sebanyak jumlah data array)
+            foreach ($validated['hs_codes'] as $index => $hsData) {
+                $filePath = null;
+                $fileNameToSave = null;
+
+                if (isset($hsData['file']) && $hsData['file'] instanceof \Illuminate\Http\UploadedFile) {
+                    $extension = $hsData['file']->getClientOriginalExtension();
+                    // Tambahkan uniqid agar nama file tidak bentrok jika kode sama
+                    $fileNameToSave = $hsData['code'] . '_' . uniqid() . '.' . $extension;
+                    
+                    $path = $hsData['file']->storeAs(
+                        'documents/hs_codes', 
+                        $fileNameToSave, 
+                        'customers_external'
+                    );
+                    $filePath = $path;
+                }
+
+                // Create HS Code terhubung ke SPK
+                $newHsCode = HsCode::create([
+                    'id_spk'         => $spk->id, // FK ke SPK
+                    'hs_code'        => $hsData['code'],
+                    'link_insw'      => $fileNameToSave ?? ($hsData['link'] ?? null),
+                    'path_link_insw' => $filePath,
+                    'created_by'     => $user->id, // Sesuaikan nama kolom di DB (created_by / updated_by)
+                    'updated_by'     => $user->id,
+                    'logs'           => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
+                ]);
+
+                // Ambil ID HS Code pertama untuk update tabel SPK (Main HS Code)
+                if ($index === 0) {
+                    $firstHsCodeId = $newHsCode->id_hscode;
+                }
+            }
 
             DB::commit();
 
@@ -260,7 +241,7 @@ class ShippingController extends Controller
 
         } catch (\Throwable $th) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Gagal menyimpan data: ' . $th->getMessage()]);
+            return redirect()->back()->withErrors(['error' => 'Gagal: ' . $th->getMessage()]);
         }
     }
 
@@ -577,7 +558,7 @@ class ShippingController extends Controller
 
         // 4. Baru sekarang aman untuk Query ke tabel SPK
         // Karena koneksi sudah pindah ke tenant
-        $spk = Spk::with(['hsCodeData'])->findOrFail($id);
+        $spk = Spk::with(['hsCodes', 'customer'])->findOrFail($id);
 
         // 2. Format Data sesuai kebutuhan Frontend (shipmentData)
         $shipmentData = [
@@ -592,11 +573,13 @@ class ShippingController extends Controller
         // 3. Mapping HS Code
         // Catatan: Karena struktur DB saat ini one-to-one (spk belongsTo hsCode),
         // maka array ini hanya akan berisi 1 item.
-        if ($spk->hsCodeData) {
+        foreach ($spk->hsCodes as $hs) {
             $shipmentData['hsCodes'][] = [
-                'id'   => $spk->hsCodeData->id_hscode,
-                'code' => $spk->hsCodeData->hs_code,
-                'link' => $spk->hsCodeData->path_link_insw, // Link INSW
+                'id'   => $hs->id_hscode,
+                'code' => $hs->hs_code,
+                // Menggunakan 'link_insw' (nama file) atau 'path_link_insw' (path lengkap) sesuai kebutuhan frontend
+                // Pastikan kolom ini ada datanya di DB
+                'link' => $hs->path_link_insw,
             ];
         }
 
