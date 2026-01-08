@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id('id_perusahaan');
             $table->string('nama_perusahaan');
             $table->string('logo_perusahaan')->nullable();
+            $table->string('notify_1')->nullable();
+            $table->string('notify_2')->nullable();
 
             // $table->string('Server_DB')->nullable();
             // $table->string('Username_DB')->nullable();

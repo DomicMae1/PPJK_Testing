@@ -56,6 +56,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    
+    public function role_internal(): BelongsToMany
+    {
+        // Parameter: Model Tujuan, Nama Table Pivot, FK Model Ini, FK Model Tujuan
+        return $this->belongsToMany(Perusahaan::class, 'perusahaan_user_roles', 'id_user', 'id_perusahaan')
+            ->withPivot('role') // Agar bisa akses $user->role_internal[0]->pivot->role
+            ->withTimestamps();
+    }
 
     public function perusahaan(): BelongsTo
     {

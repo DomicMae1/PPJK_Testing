@@ -20,11 +20,18 @@ class Perusahaan extends Model
     protected $fillable = [
         'nama_perusahaan',
         'logo_perusahaan',
+        'notify_1',
+        'notify_2',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
 
     public function users()
     {
-        return $this->belongsToMany(User::class, 'perusahaan_user_roles', 'id_perusahaan', 'user_id')
+        return $this->belongsToMany(User::class, 'perusahaan_user_roles', 'id_perusahaan', 'id_user')
             ->withPivot('role')
             ->withTimestamps();
     }

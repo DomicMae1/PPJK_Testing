@@ -21,7 +21,7 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
-        return redirect('customer');
+        return redirect('shipping');
     });
 
     Route::resource('customer', CustomerController::class);
@@ -29,6 +29,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('role-manager', RoleController::class);
     Route::resource('perusahaan', PerusahaanController::class);
+
+    Route::post('/shipping/section-reminder', [ShippingController::class, 'sectionReminder'])->name('shipping.sectionReminder');
 });
 
 Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')
