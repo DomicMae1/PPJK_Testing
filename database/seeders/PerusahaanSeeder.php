@@ -28,19 +28,14 @@ class PerusahaanSeeder extends Seeder
 
             // 2. Buat Data System (Tenant)
             // Stancl Tenancy akan otomatis membuat Database baru di background
-            $tenant = Tenant::find($data['subdomain']);
+            $tenant = Tenant::firstOrCreate(
+                ['id' => $data['subdomain']],
+                ['perusahaan_id' => $perusahaan->id_perusahaan]
+            );
 
-            if (!$tenant) {
-                // Jika belum ada, baru create (ini akan trigger pembuatan DB otomatis oleh Stancl)
-                $tenant = Tenant::create([
-                    'id' => $data['subdomain'],
-                    'perusahaan_id' => $perusahaan->id_perusahaan,
-                ]);
-            } else {
-                // Jika sudah ada, pastikan relasi perusahaan_id update (opsional)
-                $tenant->update([
-                    'perusahaan_id' => $perusahaan->id_perusahaan
-                ]);
+            // Pastikan relasi update jika tenant sudah ada sebelumnya
+            if ($tenant->perusahaan_id !== $perusahaan->id_perusahaan) {
+                $tenant->update(['perusahaan_id' => $perusahaan->id_perusahaan]);
             }
 
             // 3. Buat Domain
@@ -49,13 +44,9 @@ class PerusahaanSeeder extends Seeder
             $fullDomain = $data['subdomain'] . '.' . $appDomain;
 
             // Cek apakah domain sudah terdaftar di tenant ini
-            $domainExists = $tenant->domains()->where('domain', $fullDomain)->exists();
-
-            if (!$domainExists) {
-                $tenant->domains()->create([
-                    'domain' => $fullDomain,
-                ]);
-            }
+            $tenant->domains()->firstOrCreate([
+                'domain' => $fullDomain
+            ]);
         }
     }
 }
