@@ -422,7 +422,7 @@ export default function CustomerForm({
             </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-[340px] rounded-xl p-0 sm:max-w-[400px]">
+                <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">
                     {/* Header Modal */}
                     <DialogHeader className="px-4 py-3">
                         <DialogTitle className="text-left text-lg font-bold">Additional Document</DialogTitle>
@@ -442,7 +442,7 @@ export default function CustomerForm({
                     </div>
 
                     {/* List Pilihan Checkbox */}
-                    <div className="max-h-[300px] overflow-y-auto px-4 py-2">
+                    <div className="max-h-75 overflow-y-auto px-4 py-2">
                         <div className="space-y-4">
                             {filteredDocs.map((doc) => (
                                 <div key={doc.id} className="flex items-center space-x-3">
@@ -476,7 +476,7 @@ export default function CustomerForm({
             </Dialog>
 
             <Dialog open={helpModalOpen} onOpenChange={setHelpModalOpen}>
-                <DialogContent className="max-w-[340px] rounded-xl p-5 sm:max-w-[400px]">
+                <DialogContent className="max-w-85 rounded-xl p-5 sm:max-w-100">
                     {/* Header: Title & Close Button included by Default DialogContent, but we customize title */}
                     <div className="mb-2">
                         <h2 className="text-xl leading-tight font-bold text-black">{selectedHelpData?.title}</h2>

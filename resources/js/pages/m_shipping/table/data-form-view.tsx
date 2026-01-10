@@ -1,14 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { ResettableDropzone } from '@/components/ResettableDropzone';
+import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { router } from '@inertiajs/react';
-import { ChevronDown, ChevronUp, CircleHelp, Clipboard, Image as ImageIcon, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface HsCodeItem {
     id: number;
@@ -22,16 +24,69 @@ interface ShipmentData {
     spkDate: string;
     type: string;
     siNumber: string;
-    hsCodes: HsCodeItem[];
+    hsCodes: any[];
+}
+
+interface DocumentTrans {
+    id: number;
+    id_dokumen: number;
+    upload_by: string;
+    nama_file: string;
+    url_path_file?: string;
+    logs: string;
+    link_url_video_file?: string;
+    attribute: boolean;
+    master_document?: {
+        description_file?: string;
+        link_path_example_file?: string;
+        link_path_template_file?: string;
+        link_url_video_file?: string;
+    };
+}
+
+// Interface untuk Section Transaksional (dari DB Tenant)
+interface SectionTrans {
+    id: number; // ID unik section transaksi
+    id_section: number; // ID referensi master section
+    section_name: string;
+    section_order: number;
+    deadline: boolean;
+    sla?: string | null;
+    documents: DocumentTrans[];
+}
+
+interface MasterDocument {
+    id_dokumen: number;
+    nama_file: string;
+    description_file?: string;
+    link_path_example_file?: string;
+    link_path_template_file?: string;
+    link_url_video_file?: string;
+    attribute: boolean;
 }
 
 interface Props {
     customer: any;
-    shipmentDataProp: ShipmentData; // Data dari Controller
+    shipmentDataProp: ShipmentData;
+    sectionsTransProp: SectionTrans[];
+    masterDocProp?: MasterDocument[];
 }
 
-export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
-    const [activeSection, setActiveSection] = useState<string | null>(null);
+//helper untuk video link youtube
+const getYouTubeId = (url: string): string | null => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+};
+
+export default function ViewCustomerForm({
+    customer,
+    shipmentDataProp,
+    sectionsTransProp, // Data Section Transaksional
+    masterDocProp, // Data Master Document (opsional, untuk fallback help)
+}: any) {
+    const [activeSection, setActiveSection] = useState<number | null>(null);
     const [isAdditionalDocsOpen, setIsAdditionalDocsOpen] = useState(true);
     const [isAdditionalSectionVisible, setIsAdditionalSectionVisible] = useState(false);
     const [isEditingHsCodes, setIsEditingHsCodes] = useState(false);
@@ -41,7 +96,19 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
     const [deadlineDate, setDeadlineDate] = useState(''); // State untuk tanggal deadline
 
     const [helpModalOpen, setHelpModalOpen] = useState(false);
-    const [selectedHelpData, setSelectedHelpData] = useState<any>(null);
+    const [selectedHelpData, setSelectedHelpData] = useState<MasterDocument | null>(null);
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+    const videoUrl = selectedHelpData?.link_url_video_file;
+    const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
+    const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
+
+    useEffect(() => {
+        if (helpModalOpen) {
+            setIsVideoPlaying(false);
+        }
+    }, [helpModalOpen, selectedHelpData]);
+
+    const [processingSectionId, setProcessingSectionId] = useState<number | null>(null);
 
     const [selectedAdditionalDocs, setSelectedAdditionalDocs] = useState<{ id: string; label: string }[]>([
         { id: 'fumigasi', label: 'Fumigasi' },
@@ -53,69 +120,11 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
     const shipmentData = shipmentDataProp || {
         spkDate: '-',
         type: '-',
-        siNumber: '-',
+        spkNumber: '-',
         hsCodes: [],
     };
 
-    const sectionsConfig = [
-        {
-            id: 'ppjk',
-            title: 'PPJK Document Request',
-            documents: [
-                { id: 1, name: 'Bill of Lading' },
-                { id: 2, name: 'Invoice' },
-                { id: 3, name: 'Packing List' },
-                { id: 4, name: 'Polis Asuransi' },
-                { id: 5, name: 'Surat Kuasa Kepabeanan' },
-            ],
-        },
-        {
-            id: 'shipping_line',
-            title: 'Shipping Line',
-            documents: [
-                { id: 1, name: 'Dokumen 1' },
-                { id: 2, name: 'Dokumen 2' },
-                { id: 3, name: 'Dokumen 3' },
-                { id: 4, name: 'Dokumen 4' },
-                { id: 5, name: 'Dokumen 5' },
-            ],
-        },
-        {
-            id: 'pib_peb',
-            title: 'PIB/PEB',
-            documents: [
-                { id: 1, name: 'Draft PIB' },
-                { id: 2, name: 'PIB Final' },
-            ],
-        },
-        {
-            id: 'bill_payment',
-            title: 'BILL PAYMENT',
-            documents: [
-                { id: 1, name: 'ID BILLING' },
-                { id: 2, name: 'Bukti Pembayaran' },
-                { id: 3, name: 'PIB Final' },
-            ],
-        },
-        {
-            id: 'result',
-            title: 'RESULT',
-            documents: [{ id: 1, name: 'SPPB' }],
-        },
-    ];
-
-    const documentHelpInfo: Record<string, any> = {
-        'Bill of Lading': {
-            title: 'Bill of Lading (BL)',
-            description:
-                'Bill of Lading (B/L), adalah dokumen resmi yang berfungsi sebagai tanda terima barang, kontrak pengangkutan, dan bukti kepemilikan kargo.',
-        },
-        // Default content untuk dokumen lain jika belum didefinisikan
-        default: {
-            title: 'Informasi Dokumen',
-            description: 'Ini adalah penjelasan singkat mengenai dokumen ini. Dokumen ini diperlukan untuk kelengkapan proses shipment.',
-        },
-    };
+    console.log(shipmentData);
 
     const additionalDocsList = [
         { id: 'phyto', label: 'Phytosanitary' },
@@ -162,11 +171,29 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
     };
 
     const handleSaveEdit = () => {
-        // --- LOGIKA SIMPAN PERUBAHAN KE BACKEND ---
-        // Anda perlu membuat endpoint controller update untuk ini
-        alert('Simulasi Simpan Data (Anda perlu implementasi ke controller update)');
-        setIsEditingHsCodes(false);
-        // router.post(...)
+        const formData = {
+            hs_codes: hsCodes.map((item) => ({
+                id: typeof item.id === 'number' ? item.id : null, // Kirim ID jika numeric (lama), null jika string/nanoid (baru)
+                code: item.code,
+                file: item.file, // File object (jika baru diupload)
+            })),
+        };
+
+        router.post(
+            `/shipping/${shipmentData.id_spk}/update-hs-codes`, // URL sesuai route web.php
+            formData,
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsEditingHsCodes(false);
+                },
+                onError: (errors) => {
+                    alert('Gagal menyimpan perubahan. Periksa inputan Anda.');
+                    console.error(errors);
+                },
+            },
+        );
     };
 
     const handleOpenModal = () => {
@@ -174,21 +201,43 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
         setIsModalOpen(true);
     };
 
-    const handleOpenHelp = (docName: string) => {
-        const info = documentHelpInfo[docName] || {
-            ...documentHelpInfo['default'],
-            title: docName, // Fallback judul pakai nama dokumen
-        };
-        setSelectedHelpData(info);
+    const handleOpenHelp = (docTrans: DocumentTrans) => {
+        let helpData = null;
+        if (docTrans.master_document) {
+            helpData = {
+                nama_file: docTrans.nama_file,
+                ...docTrans.master_document,
+            };
+        } else if (masterDocProp && Array.isArray(masterDocProp)) {
+            const foundMaster = masterDocProp.find((m: any) => String(m.id_dokumen) === String(docTrans.id_dokumen));
+
+            if (foundMaster) {
+                helpData = foundMaster;
+            }
+        }
+
+        if (!helpData) {
+            helpData = {
+                nama_file: docTrans.nama_file,
+                description_file: docTrans.description_file,
+                link_path_example_file: null,
+                link_path_template_file: null,
+                link_url_video_file: null,
+            };
+        }
+
+        setSelectedHelpData(helpData);
         setHelpModalOpen(true);
     };
 
-    const handleEditSection = (sectionId: string) => {
-        setActiveSection(sectionId);
+    const handleEditSection = (sectionId: number) => {
+        setActiveSection(sectionId === activeSection ? null : sectionId);
     };
 
-    const handleSaveSection = (sectionId: string) => {
-        setActiveSection(null);
+    const handleSaveSection = (sectionId: number) => {
+        // Set loading state
+        setProcessingSectionId(sectionId);
+
         router.post(
             '/shipping/section-reminder',
             {
@@ -198,7 +247,14 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    router.visit(window.location.pathname, { replace: true });
+                    // Tutup accordion dan matikan loading state setelah sukses
+                    setActiveSection(null);
+                    setProcessingSectionId(null);
+                    // router.visit tidak perlu dipanggil manual jika return dari controller sudah benar (redirect/back)
+                },
+                onError: () => {
+                    setProcessingSectionId(null); // Matikan loading jika error
+                    alert('Gagal menyimpan data section.');
                 },
             },
         );
@@ -239,7 +295,7 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
                 </div>
                 <div className="flex gap-1">
                     <span className="font-bold">SI :</span>
-                    <span>{shipmentData.siNumber}</span>
+                    <span>{shipmentData.spkNumber}</span>
                 </div>
 
                 {/* HS Code Section */}
@@ -247,9 +303,6 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
                     <span className="font-bold whitespace-nowrap">HS - Code :</span>
                     <div className="flex w-full flex-col">
                         {isEditingHsCodes ? (
-                            // ==========================================
-                            // 1. TAMPILAN MODE EDIT (FORM INPUT)
-                            // ==========================================
                             <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
                                 <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
                                     {/* Header Modal */}
@@ -290,94 +343,24 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
 
                                                         {/* File Upload */}
                                                         <div className="space-y-2">
-                                                            <Label className="text-sm">INSW Link reference</Label>
-                                                            {item.file ? (
-                                                                <div className="relative flex items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
-                                                                    {/* Tombol Hapus File */}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => updateHsCode(item.id, 'file', null)}
-                                                                        className="absolute -top-2 -right-2 rounded-full bg-red-500 p-1 text-white shadow-md hover:bg-red-600"
-                                                                    >
-                                                                        <X className="h-4 w-4" />
-                                                                    </button>
-
-                                                                    {/* Preview */}
-                                                                    <div className="flex flex-col items-center gap-2">
-                                                                        {item.file.type.startsWith('image/') ? (
-                                                                            <img
-                                                                                src={URL.createObjectURL(item.file)}
-                                                                                alt="Preview"
-                                                                                className="max-h-32 rounded object-contain"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="flex flex-col items-center text-gray-500">
-                                                                                <ImageIcon className="mb-2 h-10 w-10" />
-                                                                                <span className="text-xs">{item.file.name}</span>
-                                                                            </div>
-                                                                        )}
-                                                                        <span className="text-xs font-medium text-gray-500">{item.file.name}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex flex-col gap-3">
-                                                                    {/* 1. Tombol Pilih File */}
-                                                                    <div className="relative">
-                                                                        <Input
-                                                                            type="file"
-                                                                            className="hidden"
-                                                                            id={`file-${item.id}`}
-                                                                            accept="image/*"
-                                                                            onChange={(e) =>
-                                                                                updateHsCode(item.id, 'file', e.target.files?.[0] || null)
-                                                                            }
-                                                                        />
-                                                                        <label
-                                                                            htmlFor={`file-${item.id}`}
-                                                                            className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[#1d64d0] text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
-                                                                        >
-                                                                            <ImageIcon className="h-4 w-4" />
-                                                                            Pilih File Gambar
-                                                                        </label>
-                                                                    </div>
-
-                                                                    {/* 2. Tombol Paste Clipboard */}
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white text-sm font-bold text-[#1d64d0] shadow-sm hover:bg-gray-50"
-                                                                        onClick={async (e) => {
-                                                                            e.preventDefault();
-                                                                            try {
-                                                                                const clipboardItems = await navigator.clipboard.read();
-                                                                                let imageFound = false;
-                                                                                for (const clipItem of clipboardItems) {
-                                                                                    const imageType = clipItem.types.find((type) =>
-                                                                                        type.startsWith('image/'),
-                                                                                    );
-                                                                                    if (imageType) {
-                                                                                        const blob = await clipItem.getType(imageType);
-                                                                                        let extension = imageType.split('/')[1];
-                                                                                        if (extension === 'jpeg') extension = 'jpg';
-                                                                                        const fileName = `clipboard-${Date.now()}.${extension}`;
-                                                                                        const file = new File([blob], fileName, { type: imageType });
-                                                                                        updateHsCode(item.id, 'file', file);
-                                                                                        imageFound = true;
-                                                                                        break;
-                                                                                    }
-                                                                                }
-                                                                                if (!imageFound) alert('Tidak ada gambar di clipboard.');
-                                                                            } catch (err) {
-                                                                                console.error(err);
-                                                                                alert('Gagal mengakses clipboard.');
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <Clipboard className="h-4 w-4" />
-                                                                        Paste Screenshot
-                                                                    </Button>
-                                                                </div>
-                                                            )}
+                                                            <ResettableDropzoneImage
+                                                                label="INSW Link reference"
+                                                                isRequired={false}
+                                                                // Jika ada file baru (item.file), jangan kirim existingFile
+                                                                // Jika belum ada file baru, cek apakah ada link lama (item.link)
+                                                                existingFile={
+                                                                    !item.file && item.link
+                                                                        ? {
+                                                                              nama_file: item.link, // Nama file dari DB
+                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                          }
+                                                                        : undefined
+                                                                }
+                                                                onFileChange={(file) => {
+                                                                    // Update state saat file dipilih atau dihapus (file = null)
+                                                                    updateHsCode(item.id, 'file', file);
+                                                                }}
+                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -451,71 +434,106 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
                 </div>
             </div>
 
-            {/* --- Accordion Menu Sections --- */}
             <div className="w-full space-y-3">
-                {sectionsConfig.map((section) => {
-                    // Cek apakah section ini sedang aktif (terbuka)
-                    const isOpen = activeSection === section.id;
+                {sectionsTransProp && sectionsTransProp.length > 0 ? (
+                    sectionsTransProp.map((section) => {
+                        const isOpen = activeSection === section.id_section; // Gunakan ID transaksi
 
-                    return (
-                        <div key={section.id} className="rounded-lg border border-gray-200 px-1 transition-all">
-                            {/* Header Section */}
-                            <div className="flex items-center justify-between px-3 py-3" onClick={() => handleEditSection(section.id)}>
-                                {/* Judul (Statik, tidak bisa diklik untuk toggle) */}
-                                {isOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-                                <span className="text-sm font-bold text-gray-900">{section.title}</span>
-                            </div>
-
-                            {/* Content Section (Hanya dirender jika isOpen === true) */}
-                            {isOpen && (
-                                <div className="border-t border-gray-100 px-3 pt-2 pb-4">
-                                    <div className="space-y-4">
-                                        {section.documents.map((doc) => (
-                                            <div key={doc.id} className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2 text-gray-800">
-                                                    <span>
-                                                        {doc.id}. {doc.name}
-                                                    </span>
-                                                    <CircleHelp
-                                                        className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
-                                                        onClick={() => handleOpenHelp(doc.name)}
-                                                    />
-                                                </div>
-                                                <Button
-                                                    variant="outline"
-                                                    className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
-                                                >
-                                                    Upload here..
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Footer Section: Add & Save Buttons */}
-                                    <div className="mt-8 flex items-center justify-between">
-                                        <button
-                                            onClick={handleOpenModal}
-                                            className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
-                                        >
-                                            <div className="rounded border border-black p-0.5">
-                                                <Plus className="h-4 w-4" />
-                                            </div>
-                                            Add Another Document
-                                        </button>
-
-                                        {/* Tombol Save akan menutup section */}
-                                        <Button
-                                            onClick={() => handleSaveSection(section.id)}
-                                            className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800"
-                                        >
-                                            Save
-                                        </Button>
-                                    </div>
+                        return (
+                            <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
+                                {/* Header Section */}
+                                <div
+                                    className="flex cursor-pointer items-center justify-between px-3 py-3"
+                                    onClick={() => handleEditSection(section.id)}
+                                >
+                                    {isOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                                    <span className="text-sm font-bold text-gray-900 uppercase">{section.section_name}</span>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+
+                                {/* Content Section */}
+                                {isOpen && (
+                                    <div className="border-t border-gray-100 px-3 pt-2 pb-4">
+                                        <div className="space-y-4">
+                                            {/* Loop Documents Transaksional */}
+                                            {section.documents && section.documents.length > 0 ? (
+                                                section.documents.map((doc, idx) => (
+                                                    <div key={doc.id} className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2 text-gray-800">
+                                                            <span>
+                                                                {idx + 1}. {doc.nama_file}
+                                                            </span>
+                                                            <CircleHelp
+                                                                className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
+                                                                onClick={() => handleOpenHelp(doc)}
+                                                            />
+                                                        </div>
+                                                        <div className="w-1/2 max-w-xs">
+                                                            {' '}
+                                                            <ResettableDropzone
+                                                                label=""
+                                                                isRequired={false}
+                                                                existingFile={
+                                                                    doc.url_path_file
+                                                                        ? {
+                                                                              nama_file: doc.nama_file,
+                                                                              path: `/file/view/${doc.url_path_file}`,
+                                                                          }
+                                                                        : undefined
+                                                                }
+                                                                uploadConfig={{
+                                                                    url: '/shipping/upload-temp',
+                                                                    payload: {
+                                                                        type: doc.nama_file,
+                                                                        spk_code: shipmentData.spkNumber,
+                                                                    },
+                                                                }}
+                                                                onFileChange={(file, response) => {
+                                                                    if (response && response.success) {
+                                                                        console.log('Upload success:', response);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="py-4 text-center text-xs text-gray-400 italic">
+                                                    Belum ada dokumen di kategori ini.
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Footer Section */}
+                                        <div className="mt-8 flex items-center justify-between">
+                                            <button
+                                                onClick={handleOpenModal}
+                                                className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
+                                            >
+                                                <div className="rounded border border-black p-0.5">
+                                                    <Plus className="h-4 w-4" />
+                                                </div>
+                                                Add Another Document
+                                            </button>
+
+                                            <Button
+                                                onClick={() => handleSaveSection(section.id)}
+                                                disabled={processingSectionId === section.id}
+                                                className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                                            >
+                                                {processingSectionId === section.id ? 'Saving...' : 'Save'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                ) : (
+                    <div className="py-4 text-center text-gray-500">
+                        <p>Memuat data dokumen transaksi...</p>
+                        <p className="text-xs text-gray-400">Pastikan SPK sudah dibuat dan data master sudah tersalin.</p>
+                    </div>
+                )}
             </div>
 
             {/* --- Checkbox Request Additional Document --- */}
@@ -672,33 +690,84 @@ export default function ViewCustomerForm({ customer, shipmentDataProp }: any) {
 
             <Dialog open={helpModalOpen} onOpenChange={setHelpModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-5 sm:max-w-100">
-                    {/* Header: Title & Close Button included by Default DialogContent, but we customize title */}
                     <div className="mb-2">
-                        <h2 className="text-xl leading-tight font-bold text-black">{selectedHelpData?.title}</h2>
+                        {/* Judul Dokumen dari DB */}
+                        <h2 className="text-xl leading-tight font-bold text-black">{selectedHelpData?.nama_file}</h2>
                     </div>
 
-                    {/* Description */}
-                    <div className="mb-4 text-sm leading-relaxed text-gray-700">{selectedHelpData?.description}</div>
-
-                    {/* Action Buttons (Templates) */}
-                    <div className="mb-5 space-y-3">
-                        <Button
-                            variant="outline"
-                            className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                        >
-                            Contoh Dokumen Template {selectedHelpData?.title}
-                        </Button>
+                    {/* Deskripsi dari DB */}
+                    <div className="mb-4 text-sm leading-relaxed text-gray-700">
+                        {selectedHelpData?.description_file || 'Tidak ada deskripsi tersedia untuk dokumen ini.'}
                     </div>
+
+                    {selectedHelpData?.link_path_example_file && (
+                        <div className="space-y-3">
+                            <a href={selectedHelpData.link_path_example_file} target="_blank" rel="noreferrer" className="block w-full">
+                                <Button
+                                    variant="outline"
+                                    className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                    Download Contoh Dokumen {selectedHelpData.nama_file}
+                                </Button>
+                            </a>
+                        </div>
+                    )}
+
+                    {/* Action Buttons (Download Template) */}
+                    {selectedHelpData?.link_path_template_file && (
+                        <div className="mb-5 space-y-3">
+                            <a href={selectedHelpData.link_path_template_file} target="_blank" rel="noreferrer" className="block w-full">
+                                <Button
+                                    variant="outline"
+                                    className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                    Download Template {selectedHelpData.nama_file}
+                                </Button>
+                            </a>
+                        </div>
+                    )}
 
                     {/* Video Section */}
-                    <div>
-                        <h3 className="mb-2 text-sm font-bold text-black">Video</h3>
-                        <div className="flex h-40 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50">
-                            <button className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm transition-transform hover:scale-110">
-                                <Play className="ml-1 h-5 w-5 fill-black text-black" />
-                            </button>
+                    {videoUrl && videoId && (
+                        <div>
+                            <h3 className="mb-2 text-sm font-bold text-black">Video Tutorial</h3>
+                            {/* Gunakan aspect-video untuk rasio 16:9 yang responsif */}
+                            <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-200 bg-black">
+                                {isVideoPlaying ? (
+                                    // TAMPILAN 2: IFRAME PLAYER (Setelah tombol play diklik)
+                                    <iframe
+                                        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
+                                        title="YouTube video player"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                        className="absolute inset-0 h-full w-full"
+                                    ></iframe>
+                                ) : (
+                                    // TAMPILAN 1: THUMBNAIL PREVIEW & TOMBOL PLAY (Sebelum diklik)
+                                    // Kita gunakan button biasa, bukan tag <a> lagi
+                                    <button
+                                        onClick={() => setIsVideoPlaying(true)}
+                                        className="group relative flex h-full w-full items-center justify-center"
+                                    >
+                                        {/* Gambar Thumbnail dari YouTube */}
+                                        {thumbnailUrl && (
+                                            <img
+                                                src={thumbnailUrl}
+                                                alt="Video thumbnail"
+                                                className="absolute inset-0 h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                                            />
+                                        )}
+
+                                        {/* Tombol Play di Tengah */}
+                                        <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-md transition-transform group-hover:scale-110">
+                                            <Play className="ml-1 h-6 w-6 fill-black text-black" />
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>
