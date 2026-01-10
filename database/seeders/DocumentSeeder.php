@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-class TemplateDocumentSeeder extends Seeder
+class DocumentSeeder extends Seeder
 {
     public function run(): void
     {
@@ -14,9 +14,9 @@ class TemplateDocumentSeeder extends Seeder
 
         $data = [
             [
-                'attribute' => 1,
+                'id_section' => 1,
                 'nama_file' => 'Bill of Lading',
-                'url_path_file' => 'documents/master/bl.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/bl.pdf',
                 'link_path_template_file' => 'documents/templates/bl.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -26,9 +26,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 1,
                 'nama_file' => 'Invoice',
-                'url_path_file' => 'documents/master/invoice.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/invoice.pdf',
                 'link_path_template_file' => 'documents/templates/invoice.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -38,9 +38,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 1,
                 'nama_file' => 'Packing List',
-                'url_path_file' => 'documents/master/packing_list.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/packing_list.pdf',
                 'link_path_template_file' => 'documents/templates/packing_list.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -50,9 +50,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 1,
                 'nama_file' => 'Polis Asuransi',
-                'url_path_file' => 'documents/master/polis_asuransi.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/polis_asuransi.pdf',
                 'link_path_template_file' => 'documents/templates/polis_asuransi.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -62,9 +62,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 1,
                 'nama_file' => 'SK Kepabean',
-                'url_path_file' => 'documents/master/sk_kepabean.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/sk_kepabean.pdf',
                 'link_path_template_file' => 'documents/templates/sk_kepabean.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -74,9 +74,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 2,
                 'nama_file' => 'Document 1',
-                'url_path_file' => 'documents/master/dokumen_1.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/dokumen_1.pdf',
                 'link_path_template_file' => 'documents/templates/dokumen_1.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -86,9 +86,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 2,
                 'nama_file' => 'Document 2',
-                'url_path_file' => 'documents/master/dokumen_2.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/dokumen_2.pdf',
                 'link_path_template_file' => 'documents/templates/dokumen_2.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -98,9 +98,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 3,
                 'nama_file' => 'Draft PIB',
-                'url_path_file' => 'documents/master/draft_pib.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/draft_pib.pdf',
                 'link_path_template_file' => 'documents/templates/draft_pib.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -110,9 +110,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 3,
                 'nama_file' => 'PIB Final',
-                'url_path_file' => 'documents/master/pib_final.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/pib_final.pdf',
                 'link_path_template_file' => 'documents/templates/pib_final.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -122,9 +122,9 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 4,
                 'nama_file' => 'Id Billing',
-                'url_path_file' => 'documents/master/id_billing.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/id_billing.pdf',
                 'link_path_template_file' => 'documents/templates/id_billing.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
@@ -134,13 +134,25 @@ class TemplateDocumentSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
-                'attribute' => 1,
+                'id_section' => 4,
                 'nama_file' => 'Bukti Pembayaran',
-                'url_path_file' => 'documents/master/bukti_pembayaran.pdf',
+                'attribute' => 1,
                 'link_path_example_file' => 'documents/examples/bukti_pembayaran.pdf',
                 'link_path_template_file' => 'documents/templates/bukti_pembayaran.pdf',
                 'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
                 'description_file' => 'Bukti pembayaran pengiriman (shipping) merujuk pada dokumen atau catatan yang menunjukkan bahwa biaya pengiriman paket atau barang telah dibayar.',
+                'updated_by' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'id_section' => 5,
+                'nama_file' => 'SPPB',
+                'attribute' => 1,
+                'link_path_example_file' => 'documents/examples/sppb.pdf',
+                'link_path_template_file' => 'documents/templates/sppb.pdf',
+                'link_url_video_file' => 'https://youtu.be/2SDFM0gF1tU?si=ITOYoGrPa85rS0Z3',
+                'description_file' => 'SPPB (Surat Persetujuan Pengeluaran Barang) dalam konteks shipping adalah dokumen resmi dari Bea Cukai yang mengizinkan barang impor untuk dikeluarkan dari Kawasan Pabean atau Tempat Penimbunan.',
                 'updated_by' => 1,
                 'created_at' => $now,
                 'updated_at' => $now,

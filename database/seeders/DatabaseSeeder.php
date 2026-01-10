@@ -17,7 +17,8 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
             PerusahaanSeeder::class,
             UserSeeder::class,
-            TemplateDocumentSeeder::class,
+            MasterSectionSeeder::class,
+            DocumentSeeder::class,
         ]);
     }
 }
