@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MasterDocument extends Model
 {
@@ -20,8 +21,9 @@ class MasterDocument extends Model
 
     // 4. Fillable (Mass Assignment)
     protected $fillable = [
-        'attribute',
+        'id_section',
         'nama_file',
+        'attribute',
         'link_path_example_file',
         'link_path_template_file',
         'link_url_video_file',
@@ -33,9 +35,16 @@ class MasterDocument extends Model
     // 5. Casting Tipe Data
     protected $casts = [
         'attribute' => 'boolean',
+        'deadline_document' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public function section(): BelongsTo
+    {
+        // Asumsi Model Section bernama MasterSection dan PK-nya id_section
+        return $this->belongsTo(MasterSection::class, 'id_section', 'id_section');
+    }
     
     /**
      * Relasi ke User (Updated By) - Opsional jika menggunakan tabel users internal

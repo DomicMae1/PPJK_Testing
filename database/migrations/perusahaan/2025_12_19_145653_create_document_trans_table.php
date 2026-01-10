@@ -12,51 +12,44 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('document_trans', function (Blueprint $table) {
-            // 1. Primary Key
-            $table->id('id_dokumen');
+            // 1. Primary Key (id prefix PK)
+            $table->id(); 
 
-            // 2. Foreign Keys (Relation)
+            // 2. Foreign Key: id_dokumen (Mengacu ke Master Document)
+            $table->unsignedBigInteger('id_dokumen')->nullable();
+
+            // 3. Foreign Key: id_spk
             $table->unsignedBigInteger('id_spk')->nullable();
 
+            // 4. Foreign Key: id_section
             $table->unsignedBigInteger('id_section')->nullable();
 
-            // 3. Atribut Dokumen
-            $table->boolean('attribute')->default(0); // 1 = mandatory, 0 = non-mandatory
-            $table->string('upload_by')->nullable();  // role user: 'internal' atau 'external'
-
-            // 4. File Utama
+            // 5. Data User & File
+            $table->string('upload_by')->nullable(); // Role user: 'internal' atau 'external'
             $table->string('nama_file');
             $table->string('url_path_file')->nullable(); // Lokasi file di storage
-            $table->text('description_file')->nullable();
 
-            // 6. Validasi & Koreksi (Revisi)
-            $table->boolean('verify')->default(false); // Status validasi: true/false
+            // 6. Tracking Logs
+            $table->timestamps(); // created_at, updated_at
+            $table->json('logs')->nullable(); // History
 
-            $table->boolean('correction_attachment')->default(false); // Ada revisi lampiran?
-            $table->string('correction_attachment_file')->nullable(); // File revisi dari internal
+            // 7. Validasi & Koreksi
+            $table->boolean('verify')->default(false); // Status validasi
+            $table->boolean('correction_attachment')->default(false); // Flag ada revisi file
+            $table->string('correction_attachment_file')->nullable(); // Path file revisi
             $table->text('correction_description')->nullable();       // Catatan revisi
+            $table->integer('kuota_revisi')->default(0);
 
-            $table->integer('kuota_revisi')->default(0); // Countdown jatah revisi (misal: 3x)
+            // 8. Integrasi
+            $table->string('mapping_insw')->nullable();
+            $table->boolean('deadline_document')->nullable();
+            $table->string('sla_document')->nullable();
 
-            // 7. Integrasi Eksternal
-            $table->string('mapping_insw')->nullable(); // Nomor dokumen dari link INSW
-
-            // 8. Log & Tracking
-            $table->unsignedBigInteger('updated_by')->nullable(); // User ID
-            $table->json('logs')->nullable(); // Array timestamps history
-
-            $table->timestamps();
-
-            // 9. Constraints
-            // Relasi ke SPK
+            // Relasi ke SPK (Table Lokal Tenant)
             $table->foreign('id_spk')
-                ->references('id')->on('spk')
-                ->onDelete('cascade');
+                  ->references('id')->on('spk')
+                  ->onDelete('cascade');
 
-            $table->foreign('id_section')
-                ->references('id_section') 
-                ->on('master_sections')
-                ->onDelete('cascade');    
         });
     }
 
@@ -65,6 +58,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('master_documents');
+        Schema::dropIfExists('document_trans');
     }
 };

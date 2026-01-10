@@ -14,10 +14,11 @@ return new class extends Migration
         Schema::connection('tako-user')->create('master_documents', function (Blueprint $table) {
             // 1. Primary Key (sesuai request: id_dokumen)
             $table->id('id_dokumen');
+            $table->unsignedBigInteger('id_section')->nullable();
+            $table->string('nama_file');
 
             // 3. Data File & Atribut
             $table->boolean('attribute')->default(0); // 1 = mandatory, 0 = optional
-            $table->string('nama_file');
 
             // 4. Link Pendukung (Pindahan dari master_documents)
             $table->string('link_path_example_file')->nullable();
@@ -30,6 +31,9 @@ return new class extends Migration
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps(); // created_at, updated_at
 
+            $table->foreign('id_section')
+                  ->references('id_section')->on('master_sections')
+                  ->onDelete('set null');
         });
     }
 

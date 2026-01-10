@@ -10,35 +10,31 @@ class DocumentTrans extends Model
 {
     use HasFactory;
 
-    // protected $connection = 'tako-user';
+    // Nama Tabel
     protected $table = 'document_trans';
 
-    // PENTING: Definisi Primary Key baru
-    protected $primaryKey = 'id_dokumen';
+    protected $primaryKey = 'id';
 
     protected $fillable = [
+        'id_dokumen',
         'id_spk',
         'id_section',
-        'attribute',            // Mandatory check
-        'upload_by',            // Role string: internal/external
+        'upload_by',
         'nama_file',
         'url_path_file',
         'description_file',
-        'verify',               // Status Approval
+        'logs',
+        'verify',
         'correction_attachment',
         'correction_attachment_file',
         'correction_description',
         'kuota_revisi',
         'mapping_insw',
-        'updated_by',
-        'logs',
+        'deadline_document',
+        'sla_document',
     ];
 
-    /**
-     * Casts attributes to specific types.
-     */
     protected $casts = [
-        'attribute' => 'boolean',
         'verify' => 'boolean',
         'correction_attachment' => 'boolean',
         'logs' => 'array',
@@ -54,7 +50,16 @@ class DocumentTrans extends Model
     */
 
     /**
-     * Relasi ke SPK Induk.
+     * Relasi ke Master Document (Database Pusat)
+     * Menggunakan koneksi 'tako-user'
+     */
+    public function masterDocument(): BelongsTo
+    {
+        return $this->belongsTo(MasterDocument::class, 'id_dokumen', 'id_dokumen');
+    }
+
+    /**
+     * Relasi ke SPK (Tenant DB)
      */
     public function spk(): BelongsTo
     {
@@ -62,42 +67,23 @@ class DocumentTrans extends Model
     }
 
     /**
-     * Relasi ke Section (Kategori Dokumen).
-     * Contoh: PPJK, PIB, dll.
+     * Relasi ke Section (Tenant DB)
      */
     public function section(): BelongsTo
     {
         return $this->belongsTo(MasterSection::class, 'id_section', 'id_section');
     }
 
+    public function sectionTrans(): BelongsTo
+    {
+        return $this->belongsTo(SectionTrans::class, 'id_section', 'id_section');
+    }
+
     /**
-     * Relasi ke User yang melakukan update terakhir.
+     * Relasi ke User Updater (Master DB)
      */
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by', 'id_user');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Helper Functions
-    |--------------------------------------------------------------------------
-    */
-
-    /**
-     * Cek apakah dokumen ini sudah diverifikasi (valid).
-     */
-    public function isValid(): bool
-    {
-        return $this->verify === true;
-    }
-
-    /**
-     * Cek apakah dokumen ini perlu revisi.
-     */
-    public function needsCorrection(): bool
-    {
-        // Logika: Belum valid, ada lampiran koreksi atau ada deskripsi koreksi
-        return !$this->verify && ($this->correction_attachment || !empty($this->correction_description));
     }
 }
