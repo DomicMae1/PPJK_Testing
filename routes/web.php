@@ -30,12 +30,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('role-manager', RoleController::class);
     Route::resource('perusahaan', PerusahaanController::class);
 
-    Route::post('/shipping/section-reminder', [ShippingController::class, 'sectionReminder'])->name('shipping.sectionReminder');
+    Route::post('shipping/section-reminder', [ShippingController::class, 'sectionReminder'])->name('shipping.sectionReminder');
+    Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
+        ->name('shipping.update-hs-codes');
+    Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
 });
 
 Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')
     ->where('path', '.*') 
     ->name('file.view');
+
+Route::get('/shipping/{path}', [FileController::class, 'view'])
+    ->where('path', '.*') 
+    ->name('file.view');    
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
