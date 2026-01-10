@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Customer;
+use App\Models\DocumentTrans;
 use App\Models\HsCode;
+use App\Models\MasterDocument;
 use App\Models\Spk;
 use App\Models\Perusahaan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\MasterSection;
+use App\Models\SectionTrans;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -199,8 +204,6 @@ class ShippingController extends Controller
                 'log'               => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
             ]);
 
-            $firstHsCodeId = null;
-
             // 2. LOOP CREATE HS CODES (Sebanyak jumlah data array)
             foreach ($validated['hs_codes'] as $index => $hsData) {
                 $filePath = null;
@@ -236,6 +239,56 @@ class ShippingController extends Controller
                 }
             }
 
+            $masterSections = MasterSection::on('tako-user')->get();
+
+            foreach ($masterSections as $masterSec) {
+                SectionTrans::create([
+                    'id_section'    => $masterSec->id_section, // Referensi ke Master
+                    'id_spk'        => $spk->id,
+                    'section_name'  => $masterSec->section_name,
+                    'section_order' => $masterSec->section_order,
+                    
+                    // Default Values untuk Transaksi
+                    'deadline'      => false, // Default false/0
+                    'sla'           => null,  // Default null
+                    
+                    'created_at'    => now(),
+                    'updated_at'    => now(),
+                ]);
+            }
+
+            $masterDocs = MasterDocument::on('tako-user')->with('section')->get();
+
+            foreach ($masterDocs as $masterDoc) {
+                // Siapkan Log Message
+                $sectionName = $masterDoc->section ? $masterDoc->section->section_name : 'Unknown Section';
+                $logMessage = "Document {$sectionName} requested " . now()->format('d-m-Y H:i') . " WIB";
+
+                DocumentTrans::create([
+                    'id_spk'                     => $spk->id,
+                    'id_dokumen'                 => $masterDoc->id_dokumen, // Dari Master
+                    'id_section'                 => $masterDoc->id_section, // Dari Master
+                    'nama_file'                  => $masterDoc->nama_file,  // Dari Master
+                    'upload_by'                  => (string) $user->id,     // Dari User Login
+                    
+                    // Default Values
+                    'url_path_file'              => null,
+                    'verify'                     => false,
+                    'correction_attachment'      => false,
+                    'correction_attachment_file' => null,
+                    'correction_description'     => null,
+                    'kuota_revisi'               => 0,
+                    'mapping_insw'               => null,
+                    'deadline_document'          => null, // Sesuai request: null
+                    'sla_document'               => null, // Sesuai request: null
+                    
+                    'updated_by'                 => $user->id,
+                    'logs'                       => [$logMessage], // Array of strings (karena cast 'array')
+                    'created_at'                 => now(),
+                    'updated_at'                 => now(),
+                ]);
+            }
+
             DB::commit();
 
             return Inertia::location(route('shipping.show', $spk->id));
@@ -246,79 +299,105 @@ class ShippingController extends Controller
         }
     }
 
-    public function storePublic(Request $request)
+    public function updateHsCodes(Request $request, $idSpk)
     {
-
-        DB::beginTransaction();
+        $user = auth('web')->user();
 
         $validated = $request->validate([
-            'kategori_usaha' => 'required|string',
-            'nama_perusahaan' => 'required|string',
-            'bentuk_badan_usaha' => 'required|string',
-            'alamat_lengkap' => 'required|string',
-            'kota' => 'required|string',
-            'no_telp' => 'nullable|string',
-            'no_fax' => 'nullable|string',
-            'alamat_penagihan' => 'required|string',
-            'email' => 'required|email',
-            'website' => 'nullable|string',
-            'top' => 'nullable|string',
-            'status_perpajakan' => 'nullable|string',
-            'no_npwp' => 'nullable|string',
-            'no_npwp_16' => 'nullable|string',
-            'nama_pj' => 'nullable|string',
-            'no_ktp_pj' => 'nullable|string',
-            'no_telp_pj' => 'nullable|string',
-            'nama_personal' => 'nullable|string',
-            'jabatan_personal' => 'nullable|string',
-            'no_telp_personal' => 'nullable|string',
-            'email_personal' => 'nullable|email',
-            'keterangan_reject' => 'nullable|string',
-            'user_id' => 'required|exists:users,id',
-            'approved_1_by' => 'nullable|integer',
-            'approved_2_by' => 'nullable|integer',
-            'rejected_1_by' => 'nullable|integer',
-            'rejected_2_by' => 'nullable|integer',
-            'keterangan' => 'nullable|string',
-            'tgl_approval_1' => 'nullable|date',
-            'tgl_approval_2' => 'nullable|date',
-            'tgl_customer' => 'nullable|date',
-
-            'attachments' => 'required|array',
-            'attachments.*.nama_file' => 'required|string',
-            'attachments.*.path' => 'required|string',
-            'attachments.*.type' => 'required|in:npwp,sppkp,ktp,nib',
+            'hs_codes'        => 'required|array|min:1',
+            // id opsional karena data baru belum punya ID
+            'hs_codes.*.id'   => 'nullable', 
+            'hs_codes.*.code' => 'required|string',
+            // Link lama (string) atau file baru (binary)
+            'hs_codes.*.file' => 'nullable', 
         ]);
 
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = \App\Models\Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = \App\Models\Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = \App\Models\Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) abort(404, 'Tenant not found');
+        tenancy()->initialize($tenant);
+
+        // 3. Mulai Transaksi Database
+        DB::beginTransaction();
 
         try {
-            $userId = $request->input('user_id');
+            $spk = Spk::findOrFail($idSpk);
+
+            $receivedIds = [];
+
+            foreach ($validated['hs_codes'] as $item) {
+                $filePath = null;
+                $fileNameToSave = null;
+                if (isset($item['file']) && $item['file'] instanceof \Illuminate\Http\UploadedFile) {
+                    $extension = $item['file']->getClientOriginalExtension();
+                    $fileNameToSave = $item['code'] . '_' . uniqid() . '.' . $extension;
+                    
+                    $path = $item['file']->storeAs(
+                        'documents/hs_codes', 
+                        $fileNameToSave, 
+                        'customers_external'
+                    );
+                    $filePath = $path; 
+                }
+
+                if (!empty($item['id']) && is_numeric($item['id'])) {
+                    $hsCode = HsCode::find($item['id']);
+                    if ($hsCode) {
+                        $updateData = [
+                            'hs_code'    => $item['code'],
+                            'updated_by' => $user->id,
+                            'updated_at' => now(),
+                        ];
+
+                        // Hanya update file jika ada file baru
+                        if ($filePath) {
+                            $updateData['link_insw'] = $fileNameToSave;
+                            $updateData['path_link_insw'] = $filePath;
+                        } 
+
+                        $hsCode->update($updateData);
+                        $receivedIds[] = $hsCode->id_hscode;
+                    }
+                } else {
+                    $newHsCode = HsCode::create([
+                        'id_spk'         => $spk->id,
+                        'hs_code'        => $item['code'],
+                        'link_insw'      => $fileNameToSave, 
+                        'path_link_insw' => $filePath, 
+                        'created_by'     => $user->id,
+                        'updated_by'     => $user->id,
+                        'logs'           => json_encode(['action' => 'added_via_edit', 'by' => $user->name, 'at' => now()]),
+                    ]);
+                    $receivedIds[] = $newHsCode->id_hscode;
+                }
+            }
+            HsCode::where('id_spk', $spk->id)
+                  ->whereNotIn('id_hscode', $receivedIds)
+                  ->delete();
+
+            if (!empty($receivedIds)) {
+                $spk->update(['id_hscode' => $receivedIds[0]]);
+            } else {
+                $spk->update(['id_hscode' => null]);
+            }
+
             DB::commit();
 
-            return response()->json([
-                'message' => 'Data Anda berhasil dibuat!',
-            ], 200);
+            return redirect()->back()->with('success', 'HS Codes updated successfully');
+
         } catch (\Throwable $th) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Terjadi kesalahan: ' . $th->getMessage()], 500);
+            return redirect()->back()->withErrors(['error' => 'Failed to update: ' . $th->getMessage()]);
         }
     }
-
-    // public function upload(Request $request)
-    // {
-    //     $file = $request->file('file');
-
-    //     $filename = time() . '_' . $file->getClientOriginalName();
-
-    //     $path = $file->storeAs('customers', $filename, 'public');
-
-    //     $url = url(Storage::url($path)); 
-
-    //     return response()->json([
-    //         'path' => $url,           
-    //         'nama_file' => $filename,
-    //     ]);
-    // }
 
     public function upload(Request $request)
     {
@@ -328,15 +407,12 @@ class ShippingController extends Controller
             return response()->json(['error' => 'File tidak ditemukan'], 400);
         }
 
-        // Ambil Parameter untuk Nama File
-        $order       = str_pad((int)$request->input('order'), 3, '0', STR_PAD_LEFT);
-        $npwp        = preg_replace('/[^0-9]/', '', $request->input('npwp_number'));
+        $spk        = $request->input('spk_code');
         $type        = strtolower($request->input('type'));
 
-        // Simpan mode kompresi di nama file atau return ke frontend agar bisa dikirim balik saat store
-        // Di sini kita hanya butuh nama file temp yang unik
         $ext         = $file->getClientOriginalExtension();
-        $filename    = "{$npwp}-{$order}-{$type}.{$ext}";
+        $uniqueId = uniqid();
+        $filename    = "{$spk}-{$type}-{$uniqueId}.{$ext}";
 
         $disk        = Storage::disk('customers_external');
         $tempDir     = 'temp';
@@ -567,7 +643,7 @@ class ShippingController extends Controller
             // Format tanggal: 12/11/25 17.14 WIB
             'spkDate'   => Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
             'type'      => $spk->shipment_type,
-            'siNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
+            'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
             'hsCodes'   => [],
         ];
 
@@ -584,9 +660,17 @@ class ShippingController extends Controller
             ];
         }
 
+        $sectionsTrans = SectionTrans::with(['documents' => function($q) use ($spk) {
+            // Filter dokumen HANYA milik SPK ini
+            $q->where('id_spk', $spk->id)->orderBy('id', 'asc')->with('masterDocument');;
+        }])
+        ->orderBy('section_order', 'asc')
+        ->get();
+
         return Inertia::render('m_shipping/table/view-data-form', [
             'customer' => $spk->customer,
             'shipmentDataProp' => $shipmentData,
+            'sectionsTransProp' => $sectionsTrans,
         ]);
     }
 
