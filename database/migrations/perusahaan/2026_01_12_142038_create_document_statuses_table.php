@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('status'); 
             
             // User ID yang melakukan aksi
-            $table->unsignedBigInteger('by'); 
+            $table->string('by')->nullable();
             
             $table->timestamps();
 
