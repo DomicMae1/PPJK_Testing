@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\Process\Process;
 use App\Services\SectionReminderService;
+use App\Services\NotificationService;
 
 class ShippingController extends Controller
 {
@@ -904,9 +905,41 @@ class ShippingController extends Controller
 
             try {
                 SectionReminderService::send($validated['section'], $staff, $user, $spk);
+                
+                // Kirim notifikasi ke staff (dalam try-catch terpisah agar tidak block email)
+                try {
+                    NotificationService::send([
+                        'id_section' => (int)$validated['section'], // NEW: dedicated column
+                        'id_spk' => $spk->id,
+                        'role' => 'internal',
+                        'data' => [
+                            'type' => 'section_reminder',
+                            'title' => 'Reminder Section',
+                            'message' => "Section {$validated['section']} perlu diselesaikan untuk SPK #{$spk->spk_code}",
+                            'url' => url("/shipping/{$spk->id}"),
+                            'section' => $validated['section'],
+                            'spk_code' => $spk->spk_code,
+                        ],
+                    ]);
+                } catch (\Throwable $notifError) {
+                    // Log error notifikasi tapi jangan block flow utama
+                    \Log::error('Failed to send notification in sectionReminder', [
+                        'error' => $notifError->getMessage(),
+                        'trace' => $notifError->getTraceAsString(),
+                    ]);
+                }
+                
                 return redirect()->back()->with('success', 'Reminder berhasil dikirim ke staff.');
             } catch (\Throwable $e) {
-                return redirect()->back()->withErrors(['error' => 'Gagal mengirim email: ' . $e->getMessage()]);
+                // Log error lengkap untuk debugging
+                \Log::error('sectionReminder failed', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'user_id' => $user->id_user,
+                    'spk_id' => $validated['spk_id'],
+                ]);
+                
+                return redirect()->back()->withErrors(['error' => 'Gagal mengirim reminder: ' . $e->getMessage()]);
             }
         }
 

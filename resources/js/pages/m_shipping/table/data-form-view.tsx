@@ -238,12 +238,16 @@ export default function ViewCustomerForm({
         // Set loading state
         setProcessingSectionId(sectionId);
 
+        const payload = {
+            section: String(sectionId), // Convert to string for backend validation
+            spk_id: shipmentData?.id_spk || shipmentData?.id || null,
+        };
+
+        console.log('Sending section reminder:', payload, 'shipmentData:', shipmentData);
+
         router.post(
             '/shipping/section-reminder',
-            {
-                section: sectionId,
-                spk_id: shipmentData?.id_spk || shipmentData?.id || null,
-            },
+            payload,
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -252,7 +256,8 @@ export default function ViewCustomerForm({
                     setProcessingSectionId(null);
                     // router.visit tidak perlu dipanggil manual jika return dari controller sudah benar (redirect/back)
                 },
-                onError: () => {
+                onError: (errors) => {
+                    console.error('Section reminder error:', errors);
                     setProcessingSectionId(null); // Matikan loading jika error
                     alert('Gagal menyimpan data section.');
                 },
@@ -351,9 +356,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                              nama_file: item.link, // Nama file dari DB
-                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
-                                                                          }
+                                                                            nama_file: item.link, // Nama file dari DB
+                                                                            path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -475,9 +480,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     doc.url_path_file
                                                                         ? {
-                                                                              nama_file: doc.nama_file,
-                                                                              path: `/file/view/${doc.url_path_file}`,
-                                                                          }
+                                                                            nama_file: doc.nama_file,
+                                                                            path: `/file/view/${doc.url_path_file}`,
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 uploadConfig={{
