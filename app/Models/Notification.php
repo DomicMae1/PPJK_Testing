@@ -15,12 +15,13 @@ class Notification extends Model
     protected $primaryKey = 'id_notification'; // FIX: Table uses id_notification, not id
 
     protected $fillable = [
-        'user_id',
+        'send_to',       // RENAMED from user_id - who receives notification
+        'created_by',    // NEW: who triggered the notification
         'role',
-        'id_section',    // NEW: dedicated section column
+        'id_section',
         'id_spk',
-        'id_dokumen',
-        'data',          // Contains: type, title, message, url, etc.
+        // 'id_dokumen' - REMOVED: unified document tracking via data.documents[]
+        'data',          // Contains: type, title, message, url, documents[], summary, etc.
         'read_at',
     ];
     // type, title, message removed - now in data JSON
@@ -31,6 +32,19 @@ class Notification extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    /**
+     * Attributes to append to model's array/JSON form
+     */
+    protected $appends = ['id'];
+
+    /**
+     * Get the ID attribute (maps from id_notification for frontend compatibility)
+     */
+    public function getIdAttribute()
+    {
+        return $this->attributes['id_notification'] ?? null;
+    }
 
     /**
      * Override toArray to include 'id' for frontend compatibility
@@ -53,14 +67,20 @@ class Notification extends Model
         return $this->belongsTo(Spk::class, 'id_spk', 'id');
     }
 
-    public function document(): BelongsTo
+    /**
+     * User who receives this notification
+     */
+    public function recipient(): BelongsTo
     {
-        return $this->belongsTo(DocumentTrans::class, 'id_dokumen', 'id');
+        return $this->belongsTo(User::class, 'send_to', 'id_user');
     }
 
-    public function user(): BelongsTo
+    /**
+     * User who created/triggered this notification
+     */
+    public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id', 'id');
+        return $this->belongsTo(User::class, 'created_by', 'id_user');
     }
 
     /*
@@ -78,11 +98,19 @@ class Notification extends Model
     }
 
     /**
-     * Scope untuk filter notifikasi untuk user tertentu
+     * Scope untuk filter notifikasi untuk user tertentu (penerima)
      */
     public function scopeForUser($query, $userId)
     {
-        return $query->where('user_id', $userId);
+        return $query->where('send_to', $userId);
+    }
+
+    /**
+     * Scope untuk filter notifikasi by creator
+     */
+    public function scopeCreatedBy($query, $userId)
+    {
+        return $query->where('created_by', $userId);
     }
 
 

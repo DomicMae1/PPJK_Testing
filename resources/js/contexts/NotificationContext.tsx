@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 
+interface DocumentItem {
+    id_dokumen: number;
+    id_document_trans?: number;
+    nama_file: string;
+    status: 'pending_verification' | 'pending' | 'verified' | 'rejected' | 'uploaded';
+    uploaded_at?: string;
+    uploaded_by?: number;
+    verified_at?: string;
+    verified_by?: number;
+    rejected_at?: string;
+    rejection_reason?: string;
+}
+
 interface NotificationData {
     id: number;
     id_section?: number;
@@ -9,6 +22,13 @@ interface NotificationData {
         title: string;
         message: string;
         url?: string;
+        documents?: DocumentItem[]; // NEW: Array of documents
+        summary?: {
+            total: number;
+            pending: number;
+            verified: number;
+            rejected: number;
+        };
         [key: string]: any;
     };
     created_at: string;

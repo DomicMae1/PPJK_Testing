@@ -30,10 +30,10 @@ class NotificationSent implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        // Since all notifications now have user_id (even role-based ones),
-        // we only broadcast to the user-specific channel
-        if ($this->notification->user_id) {
-            return [new PrivateChannel('notifications.' . $this->notification->user_id)];
+        // FIXED: Use send_to (renamed from user_id) for channel routing
+        // All notifications now have send_to (even role-based ones get individual records)
+        if ($this->notification->send_to) {
+            return [new PrivateChannel('notifications.' . $this->notification->send_to)];
         }
 
         // Fallback: general channel (should not happen in normal flow)

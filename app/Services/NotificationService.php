@@ -39,12 +39,12 @@ class NotificationService
 
             // Create single notification for specific user
             $notification = Notification::create([
-                'user_id' => $data['user_id'] ?? null,
+                'send_to' => $data['send_to'] ?? $data['user_id'] ?? null, // Support both old and new
+                'created_by' => $data['created_by'] ?? null,
                 'role' => $data['role'] ?? null,
                 'id_section' => $data['id_section'] ?? null,
                 'id_spk' => $data['id_spk'] ?? null,
-                'id_dokumen' => $data['id_dokumen'] ?? null, // FIX: Match database column name
-                'data' => $data['data'], // Contains: type, title, message, url, etc.
+                'data' => $data['data'], // Contains: type, title, message, url, documents[], summary, etc.
             ]);
 
             // Broadcast notification via WebSocket
@@ -102,13 +102,14 @@ class NotificationService
         foreach ($users as $user) {
             try {
                 // Create notification for each user
+                // Create notification for each user
                 $notification = Notification::create([
-                    'user_id' => $user->id_user, // Set specific user_id for independent read state
+                    'send_to' => $user->id_user,
+                    'created_by' => $data['created_by'] ?? null,
                     'role' => $data['role'], // Keep role for reference
                     'id_section' => $data['id_section'] ?? null,
                     'id_spk' => $data['id_spk'] ?? null,
-                    'id_dokumen' => $data['id_dokumen'] ?? null, // FIX: Match database column name
-                    'data' => $data['data'], // Contains: type, title, message, url, etc.
+                    'data' => $data['data'], // Contains: type, title, message, url, documents[], summary, etc.
                 ]);
                 
                 // Broadcast to each user
@@ -141,7 +142,7 @@ class NotificationService
     {
         try {
             $notification = Notification::where('id_notification', $notificationId) // FIX: Use id_notification
-                ->where('user_id', $userId)
+                ->where('send_to', $userId) // UPDATED: use send_to
                 ->first();
 
             if (!$notification) {
@@ -192,9 +193,9 @@ class NotificationService
     public static function getUnreadCount(int $userId): int
     {
         try {
-            // Simple query: all notifications have user_id now
+            // Use send_to column
             return Notification::unread()
-                ->where('user_id', $userId)
+                ->where('send_to', $userId)
                 ->count();
 
         } catch (\Throwable $e) {
@@ -216,9 +217,9 @@ class NotificationService
     public static function getUserNotifications(int $userId, int $limit = 10)
     {
         try {
-            // Simple query: all notifications have user_id now
-            return Notification::with(['spk', 'document'])
-                ->where('user_id', $userId)
+            // Use send_to column and update relationships to use recipient
+            return Notification::with(['spk', 'recipient', 'creator'])
+                ->where('send_to', $userId)
                 ->latest()
                 ->limit($limit)
                 ->get();
@@ -230,5 +231,104 @@ class NotificationService
             ]);
             return collect();
         }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Document Notification Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Format notification message based on document statuses
+     * 
+     * @param array $documents Array of documents with status
+     * @return array ['message' => string, 'summary' => array]
+     */
+    public static function formatDocumentMessage(array $documents): array
+    {
+        $total = count($documents);
+        
+        // Count by status
+        $statuses = array_count_values(array_column($documents, 'status'));
+        $verified = $statuses['verified'] ?? 0;
+        $pending = $statuses['pending_verification'] ?? $statuses['pending'] ?? 0;
+        $rejected = $statuses['rejected'] ?? 0;
+        
+        // Generate smart message based on statuses
+        if ($rejected > 0) {
+            $message = "{$rejected} document(s) rejected, need re-upload";
+        } elseif ($pending > 0) {
+            $message = "{$pending} document(s) awaiting verification";
+        } elseif ($verified > 0 && $verified === $total) {
+            $message = "All {$total} document(s) verified successfully";
+        } else {
+            $message = "{$total} document(s) uploaded";
+        }
+        
+        return [
+            'message' => $message,
+            'summary' => [
+                'total' => $total,
+                'verified' => $verified,
+                'pending' => $pending,
+                'rejected' => $rejected,
+            ]
+        ];
+    }
+
+    /**
+     * Send document notification (upload/verification/rejection)
+     * Auto-formats message based on document statuses
+     * 
+     * @param array $params {
+     *   'send_to': int - User ID who receives notification
+     *   'created_by': int - User ID who triggered notification
+     *   'id_section': int - Section ID
+     *   'id_spk': int - SPK ID
+     *   'type': string - Notification type (document_upload, document_verification, document_rejected)
+     *   'title': string (optional) - Custom title
+     *   'url': string (optional) - Custom URL
+     *   'documents': array - Array of documents with status
+     * }
+     * @return Notification|null
+     */
+    public static function sendDocumentNotification(array $params): ?Notification
+    {
+        // Validate required params
+        if (empty($params['send_to']) || empty($params['documents'])) {
+            Log::error('NotificationService: Missing required params for document notification', $params);
+            return null;
+        }
+
+        // Auto-format message based on document statuses
+        $formatted = self::formatDocumentMessage($params['documents']);
+        
+        // Default titles by type
+        $defaultTitles = [
+            'document_upload' => 'Document Upload Notification',
+            'document_verification' => 'Document Verification Update',
+            'document_rejected' => 'Document Rejection Notice',
+        ];
+        
+        $type = $params['type'] ?? 'document_upload';
+        $title = $params['title'] ?? ($defaultTitles[$type] ?? 'Document Notification');
+        
+        // Build notification data
+        return self::send([
+            'send_to' => $params['send_to'],
+            'created_by' => $params['created_by'] ?? null,
+            'role' => $params['role'] ?? null,
+            'id_section' => $params['id_section'] ?? null,
+            'id_spk' => $params['id_spk'] ?? null,
+            'data' => [
+                'type' => $type,
+                'title' => $title,
+                'message' => $formatted['message'],
+                'url' => $params['url'] ?? ($params['id_spk'] ? "/shipping/{$params['id_spk']}" . ($params['id_section'] ? "#section-{$params['id_section']}" : '') : null),
+                'documents' => $params['documents'],
+                'summary' => $formatted['summary'],
+            ]
+        ]);
     }
 }
