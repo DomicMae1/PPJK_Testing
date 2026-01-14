@@ -124,7 +124,10 @@ export default function ViewCustomerForm({
         type: '-',
         spkNumber: '-',
         hsCodes: [],
+        is_created_by_internal: false,
     };
+
+    console.log(shipmentData.is_created_by_internal);
 
     const additionalDocsList = [
         { id: 'phyto', label: 'Phytosanitary' },
@@ -343,7 +346,10 @@ export default function ViewCustomerForm({
                     <span>{shipmentData.type}</span>
                 </div>
                 <div className="flex gap-1">
-                    <span className="font-bold">SI :</span>
+                    <span className="font-bold">
+                        {/* Logika kondisi di sini */}
+                        {shipmentData.type === 'Export' ? 'SI' : shipmentData.type === 'Import' ? 'BL' : 'SPK'} :
+                    </span>
                     <span>{shipmentData.spkNumber}</span>
                 </div>
 
@@ -400,9 +406,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                            nama_file: item.link, // Nama file dari DB
-                                                                            path: `/file/view/${item.link}`, // URL Preview dari Controller
-                                                                        }
+                                                                              nama_file: item.link, // Nama file dari DB
+                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                          }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -502,6 +508,20 @@ export default function ViewCustomerForm({
                                 {/* Content Section */}
                                 {isOpen && (
                                     <div className="border-t border-gray-100 px-3 pt-2 pb-4">
+                                        {shipmentData.is_created_by_internal && (
+                                            <div className="mb-6 space-y-2">
+                                                <label className="text-sm font-bold text-black">Set Deadline Date</label>
+                                                <div className="relative">
+                                                    <Input
+                                                        type="date"
+                                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
+                                                        placeholder="Pick date"
+                                                        value={deadlineDate}
+                                                        onChange={(e) => setDeadlineDate(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="space-y-4">
                                             {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
@@ -524,9 +544,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     doc.url_path_file
                                                                         ? {
-                                                                            nama_file: doc.nama_file,
-                                                                            path: `/file/view/${doc.url_path_file}`,
-                                                                        }
+                                                                              nama_file: doc.nama_file,
+                                                                              path: `/file/view/${doc.url_path_file}`,
+                                                                          }
                                                                         : undefined
                                                                 }
                                                                 uploadConfig={{
