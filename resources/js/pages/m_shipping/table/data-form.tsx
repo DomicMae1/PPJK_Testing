@@ -47,53 +47,6 @@ export default function CustomerForm({
         hsCodes: [{ code: '90283000' }, { code: '90286000' }],
     };
 
-    const sectionsConfig = [
-        {
-            id: 'ppjk',
-            title: 'PPJK Document Request',
-            documents: [
-                { id: 1, name: 'Bill of Lading' },
-                { id: 2, name: 'Invoice' },
-                { id: 3, name: 'Packing List' },
-                { id: 4, name: 'Polis Asuransi' },
-                { id: 5, name: 'Surat Kuasa Kepabeanan' },
-            ],
-        },
-        {
-            id: 'shipping_line',
-            title: 'Shipping Line',
-            documents: [
-                { id: 1, name: 'Dokumen 1' },
-                { id: 2, name: 'Dokumen 2' },
-                { id: 3, name: 'Dokumen 3' },
-                { id: 4, name: 'Dokumen 4' },
-                { id: 5, name: 'Dokumen 5' },
-            ],
-        },
-        {
-            id: 'pib_peb',
-            title: 'PIB/PEB',
-            documents: [
-                { id: 1, name: 'Draft PIB' },
-                { id: 2, name: 'PIB Final' },
-            ],
-        },
-        {
-            id: 'bill_payment',
-            title: 'BILL PAYMENT',
-            documents: [
-                { id: 1, name: 'ID BILLING' },
-                { id: 2, name: 'Bukti Pembayaran' },
-                { id: 3, name: 'PIB Final' },
-            ],
-        },
-        {
-            id: 'result',
-            title: 'RESULT',
-            documents: [{ id: 1, name: 'SPPB' }],
-        },
-    ];
-
     const documentHelpInfo: Record<string, any> = {
         'Bill of Lading': {
             title: 'Bill of Lading (BL)',
@@ -119,35 +72,6 @@ export default function CustomerForm({
     ];
 
     const filteredDocs = additionalDocsList.filter((doc) => doc.label.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const ppjkDocuments = [
-        { id: 1, name: 'Bill of Lading' },
-        { id: 2, name: 'Invoice' },
-        { id: 3, name: 'Packing List' },
-        { id: 4, name: 'Polis Asuransi' },
-        { id: 5, name: 'Surat Kuasa Kepabeanan' },
-    ];
-
-    const shippingLineDocuments = [
-        { id: 1, name: 'Dokumen 1' },
-        { id: 2, name: 'Dokumen 2' },
-        { id: 3, name: 'Dokumen 3' },
-        { id: 4, name: 'Dokumen 4' },
-        { id: 5, name: 'Dokumen 5' },
-    ];
-
-    const pibPebDocuments = [
-        { id: 1, name: 'Draft PIB' },
-        { id: 2, name: 'PIB Final' },
-    ];
-
-    const billPaymentDocuments = [
-        { id: 1, name: 'ID BILLING' },
-        { id: 2, name: 'Bukti Pembayaran' },
-        { id: 3, name: 'PIB Final' },
-    ];
-
-    const resultDocuments = [{ id: 1, name: 'SPPB' }];
 
     const handleOpenModal = () => {
         setSearchQuery(''); // Reset search saat dibuka

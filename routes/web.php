@@ -34,6 +34,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
         ->name('shipping.update-hs-codes');
     Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
+
+    Route::post('/submit-shipping-status', [ShippingController::class, 'submit'])->name('shipping-status.submit');
+
 });
 
 Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')

@@ -22,8 +22,6 @@ class DocumentTrans extends Model
         'upload_by',
         'nama_file',
         'url_path_file',
-        'description_file',
-        'logs',
         'verify',
         'correction_attachment',
         'correction_attachment_file',

@@ -86,6 +86,7 @@ export default function ViewCustomerForm({
     sectionsTransProp, // Data Section Transaksional
     masterDocProp, // Data Master Document (opsional, untuk fallback help)
 }: any) {
+    const [tempFiles, setTempFiles] = useState<Record<number, string>>({});
     const [activeSection, setActiveSection] = useState<number | null>(null);
     const [isAdditionalDocsOpen, setIsAdditionalDocsOpen] = useState(true);
     const [isAdditionalSectionVisible, setIsAdditionalSectionVisible] = useState(false);
@@ -123,8 +124,6 @@ export default function ViewCustomerForm({
         spkNumber: '-',
         hsCodes: [],
     };
-
-    console.log(shipmentData);
 
     const additionalDocsList = [
         { id: 'phyto', label: 'Phytosanitary' },
@@ -219,7 +218,6 @@ export default function ViewCustomerForm({
         if (!helpData) {
             helpData = {
                 nama_file: docTrans.nama_file,
-                description_file: docTrans.description_file,
                 link_path_example_file: null,
                 link_path_template_file: null,
                 link_url_video_file: null,
@@ -243,6 +241,7 @@ export default function ViewCustomerForm({
             {
                 section: sectionId,
                 spk_id: shipmentData?.id_spk || shipmentData?.id || null,
+                documents: tempFiles,
             },
             {
                 preserveScroll: true,
@@ -283,7 +282,7 @@ export default function ViewCustomerForm({
         <div className="w-full max-w-md bg-white p-4 font-sans text-sm text-gray-900">
             {/* --- SPK Created Card --- */}
             <div className="mb-5 rounded-lg border border-gray-200 p-3 shadow-sm">
-                <div className="font-bold text-black">DOCUMENT REQUESTED </div>
+                <div className="font-bold text-black">{shipmentData.status ? shipmentData.status.toUpperCase() : 'STATUS UNKNOWN'}</div>
                 <div className="text-gray-600">{shipmentData.spkDate}</div>
             </div>
 
@@ -436,8 +435,8 @@ export default function ViewCustomerForm({
 
             <div className="w-full space-y-3">
                 {sectionsTransProp && sectionsTransProp.length > 0 ? (
-                    sectionsTransProp.map((section) => {
-                        const isOpen = activeSection === section.id_section; // Gunakan ID transaksi
+                    sectionsTransProp.map((section: any) => {
+                        const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                         return (
                             <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
@@ -456,7 +455,7 @@ export default function ViewCustomerForm({
                                         <div className="space-y-4">
                                             {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
-                                                section.documents.map((doc, idx) => (
+                                                section.documents.map((doc: DocumentTrans, idx: number) => (
                                                     <div key={doc.id} className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2 text-gray-800">
                                                             <span>
@@ -490,6 +489,13 @@ export default function ViewCustomerForm({
                                                                 onFileChange={(file, response) => {
                                                                     if (response && response.success) {
                                                                         console.log('Upload success:', response);
+
+                                                                        // SIMPAN TEMP PATH KE STATE
+                                                                        // response.path berasal dari controller upload ('temp/filename.pdf')
+                                                                        setTempFiles((prev) => ({
+                                                                            ...prev,
+                                                                            [doc.id]: response.path,
+                                                                        }));
                                                                     }
                                                                 }}
                                                             />
