@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\ShippingController;
+use App\Http\Controllers\NotificationController;
+use App\Services\NotificationService;
 
 Route::get('/', function () {
     // return Inertia::render('welcome');
@@ -34,9 +36,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
         ->name('shipping.update-hs-codes');
     Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
-
-    Route::post('/submit-shipping-status', [ShippingController::class, 'submit'])->name('shipping-status.submit');
-
+    
+    // Notification routes
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unreadCount');
+    Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
 });
 
 Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')

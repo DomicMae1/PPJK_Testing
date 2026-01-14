@@ -400,9 +400,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                              nama_file: item.link, // Nama file dari DB
-                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
-                                                                          }
+                                                                            nama_file: item.link, // Nama file dari DB
+                                                                            path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -524,9 +524,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     doc.url_path_file
                                                                         ? {
-                                                                              nama_file: doc.nama_file,
-                                                                              path: `/file/view/${doc.url_path_file}`,
-                                                                          }
+                                                                            nama_file: doc.nama_file,
+                                                                            path: `/file/view/${doc.url_path_file}`,
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 uploadConfig={{
