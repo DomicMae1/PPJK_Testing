@@ -13,6 +13,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\MasterSection;
 use App\Models\SectionTrans;
+use App\Models\DocumentStatus;
+use App\Models\SpkStatus;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +163,9 @@ class ShippingController extends Controller
     {
         $user = auth('web')->user();
 
+        $userId = $user->id_user;
+        $userName = $user->name;
+        
         if (!$user->hasPermissionTo('create-master-shipping')) {
             throw UnauthorizedException::forPermissions(['create-master-shipping']);
         }
@@ -201,8 +206,25 @@ class ShippingController extends Controller
                 'shipment_type'     => $validated['shipment_type'],
                 'id_perusahaan_int' => $user->id_perusahaan,
                 'id_customer'       => $validated['id_customer'],
-                'created_by'        => $user->id,
+                'created_by'        => $userId,
                 'log'               => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
+            ]);
+
+            $statusId = 6;
+            $statusPriority = 'Created';
+
+            // Cek Role External
+            // Catatan: Sesuaikan pengecekan role ini dengan implementasi di sistem Anda 
+            // (misal: $user->hasRole('external') jika pakai Spatie, atau $user->role == 'eksternal')
+            if ($user->hasRole('external') || $user->role === 'eksternal' || $user->role === 'external') {
+                $statusId = 2;
+                $statusPriority = 'Requested';
+            }
+
+            SpkStatus::create([
+                'id_spk'    => $spk->id,
+                'id_status' => $statusId,
+                'status'  => "SPK $statusPriority",
             ]);
 
             // 2. LOOP CREATE HS CODES (Sebanyak jumlah data array)
@@ -229,8 +251,8 @@ class ShippingController extends Controller
                     'hs_code'        => $hsData['code'],
                     'link_insw'      => $fileNameToSave ?? ($hsData['link'] ?? null),
                     'path_link_insw' => $filePath,
-                    'created_by'     => $user->id, // Sesuaikan nama kolom di DB (created_by / updated_by)
-                    'updated_by'     => $user->id,
+                    'created_by'     => $userId, // Sesuaikan nama kolom di DB (created_by / updated_by)
+                    'updated_by'     => $userId,
                     'logs'           => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
                 ]);
 
@@ -240,6 +262,7 @@ class ShippingController extends Controller
                 }
             }
 
+            // --- 3. GENERATE SECTION TRANSAKSI ---
             $masterSections = MasterSection::on('tako-user')->get();
 
             foreach ($masterSections as $masterSec) {
@@ -258,6 +281,7 @@ class ShippingController extends Controller
                 ]);
             }
 
+            // --- 4. GENERATE DOKUMEN TRANSAKSI & STATUS AWAL ---
             $masterDocs = MasterDocument::on('tako-user')->with('section')->get();
 
             foreach ($masterDocs as $masterDoc) {
@@ -265,14 +289,12 @@ class ShippingController extends Controller
                 $sectionName = $masterDoc->section ? $masterDoc->section->section_name : 'Unknown Section';
                 $logMessage = "Document {$sectionName} requested " . now()->format('d-m-Y H:i') . " WIB";
 
-                DocumentTrans::create([
+                $newDocTrans = DocumentTrans::create([
                     'id_spk'                     => $spk->id,
-                    'id_dokumen'                 => $masterDoc->id_dokumen, // Dari Master
-                    'id_section'                 => $masterDoc->id_section, // Dari Master
-                    'nama_file'                  => $masterDoc->nama_file,  // Dari Master
-                    'upload_by'                  => (string) $user->id,     // Dari User Login
-                    
-                    // Default Values
+                    'id_dokumen'                 => $masterDoc->id_dokumen,
+                    'id_section'                 => $masterDoc->id_section,
+                    'nama_file'                  => $masterDoc->nama_file,
+                    'upload_by'                  => (string) $userId,
                     'url_path_file'              => null,
                     'verify'                     => false,
                     'correction_attachment'      => false,
@@ -280,13 +302,20 @@ class ShippingController extends Controller
                     'correction_description'     => null,
                     'kuota_revisi'               => 0,
                     'mapping_insw'               => null,
-                    'deadline_document'          => null, // Sesuai request: null
-                    'sla_document'               => null, // Sesuai request: null
-                    
-                    'updated_by'                 => $user->id,
-                    'logs'                       => [$logMessage], // Array of strings (karena cast 'array')
+                    'deadline_document'          => false,
+                    'sla_document'               => null,
+                    'updated_by'                 => $userId,
+                    'logs'                       => [$logMessage],
                     'created_at'                 => now(),
                     'updated_at'                 => now(),
+                ]);
+
+                DocumentStatus::create([
+                    'id_dokumen_trans' => $newDocTrans->id, // Ambil ID dari dokumen yang baru dibuat
+                    'status'           => "Requested {$userName}",      // Status awal
+                    'by'               => $userId,
+                    'created_at'       => now(),
+                    'updated_at'       => now(),
                 ]);
             }
 
@@ -315,11 +344,11 @@ class ShippingController extends Controller
 
         $tenant = null;
         if ($user->id_perusahaan) {
-            $tenant = \App\Models\Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
         } elseif ($user->id_customer) {
-            $customer = \App\Models\Customer::find($user->id_customer);
+            $customer = Customer::find($user->id_customer);
             if ($customer && $customer->ownership) {
-                $tenant = \App\Models\Tenant::where('perusahaan_id', $customer->ownership)->first();
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
             }
         }
 
@@ -438,120 +467,431 @@ class ShippingController extends Controller
         ]);
     }
 
+    public function submit(Request $request)
+    {
+
+        // $request->validate([
+        //     'customer_id' => 'required|exists:tako-perusahaan.customers_statuses,id_Customer',
+        //     'keterangan' => 'nullable|string',
+        //     'attach_path'         => 'nullable|string',
+        //     'attach_filename'     => 'nullable|string',
+        //     'submit_1_timestamps' => 'nullable|date',
+        //     'status_1_timestamps' => 'nullable|date',
+        //     'status_2_timestamps' => 'nullable|date',
+        // ]);
+
+        // $status = Customers_Status::where('id_Customer', $request->customer_id)->first();
+        // if (!$status) return back()->with('error', 'Data status customer tidak ditemukan.');
+
+        // $customer = $status->customer;
+
+        // // 1. Ambil Info Perusahaan untuk Folder Name
+        // $idPerusahaan = $request->input('id_perusahaan');
+        // $perusahaan = Perusahaan::find($idPerusahaan);
+
+        // // Default slug jika perusahaan tidak ketemu
+        // $companySlug = 'general';
+        // $emailsToNotify = [];
+
+        // if ($perusahaan) {
+        //     $companySlug = Str::slug($perusahaan->nama_perusahaan);
+
+        //     if (!empty($perusahaan->notify_1)) {
+        //         $emailsToNotify = explode(',', $perusahaan->notify_1);
+        //     }
+        // }
+
+        // $status = Customers_Status::where('id_Customer', $request->customer_id)->first();
+
+        // if (!$status) {
+        //     return back()->with('error', 'Data status customer tidak ditemukan.');
+        // }
+
+        // $user = Auth::user();
+        // $userId = $user->id;
+        // $rawRole  = strtolower($user->getRoleNames()->first());
+
+        // $roleMap = [
+        //     'marketing' => 'user',
+        //     'user'      => 'user',
+        //     'manager'   => 'manager',
+        //     'direktur'  => 'direktur',
+        //     'director'  => 'direktur',
+        //     'lawyer'    => 'lawyer',
+        //     'auditor'   => 'auditor',
+        // ];
+
+        // $role = $roleMap[$rawRole] ?? $rawRole;
+        // $now = Carbon::now();
+
+        // $triggerRoles = ['user', 'manager', 'direktur'];
+
+        // // Cek apakah User yang submit termasuk role tersebut
+        // if (in_array($role, $triggerRoles)) {
+
+        //     $potentialDuplicates = Customer::with('perusahaan') // Only eager load same-db relations
+        //         ->whereKeyNot($customer->id)
+        //         ->where(function ($q) use ($customer) {
+        //             $q->where('no_npwp', $customer->no_npwp)
+        //                 ->when($customer->no_npwp_16, fn($sq) => $sq->orWhere('no_npwp_16', $customer->no_npwp_16));
+        //         })
+        //         ->orderBy('created_at', 'desc')
+        //         ->get();
+
+        //     $problematicCustomer = null;
+
+        //     // 2. Loop and check status manually
+        //     foreach ($potentialDuplicates as $duplicate) {
+        //         // Explicitly use the correct model and connection
+        //         $dupStatus = \App\Models\Customers_Status::on('tako-perusahaan')
+        //             ->where('id_Customer', $duplicate->id)
+        //             ->first();
+
+        //         if (!$dupStatus) continue;
+
+        //         // Check for issues
+        //         $isRejected = strtolower($dupStatus->status_3 ?? '') === 'rejected';
+        //         $hasAuditorNote = !empty($dupStatus->status_4_keterangan)
+        //             && $dupStatus->status_4_keterangan != '-'
+        //             && trim($dupStatus->status_4_keterangan) != '';
+
+        //         if ($isRejected || $hasAuditorNote) {
+        //             // We found a problematic one!
+        //             // Manually attach the status to the duplicate object so the email view can use it
+        //             $duplicate->setRelation('status', $dupStatus);
+        //             $problematicCustomer = $duplicate;
+        //             break;
+        //         }
+        //     }
+
+        //     // Jika ditemukan data lama yang bermasalah, KIRIM EMAIL
+        //     if ($problematicCustomer) {
+
+        //         // A. Ambil Email Tujuan (Internal Perusahaan yang memiliki data ini)
+        //         // Mengambil dari kolom 'notify_1' pada tabel perusahaan
+        //         $emailsToNotify = [];
+        //         if ($perusahaan && !empty($perusahaan->notify_1)) {
+        //             $emailsToNotify = explode(',', $perusahaan->notify_1);
+        //         }
+
+        //         // Fallback (Jaga-jaga jika email kosong)
+        //         if (empty($emailsToNotify)) {
+        //             $emailsToNotify = ['default@internal-perusahaan.com'];
+        //         }
+
+        //         // B. Filter Email (Validasi format)
+        //         $validEmails = collect($emailsToNotify)
+        //             ->map(fn($email) => trim($email))
+        //             ->filter(fn($email) => filter_var($email, FILTER_VALIDATE_EMAIL))
+        //             ->unique()
+        //             ->toArray();
+
+        //         // dd([$problematicCustomer->status], [$customer->id]);
+
+        //         // C. Eksekusi Pengiriman
+        //         if (!empty($validEmails)) {
+        //             Log::info("Mengirim Alert Duplikat NPWP (Oleh: $role) ke:", $validEmails);
+
+        //             try {
+        //                 // GANTI CLASS INI
+        //                 Mail::to($validEmails)->send(new \App\Mail\CustomerAlert(
+        //                     $user,                                                      // User yang submit
+        //                     $customer,                                                  // Customer baru
+        //                     $problematicCustomer,                                       // Customer lama
+        //                     $problematicCustomer->status,
+        //                 ));
+        //             } catch (\Exception $e) {
+        //                 Log::error("Gagal kirim email alert duplikat: " . $e->getMessage());
+        //             }
+        //         }
+        //     }
+        // }
+
+        // if ($request->filled('submit_1_timestamps')) $status->submit_1_timestamps = $request->input('submit_1_timestamps');
+        // if ($request->filled('status_1_timestamps')) {
+        //     $status->status_1_timestamps = $request->input('status_1_timestamps');
+        //     $status->status_1_by = $userId;
+        // }
+        // if ($request->filled('status_2_timestamps')) {
+        //     $status->status_2_timestamps = $request->input('status_2_timestamps');
+        //     $status->status_2_by = $userId;
+        // }
+        // $isDirekturCreator = ($customer->id_user === $userId && $role === 'direktur');
+        // $isManagerCreator = ($customer->id_user === $userId && $role === 'manager');
+
+        // // $customer = $status->customer;
+
+        // // if ($request->hasFile('attach') && !$request->filled('attach_path')) {
+
+        // //     $file = $request->file('attach');
+
+        // //     $tempName = 'temp_' . uniqid() . '.pdf';
+        // //     $tempPath = 'temp/' . $tempName;
+
+        // //     Storage::disk('customers_external')->put(
+        // //         $tempPath,
+        // //         file_get_contents($file->getRealPath())
+        // //     );
+
+        // //     $request->merge([
+        // //         'attach_path'     => $tempPath,
+        // //         'attach_filename' => $file->getClientOriginalName(),
+        // //     ]);
+        // // }
+
+        // $finalFilename = $request->input('attach_filename');
+        // $finalPath = $request->input('attach_path');
+
+        // if (!in_array($role, ['user', 'manager', 'direktur', 'lawyer', 'auditor'])) {
+        //     $finalFilename = null;
+        //     $finalPath = null;
+        // }
+
+        // switch ($role) {
+        //     case 'user':
+        //         $status->submit_1_timestamps = $now;
+        //         if ($finalFilename && $finalPath) {
+        //             $status->submit_1_nama_file = $finalFilename;
+        //             $status->submit_1_path = $finalPath;
+        //         }
+
+        //         // 🔹 Kirim email hanya jika perusahaan TIDAK punya manager
+        //         // if ($perusahaan && !$perusahaan->hasManager()) {
+        //         //     if (!empty($perusahaan->notify_1)) {
+        //         //         $emailsToNotify = explode(',', $perusahaan->notify_1);
+        //         //     }
+
+        //         //     if (!empty($emailsToNotify)) {
+        //         //         try {
+        //         //             Mail::to($emailsToNotify)->send(new \App\Mail\CustomerSubmittedMail($customer));
+        //         //         } catch (\Exception $e) {
+        //         //             Log::error("Gagal kirim email lawyer (tanpa manager): " . $e->getMessage());
+        //         //         }
+        //         //     }
+        //         // }
+
+        //         break;
+
+        //     case 'manager':
+        //         $status->status_1_by = $userId;
+        //         $status->status_1_timestamps = $now;
+        //         $status->status_1_keterangan = $request->keterangan;
+        //         if ($finalFilename && $finalPath) {
+        //             $status->status_1_nama_file = $finalFilename;
+        //             $status->status_1_path = $finalPath;
+        //         }
+        //         if ($isManagerCreator) {
+        //             if (empty($status->submit_1_timestamps)) {
+        //                 $status->submit_1_timestamps = $now;
+        //             }
+        //         }
+        //         // if ($perusahaan && $perusahaan->hasManager()) {
+        //         //     if (!empty($perusahaan->notify_1)) {
+        //         //         $emailsToNotify = explode(',', $perusahaan->notify_1);
+        //         //     }
+
+        //         //     if (!empty($emailsToNotify)) {
+        //         //         try {
+        //         //             Mail::to($emailsToNotify)->send(new \App\Mail\CustomerSubmittedMail($customer));
+        //         //         } catch (\Exception $e) {
+        //         //             Log::error("Gagal kirim email lawyer (setelah manager): " . $e->getMessage());
+        //         //         }
+        //         //     }
+        //         // }
+        //         break;
+
+        //     case 'direktur':
+        //         $status->status_2_by = $userId;
+        //         $status->status_2_timestamps = $now;
+        //         $status->status_2_keterangan = $request->keterangan;
+        //         if ($finalFilename && $finalPath) {
+        //             $status->status_2_nama_file = $finalFilename;
+        //             $status->status_2_path = $finalPath;
+        //         }
+
+        //         if ($isDirekturCreator) {
+        //             if (empty($status->submit_1_timestamps)) {
+        //                 $status->submit_1_timestamps = $now;
+        //             }
+
+        //             if (empty($status->status_1_timestamps)) {
+        //                 $status->status_1_timestamps = $now;
+        //                 $status->status_1_by = $userId;
+        //             }
+        //         }
+        //         break;
+
+        //     case 'lawyer':
+        //         $status->status_3_by = $userId;
+        //         $status->status_3_timestamps = $now;
+        //         $status->status_3_keterangan = $request->keterangan;
+        //         if ($finalFilename && $finalPath) {
+        //             $status->submit_3_nama_file = $finalFilename;
+        //             $status->submit_3_path = $finalPath;
+        //         }
+
+        //         if ($request->has('status_3')) {
+        //             $validStatuses = ['approved', 'rejected'];
+        //             $statusValue = strtolower($request->status_3);
+
+        //             if (in_array($statusValue, $validStatuses)) {
+        //                 $status->status_3 = $statusValue;
+        //             }
+
+        //             if ($statusValue === 'rejected') {
+        //                 $validEmails = collect($emailsToNotify)
+        //                     ->map(fn($email) => trim($email))
+        //                     ->filter(fn($email) => filter_var($email, FILTER_VALIDATE_EMAIL))
+        //                     ->unique()
+        //                     ->toArray();
+
+        //                 Log::info('Akan mengirim email ke:', $validEmails);
+
+        //                 $customer = $status->customer;
+
+        //                 if (!empty($validEmails)) {
+        //                     Mail::to($validEmails)->send(new \App\Mail\StatusRejectedMail($status, $user, $customer));
+        //                 } else {
+        //                     Mail::to('default@example.com')->send(new \App\Mail\StatusRejectedMail($status, $user, $customer));
+        //                 }
+        //             }
+        //         }
+        //         break;
+
+        //     case 'auditor':
+        //         $status->status_4_by = $userId;
+        //         $status->status_4_timestamps = $now;
+        //         $status->status_4_keterangan = $request->keterangan;
+        //         if ($finalFilename && $finalPath) {
+        //             $status->status_4_nama_file = $finalFilename;
+        //             $status->status_4_path = $finalPath;
+        //         }
+        //         break;
+
+        //     default:
+        //         return back()->with('error', 'Role tidak dikenali.');
+        // }
+
+        // $status->save();
+
+        return back()->with('success', 'Data berhasil disubmit.');
+    }
+
     public function processAttachment(Request $request)
     {
+        // 1. Validasi Input
         $request->validate([
-            'path' => 'required|string',
-            'nama_file' => 'required|string',
-            'id_perusahaan' => 'nullable|integer',
-            'mode' => 'nullable|string',
-            'role' => 'nullable|string',
-            'type' => 'nullable|string',
-            'npwp_number' => 'nullable|string',
-            'customer_id' => 'required|integer', // TAMBAHAN: Butuh ID Customer untuk cek urutan file terakhir
+            'path'      => 'required|string', // Path temp dari response upload
+            'spk_code'  => 'required|string', // Kunci utama penamaan
+            'type'      => 'required|string', // Jenis dokumen
+            'mode'      => 'nullable|string', // Mode kompresi (screen, ebook, printer, etc)
         ]);
 
+        // Ambil Data Request
         $tempPath = $request->path;
-        $originalName = $request->nama_file;
-        $mode = $request->mode ?? 'medium';
-        $idPerusahaan = $request->id_perusahaan;
-        $role = strtolower($request->role ?? 'user');
-        $customerId = $request->customer_id;
+        $spkCode  = $request->spk_code;
+        $type     = strtolower($request->type);
+        $mode     = $request->mode ?? 'medium'; // Default kompresi
 
-        // 1. Setup Disk & Slug
+        // 2. Setup Disk
+        // Root: C:/Users/IT/Herd/customers
         $disk = Storage::disk('customers_external');
 
-        $companySlug = 'general';
-        if ($idPerusahaan) {
-            $perusahaan = Perusahaan::find($idPerusahaan);
-            if ($perusahaan) {
-                $companySlug = Str::slug($perusahaan->nama_perusahaan);
-            }
-        }
-
+        // Cek keberadaan file temp
         if (!$disk->exists($tempPath)) {
             return response()->json(['error' => 'File temp tidak ditemukan'], 404);
         }
 
         // =========================================================
-        // B. GENERATE NAMA FILE BARU
+        // A. TENTUKAN FOLDER TUJUAN & NAMA FILE
         // =========================================================
 
-        $npwp = preg_replace('/[^0-9]/', '', $request->npwp_number) ?: '0000000000000000';
+        // Folder tujuan relative terhadap root disk
+        // Hasil: C:/Users/IT/Herd/customers/documents/master
+        $targetDir = 'documents/master';
 
-        $docType = $request->type ? strtolower($request->type) : 'document';
-
-        // Mapping tipe dokumen
-        if ($docType === 'lampiran_marketing') $docType = 'marketing_review';
-        if ($docType === 'lampiran_auditor') $docType = 'audit_review';
-        if ($docType === 'lampiran_review_general') {
-            $docType = match ($role) {
-                'manager'  => 'manager_review',
-                'direktur' => 'director_review',
-                'lawyer'   => 'lawyer_review',
-                'auditor'  => 'audit_review',
-                default    => 'document'
-            };
-        }
-
-        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        // Gunakan $orderString hasil perhitungan di atas
-        $newFileName = "{$npwp}-{$docType}.{$ext}";
-
-        // =========================================================
-        // C. TENTUKAN FOLDER TUJUAN
-        // =========================================================
-
-        $subFolder = ($role === 'user') ? 'attachment' : 'customers';
-        if (in_array($docType, ['npwp', 'nib', 'sppkp', 'ktp'])) {
-            $subFolder = 'attachment';
-        }
-
-        $targetDir = "{$companySlug}/{$subFolder}";
+        // Buat folder jika belum ada
         if (!$disk->exists($targetDir)) {
             $disk->makeDirectory($targetDir);
         }
 
+        // Ambil ekstensi dari file temp
+        $ext = pathinfo($tempPath, PATHINFO_EXTENSION);
+
+        // Generate Nama File Baru yang Bersih
+        // Format: [SPK]-[TYPE].[EXT] -> Contoh: SPK001-invoice.pdf
+        // Jika ingin tetap unik agar tidak menimpa, tambahkan uniqid() atau timestamp
+        $newFileName = "{$spkCode}-{$type}.{$ext}"; 
+        
+        // Path Tujuan Akhir
         $finalRelPath = "{$targetDir}/{$newFileName}";
 
         // =========================================================
-        // D. PROSES KOMPRESI & PINDAH (LOGIC TETAP SAMA)
+        // B. PROSES KOMPRESI (GHOSTSCRIPT) & PEMINDAHAN
         // =========================================================
 
         $success = false;
 
-        if ($ext === 'pdf') {
-            $localInputName = 'gs_in_' . uniqid() . '.pdf';
+        // Cek apakah file PDF, jika ya lakukan kompresi
+        if (strtolower($ext) === 'pdf') {
+            // Siapkan nama file temporary untuk proses di Local Disk (C:/)
+            $localInputName  = 'gs_in_' . uniqid() . '.pdf';
             $localOutputName = 'gs_out_' . uniqid() . '.pdf';
 
+            // 1. Simpan file dari Disk Customers ke Local Storage (temporary processing)
             Storage::disk('local')->put("gs_processing/{$localInputName}", $disk->get($tempPath));
 
-            $localInputPath = Storage::disk('local')->path("gs_processing/{$localInputName}");
+            // Dapatkan Absolute Path untuk Ghostscript command
+            $localInputPath  = Storage::disk('local')->path("gs_processing/{$localInputName}");
             $localOutputPath = Storage::disk('local')->path("gs_processing/{$localOutputName}");
 
+            // 2. Jalankan Fungsi Ghostscript (Pastikan function ini ada di controller/trait Anda)
             $compressResult = $this->runGhostscript($localInputPath, $localOutputPath, $mode);
 
+            // 3. Cek Hasil Kompresi
             if ($compressResult && file_exists($localOutputPath)) {
+                // Jika sukses, simpan file HASIL KOMPRESI ke folder tujuan (documents/master)
                 $disk->put($finalRelPath, file_get_contents($localOutputPath));
                 $success = true;
+
+                // Hapus file output lokal
                 @unlink($localOutputPath);
             } else {
-                Log::warning("Ghostscript Gagal. Menggunakan file asli.");
+                Log::warning("Ghostscript Gagal atau File tidak terbentuk. Menggunakan file asli.");
             }
+
+            // Hapus file input lokal
             @unlink($localInputPath);
         }
 
+        // =========================================================
+        // C. FINALISASI (MOVE / DELETE TEMP)
+        // =========================================================
+
         if (!$success) {
-            if ($disk->exists($finalRelPath)) $disk->delete($finalRelPath);
+            // KONDISI: Bukan PDF atau Kompresi Gagal
+            // Pindahkan file ASLI dari temp ke documents/master
+            
+            // Hapus file lama di tujuan jika ada (agar replace)
+            if ($disk->exists($finalRelPath)) {
+                $disk->delete($finalRelPath);
+            }
+            
+            // Move file (otomatis menghapus file di temp)
             $disk->move($tempPath, $finalRelPath);
         } else {
-            if ($disk->exists($tempPath)) $disk->delete($tempPath);
+            // KONDISI: Kompresi Sukses
+            // File hasil kompresi sudah di-put di atas ($finalRelPath)
+            // Kita tinggal menghapus file temp originalnya
+            if ($disk->exists($tempPath)) {
+                $disk->delete($tempPath);
+            }
         }
 
         return response()->json([
-            'status' => 'success',
-            'final_path' => $finalRelPath,
-            'nama_file' => $newFileName,
+            'status'     => 'success',
+            'final_path' => $finalRelPath,  // documents/master/SPK001-type.pdf
+            'nama_file'  => $newFileName,   // SPK001-type.pdf
             'compressed' => $success
         ]);
     }
@@ -638,6 +978,10 @@ class ShippingController extends Controller
         // Karena koneksi sudah pindah ke tenant
         $spk = Spk::with(['hsCodes', 'customer'])->findOrFail($id);
 
+        $latestStatus = SpkStatus::where('id_spk', $spk->id)
+        ->orderBy('id', 'desc') // Ambil yang paling terakhir dibuat
+        ->first();
+
         // 2. Format Data sesuai kebutuhan Frontend (shipmentData)
         $shipmentData = [
             'id_spk'    => $spk->id,
@@ -646,6 +990,7 @@ class ShippingController extends Controller
             'type'      => $spk->shipment_type,
             'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
             'hsCodes'   => [],
+            'status'    => $latestStatus ? $latestStatus->status : 'Unknown',
         ];
 
         // 3. Mapping HS Code
@@ -655,18 +1000,19 @@ class ShippingController extends Controller
             $shipmentData['hsCodes'][] = [
                 'id'   => $hs->id_hscode,
                 'code' => $hs->hs_code,
-                // Menggunakan 'link_insw' (nama file) atau 'path_link_insw' (path lengkap) sesuai kebutuhan frontend
-                // Pastikan kolom ini ada datanya di DB
                 'link' => $hs->path_link_insw,
             ];
         }
 
-        $sectionsTrans = SectionTrans::with(['documents' => function($q) use ($spk) {
-            // Filter dokumen HANYA milik SPK ini
-            $q->where('id_spk', $spk->id)->orderBy('id', 'asc')->with('masterDocument');;
-        }])
-        ->orderBy('section_order', 'asc')
-        ->get();
+        $sectionsTrans = SectionTrans::where('id_spk', $spk->id) // <--- TAMBAHKAN INI
+            ->with(['documents' => function($q) use ($spk) {
+                // Filter dokumen juga (Double check agar aman)
+                $q->where('id_spk', $spk->id)
+                  ->orderBy('id', 'asc')
+                  ->with('masterDocument'); // Load data master untuk keperluan Help/Video
+            }])
+            ->orderBy('section_order', 'asc')
+            ->get();
 
         return Inertia::render('m_shipping/table/view-data-form', [
             'customer' => $spk->customer,
@@ -868,40 +1214,81 @@ class ShippingController extends Controller
         }
     }
 
-        public function sectionReminder(Request $request)
+    public function sectionReminder(Request $request)
     {
         $validated = $request->validate([
-            'section' => 'required|string',
-            'spk_id' => 'required|integer',
+            'section'   => 'required|string', // Sebenarnya ini section ID
+            'spk_id'    => 'required|integer',
+            'documents' => 'nullable|array', // Menerima array [doc_id => temp_path]
         ]);
 
         $user = auth('web')->user();
 
         if ($user->role === 'eksternal') {
             // Cari perusahaan terkait
-            $perusahaan = \App\Models\Perusahaan::find($user->id_perusahaan);
+            $perusahaan = Perusahaan::find($user->id_perusahaan);
             if (!$perusahaan) {
                 return redirect()->back()->withErrors(['error' => 'Perusahaan tidak ditemukan']);
             }
 
             // Cari user internal dengan role staff di perusahaan ini
-            $staff = \App\Models\User::where('id_perusahaan', $perusahaan->id_perusahaan)
+            $staff = User::where('id_perusahaan', $perusahaan->id_perusahaan)
                 ->where('role', 'internal')
                 ->where('role_internal', 'staff')
                 ->first();
 
             // --- INISIALISASI TENANT ---
-            $tenant = \App\Models\Tenant::where('perusahaan_id', $perusahaan->id_perusahaan)->first();
+            $tenant = Tenant::where('perusahaan_id', $perusahaan->id_perusahaan)->first();
             if ($tenant) {
                 tenancy()->initialize($tenant);
             }
 
             // Ambil data SPK jika ada (sudah di koneksi tenant)
-            $spk = \App\Models\Spk::find($validated['spk_id']);
+            $spk = Spk::find($validated['spk_id']);
 
             if (!$spk) {
                 return redirect()->back()->withErrors(['error' => 'SPK tidak ditemukan pada tenant DB']);
             }
+
+            if (!empty($validated['documents'])) {
+                $disk = Storage::disk('customers_external'); // C:/Users/IT/Herd/customers
+
+                foreach ($validated['documents'] as $docId => $tempPath) {
+                    // 1. Cek apakah file temp benar-benar ada
+                    if ($tempPath && $disk->exists($tempPath)) {
+                        
+                        // Tentukan lokasi baru (Permanent)
+                        // Misal: documents/transaction/{filename}
+                        // Hasil akhir di Windows: C:/Users/IT/Herd/customers/documents/transaction/{filename}
+                        $filename = basename($tempPath);
+                        $permanentDir = 'documents/transaction';
+                        $newPath = $permanentDir . '/' . $filename;
+
+                        // Buat folder jika belum ada
+                        if (!$disk->exists($permanentDir)) {
+                            $disk->makeDirectory($permanentDir);
+                        }
+
+                        // 2. Pindahkan file dari Temp ke Permanent
+                        $moveSuccess = $disk->move($tempPath, $newPath);
+
+                        if ($moveSuccess) {
+                            // 3. Update Database (DocumentTrans)
+                            // Karena tenancy sudah initialized, DocumentTrans akan mengarah ke DB Tenant
+                            $docTrans = DocumentTrans::find($docId);
+                            
+                            if ($docTrans) {
+                                $docTrans->update([
+                                    'url_path_file' => $newPath, // Simpan path baru
+                                    'upload_by'     => $user->id_user, // Opsional: update uploader
+                                    'updated_at'    => now(),
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+            dd($staff, $user, $spk);
 
             try {
                 SectionReminderService::send($validated['section'], $staff, $user, $spk);

@@ -31,7 +31,6 @@ return new class extends Migration
 
             // 6. Tracking Logs
             $table->timestamps(); // created_at, updated_at
-            $table->json('logs')->nullable(); // History
 
             // 7. Validasi & Koreksi
             $table->boolean('verify')->default(false); // Status validasi

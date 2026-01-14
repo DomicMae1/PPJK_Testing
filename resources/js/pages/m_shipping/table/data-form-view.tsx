@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { router } from '@inertiajs/react';
+import axios from 'axios';
 import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
@@ -86,6 +87,7 @@ export default function ViewCustomerForm({
     sectionsTransProp, // Data Section Transaksional
     masterDocProp, // Data Master Document (opsional, untuk fallback help)
 }: any) {
+    const [tempFiles, setTempFiles] = useState<Record<number, string>>({});
     const [activeSection, setActiveSection] = useState<number | null>(null);
     const [isAdditionalDocsOpen, setIsAdditionalDocsOpen] = useState(true);
     const [isAdditionalSectionVisible, setIsAdditionalSectionVisible] = useState(false);
@@ -123,8 +125,6 @@ export default function ViewCustomerForm({
         spkNumber: '-',
         hsCodes: [],
     };
-
-    console.log(shipmentData);
 
     const additionalDocsList = [
         { id: 'phyto', label: 'Phytosanitary' },
@@ -219,7 +219,6 @@ export default function ViewCustomerForm({
         if (!helpData) {
             helpData = {
                 nama_file: docTrans.nama_file,
-                description_file: docTrans.description_file,
                 link_path_example_file: null,
                 link_path_template_file: null,
                 link_url_video_file: null,
@@ -234,35 +233,80 @@ export default function ViewCustomerForm({
         setActiveSection(sectionId === activeSection ? null : sectionId);
     };
 
-    const handleSaveSection = (sectionId: number) => {
-        // Set loading state
+    const handleSaveSection = async (sectionId: number) => {
+        // 1. Set loading
         setProcessingSectionId(sectionId);
 
-        const payload = {
-            section: String(sectionId), // Convert to string for backend validation
-            spk_id: shipmentData?.id_spk || shipmentData?.id || null,
-        };
+        console.log('Current Temp Files State:', tempFiles); // Debugging Step 1
 
-        console.log('Sending section reminder:', payload, 'shipmentData:', shipmentData);
+        // 2. Ambil data section saat ini
+        const currentSection = sectionsTransProp.find((s: SectionTrans) => s.id === sectionId);
 
-        router.post(
-            '/shipping/section-reminder',
-            payload,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    // Tutup accordion dan matikan loading state setelah sukses
-                    setActiveSection(null);
-                    setProcessingSectionId(null);
-                    // router.visit tidak perlu dipanggil manual jika return dari controller sudah benar (redirect/back)
-                },
-                onError: (errors) => {
-                    console.error('Section reminder error:', errors);
-                    setProcessingSectionId(null); // Matikan loading jika error
-                    alert('Gagal menyimpan data section.');
-                },
-            },
-        );
+        if (!currentSection || !currentSection.documents) {
+            alert('Section tidak ditemukan atau kosong.');
+            setProcessingSectionId(null);
+            return;
+        }
+
+        // 3. Filter dokumen yang memiliki file temp
+        // Ensure ID comparison is type-safe (convert both to string just in case)
+        const filesToProcess = currentSection.documents.filter((doc) => {
+            const hasFile = tempFiles[doc.id];
+            // Debugging per document
+            // console.log(`Checking doc ID: ${doc.id}, Has Temp File: ${hasFile}`);
+            return hasFile;
+        });
+
+        console.log('Files to process:', filesToProcess); // Debugging Step 2
+
+        if (filesToProcess.length === 0) {
+            alert('Tidak ada file baru yang diupload di section ini untuk dites.');
+            setProcessingSectionId(null);
+            return;
+        }
+
+        try {
+            // 4. Looping dan Kirim Request satu per satu
+            await Promise.all(
+                filesToProcess.map(async (doc) => {
+                    const tempPath = tempFiles[doc.id];
+
+                    console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
+
+                    const response = await axios.post('/shipping/process-attachment', {
+                        path: tempPath, // Path file di folder temp
+                        spk_code: shipmentData.spkNumber, // Kode SPK
+                        type: doc.nama_file, // Tipe dokumen
+                        mode: 'medium', // Mode kompresi
+                        customer_id: customer?.id_customer || customer?.id, // ID Customer
+                    });
+
+                    console.log(`Success ${doc.nama_file}:`, response.data);
+                }),
+            );
+
+            // 5. Jika semua berhasil
+            alert('TES BERHASIL! Semua file PDF telah di proses dan dipindahkan.');
+
+            // Opsional: Bersihkan state tempFiles agar tidak terkirim lagi
+            const newTempFiles = { ...tempFiles };
+            filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
+            setTempFiles(newTempFiles);
+
+            // Close accordion only after success
+            setActiveSection(null);
+        } catch (error: any) {
+            console.error('Error processing attachment:', error);
+
+            if (error.response && error.response.data) {
+                alert(`Gagal: ${error.response.data.message || JSON.stringify(error.response.data)}`);
+            } else {
+                alert('Terjadi kesalahan saat memindahkan file.');
+            }
+        } finally {
+            // Stop loading state regardless of success/error
+            setProcessingSectionId(null);
+        }
     };
 
     const handleModalCheckboxChange = (id: string, checked: boolean) => {
@@ -288,7 +332,7 @@ export default function ViewCustomerForm({
         <div className="w-full max-w-md bg-white p-4 font-sans text-sm text-gray-900">
             {/* --- SPK Created Card --- */}
             <div className="mb-5 rounded-lg border border-gray-200 p-3 shadow-sm">
-                <div className="font-bold text-black">DOCUMENT REQUESTED </div>
+                <div className="font-bold text-black">{shipmentData.status ? shipmentData.status.toUpperCase() : 'STATUS UNKNOWN'}</div>
                 <div className="text-gray-600">{shipmentData.spkDate}</div>
             </div>
 
@@ -441,8 +485,8 @@ export default function ViewCustomerForm({
 
             <div className="w-full space-y-3">
                 {sectionsTransProp && sectionsTransProp.length > 0 ? (
-                    sectionsTransProp.map((section) => {
-                        const isOpen = activeSection === section.id; // FIX: Use section.id to match onClick
+                    sectionsTransProp.map((section: any) => {
+                        const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                         return (
                             <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
@@ -461,7 +505,7 @@ export default function ViewCustomerForm({
                                         <div className="space-y-4">
                                             {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
-                                                section.documents.map((doc, idx) => (
+                                                section.documents.map((doc: DocumentTrans, idx: number) => (
                                                     <div key={doc.id} className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2 text-gray-800">
                                                             <span>
@@ -493,8 +537,26 @@ export default function ViewCustomerForm({
                                                                     },
                                                                 }}
                                                                 onFileChange={(file, response) => {
-                                                                    if (response && response.success) {
-                                                                        console.log('Upload success:', response);
+                                                                    // LOG DEBUG: Lihat apa isi response sebenarnya
+                                                                    console.log('Raw Upload Response:', response);
+
+                                                                    // PERBAIKAN DISINI:
+                                                                    // Cek 'response.status === "success"' ATAU pastikan 'response.path' ada
+                                                                    if (response && (response.status === 'success' || response.path)) {
+                                                                        console.log(`Menyimpan path ke state untuk Doc ID: ${doc.id}`);
+
+                                                                        setTempFiles((prev) => ({
+                                                                            ...prev,
+                                                                            [doc.id]: response.path,
+                                                                        }));
+                                                                    } else if (file === null) {
+                                                                        // Logic jika user menghapus file (klik silang di dropzone)
+                                                                        console.log(`Menghapus state untuk Doc ID: ${doc.id}`);
+                                                                        setTempFiles((prev) => {
+                                                                            const newState = { ...prev };
+                                                                            delete newState[doc.id];
+                                                                            return newState;
+                                                                        });
                                                                     }
                                                                 }}
                                                             />

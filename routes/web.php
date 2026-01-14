@@ -32,7 +32,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('role-manager', RoleController::class);
     Route::resource('perusahaan', PerusahaanController::class);
 
-    Route::post('shipping/section-reminder', [ShippingController::class, 'sectionReminder'])->name('shipping.sectionReminder');
+    Route::post('shipping/process-attachment', [ShippingController::class, 'processAttachment'])->name('customer.process-attachment');
     Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
         ->name('shipping.update-hs-codes');
     Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
