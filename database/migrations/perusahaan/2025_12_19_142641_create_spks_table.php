@@ -14,7 +14,7 @@ return new class extends Migration
         // Pastikan connection sesuai (saya asumsikan masuk ke database operasional perusahaan)
         Schema::create('spk', function (Blueprint $table) {
             $table->id(); 
-            $table->unsignedBigInteger('id_perusahaan_int')->nullable(); // Internal
+            $table->unsignedBigInteger('id_perusahaan')->nullable(); // Internal
             $table->unsignedBigInteger('id_customer')->nullable();       // External
 
             $table->string('spk_code')->nullable(); // Keterangan HS Code
@@ -22,8 +22,6 @@ return new class extends Migration
 
             $table->unsignedBigInteger('created_by')->nullable();   // User Eksternal
             $table->unsignedBigInteger('validated_by')->nullable(); // User Internal
-
-            $table->json('log')->nullable();
 
             $table->timestamps();
         });

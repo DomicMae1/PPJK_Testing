@@ -41,7 +41,6 @@ return new class extends Migration
 
             // 8. Integrasi
             $table->string('mapping_insw')->nullable();
-            $table->boolean('deadline_document')->nullable();
             $table->string('sla_document')->nullable();
 
             // Relasi ke SPK (Table Lokal Tenant)

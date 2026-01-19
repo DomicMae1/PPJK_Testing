@@ -32,6 +32,11 @@ class User extends Authenticatable
         'nik',
         'email',
         'password',
+        'can_upload',
+    ];
+
+    protected $casts = [
+        'can_upload' => 'boolean',
     ];
 
     /**

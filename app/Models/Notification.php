@@ -67,6 +67,13 @@ class Notification extends Model
         return $this->belongsTo(Spk::class, 'id_spk', 'id');
     }
 
+    public function section(): BelongsTo
+    {
+        // Sesuaikan 'SectionTrans::class' dengan nama Model Section Anda yang sebenarnya
+        // Asumsi PK di tabel section adalah 'id'
+        return $this->belongsTo(SectionTrans::class, 'id_section', 'id');
+    }
+
     /**
      * User who receives this notification
      */

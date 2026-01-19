@@ -23,6 +23,10 @@ return new class extends Migration
             // $table->string('Password_DB')->nullable();
             // $table->string('DB_Name')->nullable();
 
+            $table->boolean('sla')->default(false); 
+
+            $table->integer('sla_timer')->nullable();
+
             $table->timestamps();
         });
     }

@@ -22,6 +22,13 @@ class Perusahaan extends Model
         'logo_perusahaan',
         'notify_1',
         'notify_2',
+        'sla',
+        'sla_timer'
+    ];
+
+    protected $casts = [
+        'sla' => 'boolean',
+        'sla_timer' => 'integer',
     ];
 
     public function user()

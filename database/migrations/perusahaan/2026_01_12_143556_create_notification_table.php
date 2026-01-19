@@ -39,6 +39,11 @@ return new class extends Migration
                   ->on('spk')
                   ->onDelete('cascade');
 
+            $table->foreign('id_section')
+                  ->references('id')
+                  ->on('section_trans')
+                  ->onDelete('cascade');
+
             // Relasi ke tabel Document Transaksi (Opsional, sesuaikan nama tabel dokumen Anda)
             // Asumsi tabel dokumen bernama 'document_trans' sesuai konteks sebelumnya
             $table->foreign('id_dokumen')

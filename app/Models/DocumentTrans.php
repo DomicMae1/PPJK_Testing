@@ -28,7 +28,6 @@ class DocumentTrans extends Model
         'correction_description',
         'kuota_revisi',
         'mapping_insw',
-        'deadline_document',
         'sla_document',
     ];
 
