@@ -24,7 +24,6 @@ class SectionTrans extends Model
         'section_order',
         'deadline',
         'deadline_date', // NEW: Tanggal deadline per section
-        'sla',
     ];
 
     protected $casts = [

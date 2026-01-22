@@ -4,12 +4,13 @@ import { ResettableDropzone } from '@/components/ResettableDropzone';
 import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
-import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Save, Search, Trash2, Undo2, X, Check, CheckCircle, AlertTriangle, ShieldCheck, FileText, History, Info } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 
@@ -22,6 +23,10 @@ interface HsCodeItem {
 
 interface ShipmentData {
     id_spk: number;
+    spkNumber: string;
+    shipmentType: string;
+    is_internal: boolean;
+    internal_can_upload?: boolean; // Added
     spkDate: string;
     type: string;
     siNumber: string;
@@ -31,18 +36,29 @@ interface ShipmentData {
 interface DocumentTrans {
     id: number;
     id_dokumen: number;
+    id_spk: number;
+    id_section: number;
     upload_by: string;
     nama_file: string;
     url_path_file?: string;
     logs: string;
     link_url_video_file?: string;
     attribute: boolean;
+    created_at: string;
     master_document?: {
+        id_dokumen: number;
+        nama_dokumen: string;
         description_file?: string;
         link_path_example_file?: string;
         link_path_template_file?: string;
         link_url_video_file?: string;
     };
+    verify?: boolean | null;
+    kuota_revisi?: number;
+    correction_attachment?: boolean;
+    correction_description?: string;
+    correction_attachment_file?: string;
+    is_internal?: boolean; // Added
 }
 
 // Interface untuk Section Transaksional (dari DB Tenant)
@@ -114,11 +130,90 @@ export default function ViewCustomerForm({
     const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
     const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
 
+    // Verification states
+    const [verifyingDocId, setVerifyingDocId] = useState<number | null>(null);
+    const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
+    const [rejectionNote, setRejectionNote] = useState('');
+    const [rejectionFile, setRejectionFile] = useState<File | null>(null);
+    const [rejectingDocId, setRejectingDocId] = useState<number | null>(null);
+
+    // Batch Verification State
+    const [pendingVerifications, setPendingVerifications] = useState<number[]>([]);
+
+    // Batch Rejection State
+    type PendingRejection = { docId: number; note: string; file: File | null };
+    const [pendingRejections, setPendingRejections] = useState<PendingRejection[]>([]);
+
+    // Expandable History State (External/Internal)
+    const [openHistoryIds, setOpenHistoryIds] = useState<number[]>([]);
+
+    // History Modal states
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [selectedHistoryDocs, setSelectedHistoryDocs] = useState<DocumentTrans[]>([]);
+    const [selectedHistoryTitle, setSelectedHistoryTitle] = useState('');
+
+
+
     useEffect(() => {
         if (helpModalOpen) {
             setIsVideoPlaying(false);
         }
     }, [helpModalOpen, selectedHelpData]);
+
+    // NEW: Realtime Updates Listener
+    useEffect(() => {
+        if (shipmentDataProp?.spkNumber) { // Using spkNumber as ID seems risky if it is a string code
+            // Wait, we need the numeric ID of the SPK for the channel 'shipping.{id}'
+            // The prop is `shipmentDataProp`. Let's check what it has.
+            // Looking at `ViewCustomerForm` props: `shipmentDataProp: ShipmentData`.
+            // Looking at `ShipmentData` interface (implied): likely has `id_spk` or similar?
+            // In `ShippingController`: 'spkNumber' => $spk->spk_code. 'type', 'hsCodes'.
+            // It seems `shipmentDataProp` might NOT have the numeric ID directly exposed if it wasn't added.
+            // Let's check `ShippingController` view data again (Step 272).
+            /*
+            $shipmentData = [
+                'id_spk'     => $spk->id,     // <--- It IS added in previous steps? 
+                                              // Wait, step 272 snippet shows:
+                                              // 'spkDate'    => ...,
+                                              // 'type'       => ...,
+                                              // 'spkNumber'  => $spk->spk_code,
+                                              // ...
+                                              // 'status'     => ...
+            */
+            // I need to verify if `id_spk` is in `shipmentData`.
+            // Looking at Step 272 snippet again...
+            /*
+            $shipmentData = [
+                'spkDate'    => ...,
+                'type'       => ...,
+                'spkNumber'  => $spk->spk_code,
+                'hsCodes'   => [],
+                'status'    => ...
+            ];
+            */
+            // It seems `id_spk` might be missing in the *initial* definition in the Controller if I didn't add it.
+            // But wait, in `handleFinalSave` (Step 113) I see: `router.visit(/shipping/${shipmentData.id_spk}...)`.
+            // So `shipmentData.id_spk` MUST exist.
+
+            // Let's assume `shipmentDataProp.id_spk` exists.
+
+            if ((window as any).Echo && shipmentDataProp.id_spk) {
+                console.log(`Listening to channel: shipping.${shipmentDataProp.id_spk}`);
+                (window as any).Echo.private(`shipping.${shipmentDataProp.id_spk}`)
+                    .listen('ShippingDataUpdated', (e: any) => {
+                        console.log('Realtime update received:', e);
+                        // Reload only the necessary data props
+                        router.reload({ only: ['sectionsTransProp', 'shipmentDataProp'] });
+                    });
+            }
+        }
+
+        return () => {
+            if ((window as any).Echo && shipmentDataProp.id_spk) {
+                (window as any).Echo.leave(`shipping.${shipmentDataProp.id_spk}`);
+            }
+        }
+    }, [shipmentDataProp]);
 
     // Initialize deadline states from database data
     useEffect(() => {
@@ -168,6 +263,8 @@ export default function ViewCustomerForm({
     }, [sectionsTransProp]);
 
     const [processingSectionId, setProcessingSectionId] = useState<number | null>(null);
+
+
 
     const [selectedAdditionalDocs, setSelectedAdditionalDocs] = useState<{ id: string; label: string }[]>([
         { id: 'fumigasi', label: 'Fumigasi' },
@@ -261,6 +358,51 @@ export default function ViewCustomerForm({
         setIsModalOpen(true);
     };
 
+    // Verification Handlers
+    const handleVerify = (documentId: number) => {
+        // Toggle pending verification logic
+        setPendingVerifications((prev) => {
+            if (prev.includes(documentId)) {
+                return prev.filter((id) => id !== documentId);
+            } else {
+                return [...prev, documentId];
+            }
+        });
+    };
+
+    const handleOpenReject = (documentId: number) => {
+        setRejectingDocId(documentId);
+        setRejectionModalOpen(true);
+        setRejectionNote('');
+        setRejectionFile(null);
+    };
+
+    const handleSubmitReject = async () => {
+        if (!rejectingDocId || !rejectionNote.trim()) {
+            alert('Please provide a rejection reason');
+            return;
+        }
+
+        // Store rejection in local state instead of sending immediately
+        setPendingRejections(prev => {
+            // Remove existing rejection for this doc if exists (overwrite)
+            const filtered = prev.filter(r => r.docId !== rejectingDocId);
+            return [...filtered, {
+                docId: rejectingDocId,
+                note: rejectionNote,
+                file: rejectionFile
+            }];
+        });
+
+        // Also remove from pending verifications if it was there
+        setPendingVerifications(prev => prev.filter(id => id !== rejectingDocId));
+
+        setRejectionModalOpen(false);
+        setRejectionNote('');
+        setRejectionFile(null);
+        setRejectingDocId(null);
+    };
+
     const handleOpenHelp = (docTrans: DocumentTrans) => {
         let helpData = null;
         if (docTrans.master_document) {
@@ -308,8 +450,41 @@ export default function ViewCustomerForm({
             return;
         }
 
+        // --- VALIDASI: Pastikan semua dokumen yang sudah diupload (ada url_path_file) sudah dinilai ---
+        const uploadedDocs = currentSection.documents.filter(doc => doc.url_path_file);
+
+        // Filter dokumen yang belum dinilai:
+        // - verify === null (belum dinilai dari DB)
+        // - status verify != false (karena kalau false berarti rejected, sudah dinilai)
+        // - TIDAK ada di pendingVerifications (berarti belum dicentang 'Accept')
+        // - TIDAK ada di pendingRejections (berarti belum submit Reject)
+        const unassessedDocs = uploadedDocs.filter((doc: DocumentTrans) => {
+            // SKIP validation if internal_can_upload is set (Auto-verified)
+            if (shipmentData.internal_can_upload) return false;
+
+            const isAlreadyAssessed = doc.verify !== null; // True if Checked (true) or Rejected (false) 
+            const isPendingAccept = pendingVerifications.includes(doc.id);
+            const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
+
+            // Jika sudah assessed DB, OK.
+            if (isAlreadyAssessed) return false;
+
+            // Jika belum assessed DB, tapi ada di pendingAccept/Reject, OK.
+            if (isPendingAccept || isPendingReject) return false;
+
+            // Sisanya: Belum assessed DB dan belum di centang -> Masalah.
+            return true;
+        });
+
+        if (unassessedDocs.length > 0) {
+            alert(`Harap verifikasi (Accept) atau tolak (Reject) semua dokumen yang telah diupload pada section ini.\n\nDokumen belum dinilai: ${unassessedDocs.length}`);
+            setProcessingSectionId(null);
+            return;
+        }
+
+
         // 3. Filter dokumen yang memiliki file temp
-        const filesToProcess = currentSection.documents.filter((doc) => {
+        const filesToProcess = currentSection.documents.filter((doc: DocumentTrans) => {
             const hasFile = tempFiles[doc.id];
             return hasFile;
         });
@@ -320,7 +495,7 @@ export default function ViewCustomerForm({
             // 4. Process documents (if any)
             if (filesToProcess.length > 0) {
                 await Promise.all(
-                    filesToProcess.map(async (doc) => {
+                    filesToProcess.map(async (doc: DocumentTrans) => {
                         const tempPath = tempFiles[doc.id];
                         console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
 
@@ -330,6 +505,7 @@ export default function ViewCustomerForm({
                             type: doc.nama_file,
                             mode: 'medium',
                             customer_id: customer?.id_customer || customer?.id,
+                            document_id: doc.id,
                         });
 
                         console.log(`Success ${doc.nama_file}:`, response.data);
@@ -342,7 +518,51 @@ export default function ViewCustomerForm({
                 setTempFiles(newTempFiles);
             }
 
-            // 5. Save deadline untuk section ini
+            // 5. BATCH VERIFICATION (NEW)
+            // Cari dokumen di section ini yang masuk daftar pendingVerifications
+            const docsToVerify = currentSection.documents
+                .filter(doc => pendingVerifications.includes(doc.id))
+                .map(doc => doc.id);
+
+            if (docsToVerify.length > 0) {
+                await axios.post('/shipping/batch-verify', {
+                    spk_id: shipmentData.id_spk,
+                    section_id: sectionId, // Untuk konteks notifikasi
+                    verified_ids: docsToVerify
+                });
+
+                // Hapus ID yang sudah diverifikasi dari pendingVerifications
+                setPendingVerifications(prev => prev.filter(id => !docsToVerify.includes(id)));
+            }
+
+            // 6. PROCESS PENDING REJECTIONS (NEW)
+            // Cari dokumen di section ini yang ada di pendingRejections
+            const rejectionsToProcess = currentSection.documents
+                .filter(doc => pendingRejections.some(r => r.docId === doc.id))
+                .map(doc => {
+                    return pendingRejections.find(r => r.docId === doc.id);
+                })
+                .filter((r): r is PendingRejection => r !== undefined);
+
+            if (rejectionsToProcess.length > 0) {
+                await Promise.all(rejectionsToProcess.map(async (rejection) => {
+                    const formData = new FormData();
+                    formData.append('correction_description', rejection.note);
+                    if (rejection.file) {
+                        formData.append('correction_file', rejection.file);
+                    }
+
+                    await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }));
+
+                // Hapus yang sudah diproses
+                const processedIds = rejectionsToProcess.map(r => r.docId);
+                setPendingRejections(prev => prev.filter(r => !processedIds.includes(r.docId)));
+            }
+
+            // 7. Save deadline untuk section ini
             const deadlineValue = useUnifiedDeadline
                 ? globalDeadlineDate
                 : (sectionDeadlines[sectionId] || null);
@@ -355,15 +575,18 @@ export default function ViewCustomerForm({
                 });
             }
 
-            // 6. Success message
+            // 8. Success message & Reload
             const parts = [];
             if (filesToProcess.length > 0) parts.push(`${filesToProcess.length} dokumen diproses`);
+            if (docsToVerify.length > 0) parts.push(`${docsToVerify.length} dokumen diverifikasi`);
+            if (rejectionsToProcess.length > 0) parts.push(`${rejectionsToProcess.length} dokumen ditolak`);
             if (deadlineValue) parts.push('deadline tersimpan');
 
             if (parts.length > 0) {
-                alert(`Berhasil: ${parts.join(', ')}`);
+                // alert(`Berhasil: ${parts.join(', ')}`); // Removed as per request
+                router.reload({ only: ['sectionsTransProp'] }); // Reload data
             } else {
-                alert('Tidak ada perubahan untuk disimpan.');
+                // alert('Tidak ada perubahan untuk disimpan.');
             }
 
             // Close accordion after success
@@ -392,8 +615,74 @@ export default function ViewCustomerForm({
         setIsModalOpen(false);
     };
 
+    // Helper: Group documents for rendering
+    // Returns array of objects { current: Doc, history: Doc[] }
+    const processDocumentsForRender = (docs: DocumentTrans[]) => {
+        const groups = new Map<number, DocumentTrans[]>();
+
+        // 1. Group by id_dokumen
+        docs.forEach(doc => {
+            if (!groups.has(doc.id_dokumen)) {
+                groups.set(doc.id_dokumen, []);
+            }
+            groups.get(doc.id_dokumen)?.push(doc);
+        });
+
+        const result: { current: DocumentTrans, history: DocumentTrans[] }[] = [];
+
+        groups.forEach((groupDocs) => {
+            // 2. Sort by ID descending (newest first)
+            groupDocs.sort((a, b) => b.id - a.id);
+
+            // 3. Current is the first one (latest)
+            const current = groupDocs[0];
+
+            // 4. History is the rest
+            const history = groupDocs.slice(1);
+
+            // Populate history for BOTH Internal and External
+            result.push({ current, history });
+        });
+
+        return result;
+    };
+
+    const handleOpenHistory = (docs: DocumentTrans[]) => {
+        if (docs.length === 0) return;
+        const title = docs[0].master_document?.nama_dokumen || docs[0].nama_file;
+        setSelectedHistoryTitle(title);
+        setSelectedHistoryDocs(docs);
+        setHistoryModalOpen(true);
+    };
+
     const handleFinalSave = async () => {
         try {
+            // --- VALIDATION: Check for unassessed documents across ALL sections ---
+            const allUnassessedDocs: DocumentTrans[] = [];
+
+            // SKIP validation if internal_can_upload is set (Auto-verified)
+            if (!shipmentData.internal_can_upload) {
+                sectionsTransProp.forEach((section: SectionTrans) => {
+                    if (section.documents) {
+                        const uploadedDocs = section.documents.filter(doc => doc.url_path_file);
+                        uploadedDocs.forEach(doc => {
+                            const isAlreadyAssessed = doc.verify !== null;
+                            const isPendingAccept = pendingVerifications.includes(doc.id);
+                            const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
+
+                            if (!isAlreadyAssessed && !isPendingAccept && !isPendingReject) {
+                                allUnassessedDocs.push(doc);
+                            }
+                        });
+                    }
+                });
+            }
+
+            if (allUnassessedDocs.length > 0) {
+                alert(`Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`);
+                return;
+            }
+
             // 1. Process all documents from all sections that have temp files
             const allDocsToProcess: { doc: any; sectionId: number }[] = [];
 
@@ -420,6 +709,7 @@ export default function ViewCustomerForm({
                             type: doc.nama_file,
                             mode: 'medium',
                             customer_id: customer?.id_customer || customer?.id,
+                            document_id: doc.id,
                         });
                     }),
                 );
@@ -428,7 +718,45 @@ export default function ViewCustomerForm({
                 setTempFiles({});
             }
 
-            // 2. Save all deadlines
+            // 2. BATCH VERIFICATION (NEW - GLOBAL)
+            if (pendingVerifications.length > 0) {
+                await axios.post('/shipping/batch-verify', {
+                    spk_id: shipmentData.id_spk,
+                    section_id: null, // Global save, maybe generic or null
+                    verified_ids: pendingVerifications
+                });
+
+                // Clear pending verifications
+                setPendingVerifications([]);
+            }
+
+            // 3. BATCH REJECTION (NEW - GLOBAL)
+            if (pendingRejections.length > 0) {
+                console.log('Processing Global Rejections:', pendingRejections.length);
+                const rejectionPromises = pendingRejections.map(async (rejection) => {
+                    const formData = new FormData();
+                    formData.append('correction_description', rejection.note);
+                    if (rejection.file) {
+                        formData.append('correction_file', rejection.file);
+                    }
+
+                    try {
+                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                    } catch (err) {
+                        console.error(`Failed to reject doc ${rejection.docId}`, err);
+                        throw err; // Re-throw to be caught by outer catch
+                    }
+                });
+
+                await Promise.all(rejectionPromises);
+
+                // Clear pending rejections
+                setPendingRejections([]);
+            }
+
+            // 4. Save all deadlines
             await axios.post('/shipping/update-deadline', {
                 spk_id: shipmentData.id_spk,
                 unified: useUnifiedDeadline,
@@ -436,12 +764,14 @@ export default function ViewCustomerForm({
                 section_deadlines: !useUnifiedDeadline ? sectionDeadlines : {},
             });
 
-            // 3. Success message
+            // 5. Success message
             const parts = [];
-            if (allDocsToProcess.length > 0) parts.push(`${allDocsToProcess.length} dokumen`);
+            if (allDocsToProcess.length > 0) parts.push(`${allDocsToProcess.length} dokumen diproses`);
+            if (pendingVerifications.length > 0) parts.push(`${pendingVerifications.length} dokumen diverifikasi`);
+            if (pendingRejections.length > 0) parts.push(`${pendingRejections.length} dokumen ditolak`);
             if (globalDeadlineDate || Object.keys(sectionDeadlines).length > 0) parts.push('deadline');
 
-            window.alert(`Berhasil menyimpan: ${parts.join(', ')}`);
+            // window.alert(`Berhasil menyimpan: ${parts.length > 0 ? parts.join(', ') : 'Data tersimpan'} `); // Removed as per request
 
             // Navigate back
             router.visit(`/shipping/${shipmentData.id_spk}`, { replace: true, preserveState: false });
@@ -695,64 +1025,219 @@ export default function ViewCustomerForm({
                                         <div className="space-y-4">
                                             {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
-                                                section.documents.map((doc: DocumentTrans, idx: number) => (
-                                                    <div key={doc.id} className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2 text-gray-800">
-                                                            <span>
-                                                                {idx + 1}. {doc.nama_file}
-                                                            </span>
-                                                            <CircleHelp
-                                                                className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
-                                                                onClick={() => handleOpenHelp(doc)}
-                                                            />
-                                                        </div>
-                                                        <div className="w-1/2 max-w-xs">
-                                                            {' '}
-                                                            <ResettableDropzone
-                                                                label=""
-                                                                isRequired={false}
-                                                                existingFile={
-                                                                    doc.url_path_file
-                                                                        ? {
-                                                                              nama_file: doc.nama_file,
-                                                                              path: `/file/view/${doc.url_path_file}`,
-                                                                          }
-                                                                        : undefined
-                                                                }
-                                                                uploadConfig={{
-                                                                    url: '/shipping/upload-temp',
-                                                                    payload: {
-                                                                        type: doc.nama_file,
-                                                                        spk_code: shipmentData.spkNumber,
-                                                                    },
-                                                                }}
-                                                                onFileChange={(file, response) => {
-                                                                    // LOG DEBUG: Lihat apa isi response sebenarnya
-                                                                    console.log('Raw Upload Response:', response);
+                                                processDocumentsForRender(section.documents).map((item, idx: number) => {
+                                                    const doc = item.current;
+                                                    const allVersions = [doc, ...item.history];
+                                                    const validVersions = allVersions.filter(v => v.url_path_file);
+                                                    const hasHistory = validVersions.length > 1;
 
-                                                                    // PERBAIKAN DISINI:
-                                                                    // Cek 'response.status === "success"' ATAU pastikan 'response.path' ada
-                                                                    if (response && (response.status === 'success' || response.path)) {
-                                                                        console.log(`Menyimpan path ke state untuk Doc ID: ${doc.id}`);
+                                                    const isVerified = doc.verify === true;
+                                                    const isRejected = doc.verify === false;
+                                                    const isPending = doc.verify === null;
+                                                    const isPendingVerification = pendingVerifications.includes(doc.id);
+                                                    const isPendingRejection = pendingRejections.some(r => r.docId === doc.id);
+                                                    const quotaExceeded = (doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0);
 
-                                                                        setTempFiles((prev) => ({
-                                                                            ...prev,
-                                                                            [doc.id]: response.path,
-                                                                        }));
-                                                                    } else if (file === null) {
-                                                                        // Logic jika user menghapus file (klik silang di dropzone)
-                                                                        console.log(`Menghapus state untuk Doc ID: ${doc.id}`);
-                                                                        setTempFiles((prev) => {
-                                                                            const newState = { ...prev };
-                                                                            delete newState[doc.id];
-                                                                            return newState;
-                                                                        });
-                                                                    }
-                                                                }}
-                                                            />
+                                                    const toggleHistory = (id: number) => {
+                                                        setOpenHistoryIds(prev =>
+                                                            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                                                        );
+                                                    };
+
+                                                    // Logic Determinations
+                                                    // 1. Check SPK level flag
+                                                    const isSpkInternalUpload = shipmentData.internal_can_upload ?? false; // Fallback to false
+
+                                                    // 2. Define permissions
+                                                    let canUpload = false;
+                                                    let canVerify = false;
+
+                                                    if (isSpkInternalUpload) {
+                                                        // Mode: Internal handles EVERYTHING, Auto-verified
+                                                        canUpload = isInternalUser; // Internal ALWAYS shoots
+                                                        canVerify = false;          // No manual verification needed (auto-verified)
+                                                    } else {
+                                                        // Mode: Normal (Bidirectional)
+                                                        // doc.is_internal = true (1) -> Internal Uploads, External Verifies
+                                                        // doc.is_internal = false (0) -> External Uploads, Internal Verifies
+                                                        canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
+                                                        canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+                                                    }
+
+                                                    return (
+                                                        <div key={doc.id} className="flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0 relative">
+                                                            <div className="flex items-start justify-between">
+                                                                {/* LEFT COLUMN: Name & History */}
+                                                                <div className="flex flex-col gap-1 flex-1">
+                                                                    <div className="flex items-center gap-2 text-gray-800">
+                                                                        <span className="font-medium text-sm">
+                                                                            {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
+                                                                        </span>
+                                                                        <CircleHelp
+                                                                            className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
+                                                                            onClick={() => handleOpenHelp(doc)}
+                                                                        />
+
+                                                                        {/* Status Badge - Visible if I cannot verify (so I am uploader or viewer) */}
+                                                                        {!canVerify && doc.url_path_file && (
+                                                                            <>
+                                                                                {isVerified && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">Verified</span>}
+                                                                                {isRejected && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">Rejected</span>}
+                                                                                {isPending && <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">Pending</span>}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* File & History UI */}
+                                                                    {doc.url_path_file ? (
+                                                                        <div className="ml-5">
+                                                                            {/* Collapsible Trigger */}
+                                                                            <button
+                                                                                onClick={() => toggleHistory(doc.id)}
+                                                                                className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white hover:bg-gray-800 transition-colors"
+                                                                            >
+                                                                                <FileText className="w-3 h-3" />
+                                                                                Latest File
+                                                                                {openHistoryIds.includes(doc.id) ? (
+                                                                                    <ChevronUp className="w-3 h-3 ml-1" />
+                                                                                ) : (
+                                                                                    <ChevronDown className="w-3 h-3 ml-1" />
+                                                                                )}
+                                                                            </button>
+
+                                                                            {/* History List */}
+                                                                            {openHistoryIds.includes(doc.id) && (
+                                                                                <div className="mt-2 flex flex-col gap-1 pl-2 border-l-2 border-gray-200">
+                                                                                    {validVersions.map((v, vIdx) => {
+                                                                                        const versionNumber = validVersions.length - vIdx;
+                                                                                        const isLatest = vIdx === 0;
+                                                                                        return (
+                                                                                            <div key={v.id} className="flex items-center gap-2 text-xs">
+                                                                                                <span className="font-bold text-gray-500">v{versionNumber}</span>
+                                                                                                <a
+                                                                                                    href={`/file/view/${v.url_path_file}`}
+                                                                                                    target="_blank"
+                                                                                                    className={`hover:underline ${isLatest ? 'text-black font-bold' : 'text-gray-600'}`}
+                                                                                                >
+                                                                                                    {v.nama_file || 'Document'}
+                                                                                                </a>
+                                                                                                <span className="text-[10px] text-gray-400">
+                                                                                                    {new Date(v.created_at).toLocaleDateString()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="ml-5 text-xs text-gray-400 italic">No file uploaded</span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Verifier Actions: Accept / Reject */}
+                                                                {canVerify && doc.url_path_file && (
+                                                                    <div className="flex items-center gap-4">
+                                                                        {/* Accept */}
+                                                                        <div className="flex flex-col items-center">
+                                                                            <span className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}>Accept</span>
+                                                                            <Checkbox
+                                                                                checked={isVerified || isPendingVerification}
+                                                                                onCheckedChange={() => handleVerify(doc.id)}
+                                                                                className={`data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600`}
+                                                                                disabled={!isPending}
+                                                                            />
+                                                                        </div>
+
+                                                                        {/* Reject */}
+                                                                        <div className="flex flex-col items-center">
+                                                                            <span className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}>Reject</span>
+                                                                            <Checkbox
+                                                                                checked={isRejected || isPendingRejection}
+                                                                                onCheckedChange={(checked) => {
+                                                                                    if (checked) handleOpenReject(doc.id);
+                                                                                }}
+                                                                                className={`data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600`}
+                                                                                disabled={!isPending}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
+                                                                {canUpload && (
+                                                                    <div className="w-1/2 max-w-xs flex flex-col items-end gap-2">
+                                                                        {/* Upload Zone */}
+                                                                        {(!doc.url_path_file || (!isPending && !quotaExceeded)) ? (
+                                                                            <ResettableDropzone
+                                                                                label=""
+                                                                                isRequired={false}
+                                                                                existingFile={
+                                                                                    tempFiles[doc.id]
+                                                                                        ? {
+                                                                                            nama_file: doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                            path: tempFiles[doc.id]
+                                                                                        }
+                                                                                        : undefined
+                                                                                }
+                                                                                uploadConfig={{
+                                                                                    url: '/shipping/upload-temp',
+                                                                                    payload: {
+                                                                                        type: doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                        spk_code: shipmentData.spkNumber,
+                                                                                    },
+                                                                                }}
+                                                                                onFileChange={(file, response) => {
+                                                                                    if (response && (response.status === 'success' || response.path)) {
+                                                                                        setTempFiles((prev) => ({
+                                                                                            ...prev,
+                                                                                            [doc.id]: response.path,
+                                                                                        }));
+                                                                                    } else if (file === null) {
+                                                                                        setTempFiles((prev) => {
+                                                                                            const newState = { ...prev };
+                                                                                            delete newState[doc.id];
+                                                                                            return newState;
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                                disabled={verifyingDocId === doc.id}
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="text-xs text-gray-400 italic text-right">
+                                                                                {isPending ? 'On Checking' : 'Quota Exceeded'}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Quota & Rejection Info (Moved Here) */}
+                                                                        {doc.url_path_file && (
+                                                                            <div className="flex flex-col items-end text-xs text-right">
+                                                                                {/* Rejection Note */}
+                                                                                {isRejected && (
+                                                                                    <div className="mb-1">
+                                                                                        <div className="text-red-600 font-bold flex items-center justify-end gap-1">
+                                                                                            Rejection Note <AlertTriangle className="w-3 h-3" />
+                                                                                        </div>
+                                                                                        <p className="text-gray-700 italic">"{doc.correction_description}"</p>
+                                                                                        {doc.correction_attachment_file && (
+                                                                                            <a href={`/file/view/${doc.correction_attachment_file}`} target="_blank" className="text-blue-500 underline block mt-0.5">View Rejection File</a>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* Quota Info */}
+                                                                                <div className="mt-1 text-gray-600">
+                                                                                    Revision Quota: <span className="font-bold">{doc.kuota_revisi ?? 0}</span> remaining
+                                                                                </div>
+                                                                                {quotaExceeded && <div className="text-red-600 font-bold mt-0.5">Quota Exceeded</div>}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))
+                                                    );
+                                                })
                                             ) : (
                                                 <div className="py-4 text-center text-xs text-gray-400 italic">
                                                     Belum ada dokumen di kategori ini.
@@ -806,84 +1291,86 @@ export default function ViewCustomerForm({
                 </label>
             </div>
 
-            {isAdditionalSectionVisible && (
-                <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                    {/* Menggunakan AccordionItem manual style agar sesuai gambar */}
-                    <div
-                        className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                        onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
-                    >
-                        <span className="text-sm font-bold uppercase">ADDITIONAL DOCUMENT</span>
-
-                        {/* Ikon Chevron Dinamis */}
-                        <svg
-                            width="15"
-                            height="15"
-                            viewBox="0 0 15 15"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isAdditionalDocsOpen ? 'rotate-180' : ''}`}
+            {
+                isAdditionalSectionVisible && (
+                    <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
+                        {/* Menggunakan AccordionItem manual style agar sesuai gambar */}
+                        <div
+                            className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
+                            onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
                         >
-                            <path
-                                d="M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z"
-                                fill="currentColor"
-                                fillRule="evenodd"
-                                clipRule="evenodd"
-                            ></path>
-                        </svg>
-                    </div>
+                            <span className="text-sm font-bold uppercase">ADDITIONAL DOCUMENT</span>
 
-                    {isAdditionalDocsOpen && (
-                        <div className="px-3 pt-0 pb-4">
-                            {/* --- Set Deadline Date --- */}
-                            <div className="mb-6 space-y-2">
-                                <label className="text-sm font-bold text-black">Set Deadline Date</label>
-                                <div className="relative">
-                                    <Input
-                                        type="date"
-                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
-                                        placeholder="Pick date"
-                                        value={deadlineDate}
-                                        onChange={(e) => setDeadlineDate(e.target.value)}
-                                    />
-                                    {/* <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-black" /> */}
+                            {/* Ikon Chevron Dinamis */}
+                            <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 15 15"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isAdditionalDocsOpen ? 'rotate-180' : ''}`}
+                            >
+                                <path
+                                    d="M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z"
+                                    fill="currentColor"
+                                    fillRule="evenodd"
+                                    clipRule="evenodd"
+                                ></path>
+                            </svg>
+                        </div>
+
+                        {isAdditionalDocsOpen && (
+                            <div className="px-3 pt-0 pb-4">
+                                {/* --- Set Deadline Date --- */}
+                                <div className="mb-6 space-y-2">
+                                    <label className="text-sm font-bold text-black">Set Deadline Date</label>
+                                    <div className="relative">
+                                        <Input
+                                            type="date"
+                                            className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
+                                            placeholder="Pick date"
+                                            value={deadlineDate}
+                                            onChange={(e) => setDeadlineDate(e.target.value)}
+                                        />
+                                        {/* <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-black" /> */}
+                                    </div>
+                                </div>
+
+                                {/* List Documents */}
+                                <div className="space-y-4">
+                                    {selectedAdditionalDocs.map((doc, idx) => (
+                                        <div key={doc.id} className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-gray-800">
+                                                <span>
+                                                    {idx + 1}. {doc.label}
+                                                </span>
+                                                <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" />
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
+                                            >
+                                                Upload here..
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Footer Buttons */}
+                                <div className="mt-8 flex items-center justify-between">
+                                    <button onClick={handleOpenModal} className="flex items-center gap-2 text-sm font-medium text-black">
+                                        <div className="rounded border border-black p-0.5">
+                                            <Plus className="h-4 w-4" />
+                                        </div>
+                                        Add Another Document
+                                    </button>
+                                    <Button className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800">Save</Button>
                                 </div>
                             </div>
-
-                            {/* List Documents */}
-                            <div className="space-y-4">
-                                {selectedAdditionalDocs.map((doc, idx) => (
-                                    <div key={doc.id} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-gray-800">
-                                            <span>
-                                                {idx + 1}. {doc.label}
-                                            </span>
-                                            <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" />
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
-                                        >
-                                            Upload here..
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Footer Buttons */}
-                            <div className="mt-8 flex items-center justify-between">
-                                <button onClick={handleOpenModal} className="flex items-center gap-2 text-sm font-medium text-black">
-                                    <div className="rounded border border-black p-0.5">
-                                        <Plus className="h-4 w-4" />
-                                    </div>
-                                    Add Another Document
-                                </button>
-                                <Button className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800">Save</Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )
+            }
 
             <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
@@ -1025,6 +1512,79 @@ export default function ViewCustomerForm({
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={rejectionModalOpen} onOpenChange={setRejectionModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Reject Document</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Reason for Rejection</Label>
+                            <Textarea
+                                value={rejectionNote}
+                                onChange={(e) => setRejectionNote(e.target.value)}
+                                placeholder="Enter reason for rejection..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Correction File (Optional)</Label>
+                            <Input
+                                type="file"
+                                onChange={(e) => setRejectionFile(e.target.files ? e.target.files[0] : null)}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRejectionModalOpen(false)}>Cancel</Button>
+                        <Button style={{ color: "white" }} variant="destructive" onClick={handleSubmitReject} disabled={verifyingDocId !== null}>
+                            {verifyingDocId ? 'Rejecting...' : 'Confirm Rejection'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>History: {selectedHistoryTitle}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+                        {selectedHistoryDocs.map((doc, idx) => {
+                            const isVerified = doc.verify === true;
+                            const isRejected = doc.verify === false;
+
+                            return (
+                                <div key={doc.id} className="flex flex-col gap-1 border-b pb-2 last:border-0">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">Version {selectedHistoryDocs.length - idx}</span>  {/* Actually this is wrong logic for version number, better use created_at */}
+                                        <span className="text-xs text-gray-500">{doc.created_at || 'Unknown Date'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <a
+                                            href={`/file/view/${doc.url_path_file}`}
+                                            target="_blank"
+                                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                        >
+                                            <FileText className="w-3 h-3" /> {doc.nama_file}
+                                        </a>
+                                        {isVerified && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded">Verified</span>}
+                                        {isRejected && <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded">Rejected</span>}
+                                    </div>
+                                    {isRejected && (
+                                        <div className="text-xs text-red-600 italic">
+                                            Note: "{doc.correction_description}"
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>Close</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

@@ -25,7 +25,7 @@ return new class extends Migration
             $table->unsignedBigInteger('id_section')->nullable();
 
             // 5. Data User & File
-            $table->string('upload_by')->nullable(); // Role user: 'internal' atau 'external'
+            $table->boolean('is_internal')->default(false);
             $table->string('nama_file');
             $table->string('url_path_file')->nullable(); // Lokasi file di storage
 

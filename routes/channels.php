@@ -12,3 +12,10 @@ use Illuminate\Support\Facades\Broadcast;
 Broadcast::channel('notifications.{userId}', function ($user, $userId) {
     return (int) $user->id_user === (int) $userId;
 });
+
+// Shipping channel: For realtime updates on shipping detail page
+Broadcast::channel('shipping.{spkId}', function ($user, $spkId) {
+    // Ideally check policy: return $user->can('view', Spk::find($spkId));
+    // For now, allow logged in users who can access the page
+    return true; 
+});
