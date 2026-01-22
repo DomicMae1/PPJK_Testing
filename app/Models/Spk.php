@@ -21,6 +21,7 @@ class Spk extends Model
         'shipment_type',     // Import / Export
         'created_by',        // ID User pembuat
         'validated_by',      // ID User validator
+        'internal_can_upload',       // Boolean
     ];
 
     protected $appends = ['is_created_by_internal'];

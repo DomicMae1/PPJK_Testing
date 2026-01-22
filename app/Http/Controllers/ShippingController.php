@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\MasterSection;
 use App\Models\SectionTrans;
 use App\Models\DocumentStatus;
+use App\Events\ShippingDataUpdated;
 use App\Models\SpkStatus;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Carbon\Carbon;
@@ -29,6 +30,7 @@ use Spatie\Browsershot\Browsershot;
 use Symfony\Component\Process\Process;
 use App\Services\SectionReminderService;
 use App\Services\NotificationService;
+use Illuminate\Support\Facades\Auth; // Ensure Auth is used
 
 class ShippingController extends Controller
 {
@@ -207,19 +209,10 @@ class ShippingController extends Controller
                 'id_perusahaan_int' => $user->id_perusahaan,
                 'id_customer'       => $validated['id_customer'],
                 'created_by'        => $userId,
-                'log'               => json_encode(['action' => 'created', 'by' => $user->name, 'at' => now()]),
             ]);
 
             $statusId = 6;
             $statusPriority = 'Created';
-
-            // Cek Role External
-            // Catatan: Sesuaikan pengecekan role ini dengan implementasi di sistem Anda 
-            // (misal: $user->hasRole('external') jika pakai Spatie, atau $user->role == 'eksternal')
-            if ($user->hasRole('external') || $user->role === 'eksternal' || $user->role === 'external') {
-                $statusId = 2;
-                $statusPriority = 'Requested';
-            }
 
             SpkStatus::create([
                 'id_spk'    => $spk->id,
@@ -274,7 +267,6 @@ class ShippingController extends Controller
                     
                     // Default Values untuk Transaksi
                     'deadline'      => false, // Default false/0
-                    'sla'           => null,  // Default null
                     
                     'created_at'    => now(),
                     'updated_at'    => now(),
@@ -294,25 +286,23 @@ class ShippingController extends Controller
                     'id_dokumen'                 => $masterDoc->id_dokumen,
                     'id_section'                 => $masterDoc->id_section,
                     'nama_file'                  => $masterDoc->nama_file,
-                    'upload_by'                  => (string) $userId,
+                    'is_internal'                => $masterDoc->is_internal ?? false,
                     'url_path_file'              => null,
                     'verify'                     => false,
                     'correction_attachment'      => false,
                     'correction_attachment_file' => null,
                     'correction_description'     => null,
-                    'kuota_revisi'               => 0,
+                    'kuota_revisi'               => 3,
                     'mapping_insw'               => null,
-                    'deadline_document'          => false,
                     'sla_document'               => null,
                     'updated_by'                 => $userId,
-                    'logs'                       => [$logMessage],
                     'created_at'                 => now(),
                     'updated_at'                 => now(),
                 ]);
 
                 DocumentStatus::create([
                     'id_dokumen_trans' => $newDocTrans->id, // Ambil ID dari dokumen yang baru dibuat
-                    'status'           => "Requested {$userName}",      // Status awal
+                    'status'           => $logMessage,      // Status awal
                     'by'               => $userId,
                     'created_at'       => now(),
                     'updated_at'       => now(),
@@ -779,22 +769,52 @@ class ShippingController extends Controller
 
     public function processAttachment(Request $request)
     {
+        // Initialize Tenant Context FIRST
+        $user = Auth::user();
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        
+        if ($tenant) {
+            tenancy()->initialize($tenant);
+        }
+
         // 1. Validasi Input
         $request->validate([
-            'path'      => 'required|string', // Path temp dari response upload
-            'spk_code'  => 'required|string', // Kunci utama penamaan
-            'type'      => 'required|string', // Jenis dokumen
-            'mode'      => 'nullable|string', // Mode kompresi (screen, ebook, printer, etc)
+            'path'        => 'required|string', // Path temp dari response upload
+            'spk_code'    => 'required|string', // Kunci utama penamaan
+            'type'        => 'required|string', // Jenis dokumen (filename base)
+            'mode'        => 'nullable|string', // Mode kompresi
+            'document_id' => 'nullable|integer', // ID Dokumen Trans (Optional, required for DB update)
+            'section_name'=> 'nullable|string', // Nama Section untuk folder
         ]);
 
         // Ambil Data Request
         $tempPath = $request->path;
         $spkCode  = $request->spk_code;
         $type     = strtolower($request->type);
-        $mode     = $request->mode ?? 'medium'; // Default kompresi
+        $mode     = $request->mode ?? 'medium';
+        $docId    = $request->document_id;
+        $sectionName = $request->section_name ? Str::slug($request->section_name) : 'general';
+        
+        // Cek SPK untuk internal_can_upload (Perlu query SPK dulu karena tidak dikirim request)
+        // Kita bisa ambil dari $spkCode tapi itu string code, bukan ID. 
+        // Lebih aman query SPK by code atau jika docId ada, ambil relation.
+        $isInternalCanUpload = false;
+        if ($docId) {
+             $spkInfo = DocumentTrans::with('spk')->find($docId);
+             if ($spkInfo && $spkInfo->spk) {
+                 $isInternalCanUpload = $spkInfo->spk->internal_can_upload;
+             }
+        }
 
         // 2. Setup Disk
-        // Root: C:/Users/IT/Herd/customers
         $disk = Storage::disk('customers_external');
 
         // Cek keberadaan file temp
@@ -806,22 +826,68 @@ class ShippingController extends Controller
         // A. TENTUKAN FOLDER TUJUAN & NAMA FILE
         // =========================================================
 
-        // Folder tujuan relative terhadap root disk
-        // Hasil: C:/Users/IT/Herd/customers/documents/master
-        $targetDir = 'documents/master';
+        // Folder tujuan: documents/{spk_code}/{section_name}
+        $targetDir = "documents/{$spkCode}/{$sectionName}";
 
         // Buat folder jika belum ada
         if (!$disk->exists($targetDir)) {
             $disk->makeDirectory($targetDir);
         }
 
-        // Ambil ekstensi dari file temp
+        // Ambil ekstensi
         $ext = pathinfo($tempPath, PATHINFO_EXTENSION);
 
-        // Generate Nama File Baru yang Bersih
-        // Format: [SPK]-[TYPE].[EXT] -> Contoh: SPK001-invoice.pdf
-        // Jika ingin tetap unik agar tidak menimpa, tambahkan uniqid() atau timestamp
-        $newFileName = "{$spkCode}-{$type}.{$ext}"; 
+        // Generate Nama File dengan Version Logic
+        // First upload: {type}.{ext}
+        // Re-upload: v{N}-{type}.{ext}
+        
+        // Generate Nama File dengan Version Logic
+        // First upload: {type}.{ext}
+        // Re-upload: v{N}-{type}.{ext}
+        
+        $cleanType = $type;
+        $versionNumber = 1;
+        $isFirstUpload = true;
+        $targetDoc = null;
+        $isReupload = false;
+
+        if ($docId) {
+            $existingDoc = DocumentTrans::find($docId);
+            if ($existingDoc) {
+                // Determine clean base name from Master Document
+                if ($existingDoc->masterDocument) {
+                    $cleanType = $existingDoc->masterDocument->nama_file;
+                }
+
+                $isReupload = !empty($existingDoc->url_path_file);
+
+                // Count existing uploaded files for this document type (Master ID + SPK ID)
+                // This includes the current one if it's already uploaded
+                $uploadCount = DocumentTrans::where('id_spk', $existingDoc->id_spk)
+                    ->where('id_dokumen', $existingDoc->id_dokumen)
+                    ->where('id_section', $existingDoc->id_section)
+                    ->whereNotNull('url_path_file')
+                    ->count();
+
+                if ($isReupload) {
+                    $versionNumber = $uploadCount + 1;
+                    $isFirstUpload = false;
+                } else {
+                    // Filling a placeholder
+                    $versionNumber = ($uploadCount > 0) ? $uploadCount + 1 : 1;
+                    $isFirstUpload = ($versionNumber === 1);
+                }
+            }
+        }
+
+        $typeSlug = Str::slug($cleanType);
+        
+        // Generate filename
+        if ($isFirstUpload) {
+            $newFileName = "{$typeSlug}.{$ext}";
+        } else {
+            $newFileName = "v{$versionNumber}-{$typeSlug}.{$ext}";
+        }
         
         // Path Tujuan Akhir
         $finalRelPath = "{$targetDir}/{$newFileName}";
@@ -832,68 +898,349 @@ class ShippingController extends Controller
 
         $success = false;
 
-        // Cek apakah file PDF, jika ya lakukan kompresi
+        // Cek apakah file PDF
         if (strtolower($ext) === 'pdf') {
-            // Siapkan nama file temporary untuk proses di Local Disk (C:/)
             $localInputName  = 'gs_in_' . uniqid() . '.pdf';
             $localOutputName = 'gs_out_' . uniqid() . '.pdf';
 
-            // 1. Simpan file dari Disk Customers ke Local Storage (temporary processing)
+            // Simpan ke local for processing
             Storage::disk('local')->put("gs_processing/{$localInputName}", $disk->get($tempPath));
 
-            // Dapatkan Absolute Path untuk Ghostscript command
             $localInputPath  = Storage::disk('local')->path("gs_processing/{$localInputName}");
             $localOutputPath = Storage::disk('local')->path("gs_processing/{$localOutputName}");
 
-            // 2. Jalankan Fungsi Ghostscript (Pastikan function ini ada di controller/trait Anda)
+            // Jalankan Ghostscript
             $compressResult = $this->runGhostscript($localInputPath, $localOutputPath, $mode);
 
-            // 3. Cek Hasil Kompresi
             if ($compressResult && file_exists($localOutputPath)) {
-                // Jika sukses, simpan file HASIL KOMPRESI ke folder tujuan (documents/master)
                 $disk->put($finalRelPath, file_get_contents($localOutputPath));
                 $success = true;
-
-                // Hapus file output lokal
                 @unlink($localOutputPath);
             } else {
-                Log::warning("Ghostscript Gagal atau File tidak terbentuk. Menggunakan file asli.");
+                Log::warning("Ghostscript Gagal. Menggunakan file asli.");
             }
-
-            // Hapus file input lokal
             @unlink($localInputPath);
         }
 
-        // =========================================================
-        // C. FINALISASI (MOVE / DELETE TEMP)
-        // =========================================================
-
+        // Finalisasi Move/Delete Temp
         if (!$success) {
-            // KONDISI: Bukan PDF atau Kompresi Gagal
-            // Pindahkan file ASLI dari temp ke documents/master
-            
-            // Hapus file lama di tujuan jika ada (agar replace)
-            if ($disk->exists($finalRelPath)) {
-                $disk->delete($finalRelPath);
-            }
-            
-            // Move file (otomatis menghapus file di temp)
             $disk->move($tempPath, $finalRelPath);
         } else {
-            // KONDISI: Kompresi Sukses
-            // File hasil kompresi sudah di-put di atas ($finalRelPath)
-            // Kita tinggal menghapus file temp originalnya
-            if ($disk->exists($tempPath)) {
-                $disk->delete($tempPath);
+            if ($disk->exists($tempPath)) $disk->delete($tempPath);
+        }
+
+        // =========================================================
+        // C. UPDATE DATABASE & LOGGING
+        // =========================================================
+        if ($docId && isset($existingDoc)) {
+            
+            // Calculate New Quota (Always Decrement on Upload)
+            // User requested to use 'kuota_revisi'.
+            $currentQuota = $existingDoc->kuota_revisi;
+            $newQuota = ($currentQuota > 0) ? $currentQuota - 1 : 0;
+
+            if ($isReupload) {
+                // --- CREATE NEW ROW FOR RE-UPLOAD (HISTORY) ---
+                
+                // Create new instance
+                $targetDoc = DocumentTrans::create([
+                    'id_spk'                     => $existingDoc->id_spk,
+                    'id_dokumen'                 => $existingDoc->id_dokumen,
+                    'id_section'                 => $existingDoc->id_section,
+                    'nama_file'                  => $newFileName,
+                    'url_path_file'              => $finalRelPath,
+                    'is_internal'                => $existingDoc->is_internal, // Copy from existing
+                    'verify'                     => $isInternalCanUpload ? true : null, // Reset status OR auto-verify
+                    'correction_attachment'      => false,
+                    'correction_attachment_file' => null,
+                    'correction_description'     => null,
+                    'kuota_revisi'               => $newQuota, // Update kuota_revisi
+                    'mapping_insw'               => $existingDoc->mapping_insw,
+                    'created_at'                 => now(),
+                    'updated_at'                 => now(),
+                ]);
+
+            } else {
+                // --- UPDATE EXISTING PLACEHOLDER ---
+                $targetDoc = $existingDoc;
+                $targetDoc->update([
+                    'url_path_file' => $finalRelPath,
+                    'nama_file'     => $newFileName,
+                    // 'upload_by'     => null, // Removed
+                    'verify'        => $isInternalCanUpload ? true : null, // Reset or auto-verify
+                    'correction_attachment' => false,
+                    'kuota_revisi'  => $newQuota, // Update kuota_revisi here too
+                    'updated_at'    => now(),
+                ]);
+            }
+
+            // Log Status
+            if ($targetDoc) {
+                DocumentStatus::create([
+                    'id_dokumen_trans' => $targetDoc->id,
+                    'status'           => 'Uploaded',
+                    'by'               => Auth::user()->name ?? 'Unknown',
+                ]);
+
+                // REALTIME UPDATE
+                try {
+                    ShippingDataUpdated::dispatch($targetDoc->id_spk, 'upload');
+                } catch (\Exception $e) {
+                    Log::error('Realtime update failed: ' . $e->getMessage());
+                }
             }
         }
 
         return response()->json([
             'status'     => 'success',
-            'final_path' => $finalRelPath,  // documents/master/SPK001-type.pdf
-            'nama_file'  => $newFileName,   // SPK001-type.pdf
+            'final_path' => $finalRelPath,
+            'nama_file'  => $newFileName,
             'compressed' => $success
         ]);
+    }
+
+    /**
+     * Verify Document (Internal)
+     */
+    public function verifyDocument(Request $request, $id)
+    {
+        // Initialize Tenant Context
+        $user = Auth::user();
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        
+        if ($tenant) {
+            tenancy()->initialize($tenant);
+        }
+
+
+        try {
+            $document = DocumentTrans::findOrFail($id);
+            
+            $document->update([
+                'verify' => true,
+                'correction_attachment' => false,
+                // 'correction_description' => null, // Optional: Clear reject history? or keep? User didn't specify. Keep history usually good.
+            ]);
+
+            DocumentStatus::create([
+                'id_dokumen_trans' => $document->id,
+                'status'           => 'Verified',
+                'by'               => Auth::user() ? Auth::user()->name : 'System',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Document verified successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Verification error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            \Log::error('Current DB connection: ' . config('database.default'));
+            \Log::error('Auth user: ' . (Auth::user() ? Auth::user()->email : 'none'));
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to verify document: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Batch Verify Documents (Internal)
+     */
+    public function batchVerifyDocuments(Request $request)
+    {
+        // Initialize Tenant Context
+        $user = Auth::user();
+        
+        // --- 1. Initialize Tenant Context ---
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        
+        if ($tenant) {
+            tenancy()->initialize($tenant);
+        }
+
+        $request->validate([
+            'spk_id' => 'required|integer',
+            'section_id' => 'nullable|integer', // Optional, for context in notification
+            'verified_ids' => 'required|array',
+            'verified_ids.*' => 'integer|exists:document_trans,id',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $verifiedIds = $request->input('verified_ids');
+            $spkId = $request->input('spk_id');
+            $sectionId = $request->input('section_id');
+
+            // 1. Update Documents
+            foreach ($verifiedIds as $docId) {
+                $document = DocumentTrans::find($docId);
+                if ($document) {
+                    $document->update([
+                        'verify' => true,
+                        'correction_attachment' => false,
+                        'updated_at' => now(),
+                    ]);
+
+                    DocumentStatus::create([
+                        'id_dokumen_trans' => $document->id,
+                        'status'           => 'Verified',
+                        'by'               => Auth::user() ? Auth::user()->name : 'System',
+                    ]);
+                }
+            }
+
+            // 2. Send SINGLE Notification
+            if (count($verifiedIds) > 0) {
+                // Get SPK info for notification context
+                $spk = Spk::find($spkId);
+                $sectionName = '';
+                
+                if (count($verifiedIds) > 0) {
+                // Send Notification (External)
+                try {
+                    // ... existing notification logic ...
+                    $message = count($verifiedIds) . ' dokumen telah diverifikasi oleh ' . Auth::user()->name;
+                    $url = url('/shipping/' . $spkId);
+
+                     NotificationService::send([
+                        'id_spk' => $spkId,
+                        'role'   => 'external', // Send to Customer
+                        'data'   => [
+                            'type'    => 'document_verified',
+                            'title'   => 'Dokumen Diverifikasi',
+                            'message' => $message,
+                            'url'     => $url,
+                            'spk_code'=> $spk ? $spk->spk_code : null, // Using $spk instead of $spkData
+                        ]
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('Notification failed: ' . $e->getMessage());
+                }
+
+                 // REALTIME UPDATE
+                 try {
+                    ShippingDataUpdated::dispatch($spkId, 'batch_verify');
+                } catch (\Exception $e) {
+                    Log::error('Realtime update failed: ' . $e->getMessage());
+                }
+            }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => count($verifiedIds) . ' documents verified successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Batch Verification error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to verify documents: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject Document (Internal)
+     */
+    public function rejectDocument(Request $request, $id)
+    {
+        // Initialize Tenant Context
+        $user = Auth::user();
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        
+        if ($tenant) {
+            tenancy()->initialize($tenant);
+        }
+
+
+        try {
+            $request->validate([
+                'correction_description' => 'required|string',
+                'correction_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            ]);
+
+            // Get current tenant connection
+            $tenantConnection = tenancy()->tenant ? 'tenant' : config('database.default');
+            
+            $document = DocumentTrans::on($tenantConnection)->findOrFail($id);
+            
+            $correctionFilePath = $document->correction_attachment_file;
+            $correctionPath = null; // Initialize correctionPath
+
+            // Handle Correction File Upload
+            if ($request->hasFile('correction_file')) {
+                $file = $request->file('correction_file');
+                // Store in specific folder
+                $path = $file->store('corrections', 'customers_external'); 
+                $correctionFilePath = $path;
+                $correctionPath = $path; // Set correctionPath for response
+            }
+
+            $document->update([
+                'verify' => false, // Rejected
+                'correction_attachment' => true,
+                'correction_description' => $request->correction_description,
+                'correction_attachment_file' => $correctionFilePath,
+            ]);
+
+            DocumentStatus::on($tenantConnection)->create([
+                'id_dokumen_trans' => $document->id,
+                'status'           => 'Rejected',
+                'by'               => Auth::user() ? Auth::user()->name : 'System',
+            ]);
+            DB::commit();
+
+             // REALTIME UPDATE
+             try {
+                ShippingDataUpdated::dispatch($document->id_spk, 'reject'); // Use $document->id_spk
+            } catch (\Exception $e) {
+                Log::error('Realtime update failed: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Document rejected successfully',
+                'file_path' => $correctionPath
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Rejection error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reject document: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     // Helper Ghostscript (Private)
@@ -1012,7 +1359,7 @@ class ShippingController extends Controller
         // Karena koneksi sudah pindah ke tenant
         $spk = Spk::with(['creator','hsCodes', 'customer'])->findOrFail($id);
 
-        dd($spk->toArray());
+        // dd($spk->toArray());
 
         $latestStatus = SpkStatus::where('id_spk', $spk->id)
         ->orderBy('id', 'desc') // Ambil yang paling terakhir dibuat
@@ -1025,6 +1372,7 @@ class ShippingController extends Controller
             'spkDate'   => Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
             'type'      => $spk->shipment_type,
             'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
+            'internal_can_upload' => $spk->internal_can_upload, // Added
             'hsCodes'   => [],
             'status'    => $latestStatus ? $latestStatus->status : 'Unknown',
             'is_created_by_internal' => $spk->is_created_by_internal,
@@ -1317,15 +1665,24 @@ class ShippingController extends Controller
                             if ($docTrans) {
                                 $docTrans->update([
                                     'url_path_file' => $newPath, // Simpan path baru
-                                    'upload_by'     => $user->id_user, // Opsional: update uploader
+                                    // 'upload_by'     => null, // Removed as per request
+                                    'verify'        => $spk->internal_can_upload ? true : $docTrans->verify, // Auto-verify if internal_can_upload
                                     'updated_at'    => now(),
                                 ]);
                             }
                         }
                     }
                 }
+
+                // REALTIME UPDATE
+                try {
+                    // $spk is already available here
+                   ShippingDataUpdated::dispatch($spk->id, 'upload');
+               } catch (\Exception $e) {
+                   Log::error('Realtime update failed: ' . $e->getMessage());
+               }
             }
-            dd($staff, $user, $spk);
+            // dd($staff, $user, $spk); // Removed dd to allow flow to continue
 
             try {
                 SectionReminderService::send($validated['section'], $staff, $user, $spk);
@@ -1437,10 +1794,18 @@ class ShippingController extends Controller
                     'deadlines' => $sectionDeadlines,
                 ]);
             }
+            DB::commit();
+
+            // REALTIME UPDATE
+            try {
+                ShippingDataUpdated::dispatch($spkId, 'deadline_update'); // Use $spkId instead of $validated['spk_id']
+            } catch (\Exception $e) {
+                Log::error('Realtime update failed: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Deadline updated successfully',
+                'message' => 'Deadline updated successfully'
             ]);
 
         } catch (\Throwable $e) {
@@ -1456,3 +1821,4 @@ class ShippingController extends Controller
         }
     }
 }
+
