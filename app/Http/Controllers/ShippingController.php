@@ -1247,45 +1247,79 @@ class ShippingController extends Controller
     private function runGhostscript($inputPath, $outputPath, $mode)
     {
         $settings = [
-            'small'  => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=150', '-dGrayImageResolution=150', '-dMonoImageResolution=150'],
+            'small'  => ['-dPDFSETTINGS=/screen', '-dColorImageResolution=150', '-dGrayImageResolution=150', '-dMonoImageResolution=150'], // Ubah /ebook ke /screen untuk kompresi maksimal (optional)
             'medium' => ['-dPDFSETTINGS=/ebook', '-dColorImageResolution=200', '-dGrayImageResolution=200', '-dMonoImageResolution=200'],
             'high'   => ['-dPDFSETTINGS=/printer', '-dColorImageResolution=300', '-dGrayImageResolution=300', '-dMonoImageResolution=300'],
         ];
         $config = $settings[$mode] ?? $settings['medium'];
 
-        // Deteksi OS untuk Path Ghostscript
         $isWindows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
         $gsExe = $isWindows ? 'C:\Program Files\gs\gs10.05.1\bin\gswin64c.exe' : '/usr/bin/gs';
 
-        // Pastikan input path kompatibel dengan OS (terutama Windows backslashes)
-        if ($isWindows) {
-            $inputPath = str_replace('/', '\\', $inputPath);
-            $outputPath = str_replace('/', '\\', $outputPath);
+        if ($isWindows && !file_exists($gsExe)) {
+            Log::error("Ghostscript executable not found at: " . $gsExe);
+            return false;
         }
 
-        $cmd = array_merge([
-            $gsExe,
-            '-q',
-            '-dSAFER',
-            '-sDEVICE=pdfwrite',
-            '-dCompatibilityLevel=1.4',
-            '-o',
-            $outputPath,
-            $inputPath
-        ], $config);
+        $inputPath  = str_replace('\\', '/', $inputPath);
+        $outputPath = str_replace('\\', '/', $outputPath);
+
+        // 2. PERBAIKAN URUTAN COMMAND
+        // Urutan yang benar: [Executable] -> [Basic Flags] -> [Compression Config] -> [Output] -> [Input]
+        $cmd = array_merge(
+            [$gsExe],
+            [
+                '-q',
+                '-dNOPAUSE',    // Tambahan penting untuk Windows
+                '-dBATCH',      // Tambahan penting untuk Windows
+                '-dSAFER',
+                '-sDEVICE=pdfwrite',
+                '-dCompatibilityLevel=1.4'
+            ],
+            $config, // <--- MASUKKAN CONFIG DI SINI (SEBELUM OUTPUT)
+            [
+                '-sOutputFile=' . $outputPath, // Gunakan sintaks -sOutputFile= untuk keamanan path Windows
+                $inputPath
+            ]
+        );
 
         try {
             $process = new Process($cmd);
+            
+            // --- PERBAIKAN DISINI: SET ENV VARIABLES UNTUK WINDOWS ---
+            if ($isWindows) {
+                // Ghostscript butuh folder TEMP yang valid
+                // Kita gunakan sys_get_temp_dir() dari PHP
+                $tempDir = sys_get_temp_dir();
+                
+                $process->setEnv([
+                    'TEMP' => $tempDir,
+                    'TMP'  => $tempDir,
+                    // Opsional: Jika masih gagal, tambahkan SystemRoot
+                    'SystemRoot' => getenv('SystemRoot') ?: 'C:\Windows',
+                ]);
+            }
+            // ---------------------------------------------------------
+
             $process->setTimeout(300);
             $process->run();
 
-            // Log Error Output jika gagal (Sangat membantu debugging)
+            // ... (Sisa kode validasi dan logging sama) ...
             if (!$process->isSuccessful()) {
-                Log::error('Ghostscript Error Output: ' . $process->getErrorOutput());
+                Log::error('GS Gagal (Exit Code: ' . $process->getExitCode() . ')');
+                Log::error('GS Command: ' . $process->getCommandLine());
+                Log::error('GS Output: ' . $process->getOutput());
+                Log::error('GS Error Output: ' . $process->getErrorOutput());
                 return false;
             }
 
-            return file_exists($outputPath) && filesize($outputPath) > 0;
+            if (file_exists($outputPath) && filesize($outputPath) > 0) {
+                return true;
+            } 
+            
+            Log::warning("GS finished successfully but output file is missing/empty.");
+            return false;
+
         } catch (\Exception $e) {
             Log::error("GS Process Exception: " . $e->getMessage());
             return false;
@@ -1323,7 +1357,9 @@ class ShippingController extends Controller
 
         // 4. Baru sekarang aman untuk Query ke tabel SPK
         // Karena koneksi sudah pindah ke tenant
-        $spk = Spk::with(['hsCodes', 'customer'])->findOrFail($id);
+        $spk = Spk::with(['creator','hsCodes', 'customer'])->findOrFail($id);
+
+        dd($spk->toArray());
 
         $latestStatus = SpkStatus::where('id_spk', $spk->id)
         ->orderBy('id', 'desc') // Ambil yang paling terakhir dibuat
@@ -1339,6 +1375,7 @@ class ShippingController extends Controller
             'internal_can_upload' => $spk->internal_can_upload, // Added
             'hsCodes'   => [],
             'status'    => $latestStatus ? $latestStatus->status : 'Unknown',
+            'is_created_by_internal' => $spk->is_created_by_internal,
         ];
 
         // 3. Mapping HS Code
@@ -1667,7 +1704,7 @@ class ShippingController extends Controller
                     ]);
                 } catch (\Throwable $notifError) {
                     // Log error notifikasi tapi jangan block flow utama
-                    \Log::error('Failed to send notification in sectionReminder', [
+                    Log::error('Failed to send notification in sectionReminder', [
                         'error' => $notifError->getMessage(),
                         'trace' => $notifError->getTraceAsString(),
                     ]);
@@ -1676,7 +1713,7 @@ class ShippingController extends Controller
                 return redirect()->back()->with('success', 'Reminder berhasil dikirim ke staff.');
             } catch (\Throwable $e) {
                 // Log error lengkap untuk debugging
-                \Log::error('sectionReminder failed', [
+                Log::error('sectionReminder failed', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                     'user_id' => $user->id_user,

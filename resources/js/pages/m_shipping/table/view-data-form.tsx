@@ -15,13 +15,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface HsCodeItem {
-    id: number;
-    code: string;
-    link: string | null;
-    file?: File | null;
-}
-
 interface ShipmentData {
     id_spk: number;
     spkDate: string;

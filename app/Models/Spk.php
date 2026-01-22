@@ -24,6 +24,8 @@ class Spk extends Model
         'internal_can_upload',       // Boolean
     ];
 
+    protected $appends = ['is_created_by_internal'];
+
     /**
      * Casts attributes to specific types.
      * log otomatis diubah jadi array saat diakses, dan json saat disimpan.
@@ -55,6 +57,17 @@ class Spk extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by', 'id_user');
+    }
+
+    public function getIsCreatedByInternalAttribute(): bool
+    {
+        // Pastikan relasi creator ada datanya
+        if ($this->creator) {
+            // Memanggil fungsi isInternal() dari model User
+            return $this->creator->isInternal(); 
+        }
+        
+        return false;
     }
 
     /**

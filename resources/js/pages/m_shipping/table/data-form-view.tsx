@@ -278,7 +278,10 @@ export default function ViewCustomerForm({
         type: '-',
         spkNumber: '-',
         hsCodes: [],
+        is_created_by_internal: false,
     };
+
+    console.log(shipmentData.is_created_by_internal);
 
     const additionalDocsList = [
         { id: 'phyto', label: 'Phytosanitary' },
@@ -793,7 +796,10 @@ export default function ViewCustomerForm({
                     <span>{shipmentData.type}</span>
                 </div>
                 <div className="flex gap-1">
-                    <span className="font-bold">SI :</span>
+                    <span className="font-bold">
+                        {/* Logika kondisi di sini */}
+                        {shipmentData.type === 'Export' ? 'SI' : shipmentData.type === 'Import' ? 'BL' : 'SPK'} :
+                    </span>
                     <span>{shipmentData.spkNumber}</span>
                 </div>
 
@@ -850,9 +856,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                            nama_file: item.link, // Nama file dari DB
-                                                                            path: `/file/view/${item.link}`, // URL Preview dari Controller
-                                                                        }
+                                                                              nama_file: item.link, // Nama file dari DB
+                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                          }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -1002,27 +1008,20 @@ export default function ViewCustomerForm({
                                 {/* Content Section */}
                                 {isOpen && (
                                     <div className="border-t border-gray-100 px-3 pt-2 pb-4">
-                                        {/* Per-Section Deadline Field - ONLY for Internal Users */}
-                                        {isInternalUser && (
-                                            <div className="mb-4 flex items-center gap-3">
-                                                <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Deadline:</label>
-                                                <Input
-                                                    type="date"
-                                                    className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
-                                                    value={useUnifiedDeadline ? globalDeadlineDate : (sectionDeadlines[section.id] || '')}
-                                                    onChange={(e) => {
-                                                        if (!useUnifiedDeadline) {
-                                                            setSectionDeadlines(prev => ({
-                                                                ...prev,
-                                                                [section.id]: e.target.value
-                                                            }));
-                                                        }
-                                                    }}
-                                                    disabled={useUnifiedDeadline}
-                                                />
+                                        {shipmentData.is_created_by_internal && (
+                                            <div className="mb-6 space-y-2">
+                                                <label className="text-sm font-bold text-black">Set Deadline Date</label>
+                                                <div className="relative">
+                                                    <Input
+                                                        type="date"
+                                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
+                                                        placeholder="Pick date"
+                                                        value={deadlineDate}
+                                                        onChange={(e) => setDeadlineDate(e.target.value)}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
-
                                         <div className="space-y-4">
                                             {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
