@@ -21,7 +21,7 @@ class Spk extends Model
         'shipment_type',     // Import / Export
         'created_by',        // ID User pembuat
         'validated_by',      // ID User validator
-        'log',               // JSON Logs
+        'internal_can_upload',       // Boolean
     ];
 
     /**
@@ -29,7 +29,6 @@ class Spk extends Model
      * log otomatis diubah jadi array saat diakses, dan json saat disimpan.
      */
     protected $casts = [
-        'log' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

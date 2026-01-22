@@ -19,7 +19,7 @@ return new class extends Migration
 
             $table->string('spk_code')->nullable(); // Keterangan HS Code
             $table->string('shipment_type')->nullable(); // Import/Export
-
+            $table->boolean('internal_can_upload')->default(false);
             $table->unsignedBigInteger('created_by')->nullable();   // User Eksternal
             $table->unsignedBigInteger('validated_by')->nullable(); // User Internal
 
