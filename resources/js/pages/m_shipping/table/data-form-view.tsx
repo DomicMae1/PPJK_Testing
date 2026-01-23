@@ -4,13 +4,13 @@ import { ResettableDropzone } from '@/components/ResettableDropzone';
 import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ChevronDown, ChevronUp, CircleHelp, Play, Plus, Save, Search, Trash2, Undo2, X, Check, CheckCircle, AlertTriangle, ShieldCheck, FileText, History, Info } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, CircleHelp, FileText, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 
@@ -105,6 +105,10 @@ export default function ViewCustomerForm({
     masterDocProp, // Data Master Document (opsional, untuk fallback help)
     userRole, // NEW: User role for role-based visibility
 }: any) {
+    const { props } = usePage();
+    const trans = props.trans_general as Record<string, string>;
+    const currentLocale = props.locale as string;
+
     // Check if user is internal (not external)
     const isInternalUser = userRole !== 'eksternal';
 
@@ -152,8 +156,6 @@ export default function ViewCustomerForm({
     const [selectedHistoryDocs, setSelectedHistoryDocs] = useState<DocumentTrans[]>([]);
     const [selectedHistoryTitle, setSelectedHistoryTitle] = useState('');
 
-
-
     useEffect(() => {
         if (helpModalOpen) {
             setIsVideoPlaying(false);
@@ -162,49 +164,14 @@ export default function ViewCustomerForm({
 
     // NEW: Realtime Updates Listener
     useEffect(() => {
-        if (shipmentDataProp?.spkNumber) { // Using spkNumber as ID seems risky if it is a string code
-            // Wait, we need the numeric ID of the SPK for the channel 'shipping.{id}'
-            // The prop is `shipmentDataProp`. Let's check what it has.
-            // Looking at `ViewCustomerForm` props: `shipmentDataProp: ShipmentData`.
-            // Looking at `ShipmentData` interface (implied): likely has `id_spk` or similar?
-            // In `ShippingController`: 'spkNumber' => $spk->spk_code. 'type', 'hsCodes'.
-            // It seems `shipmentDataProp` might NOT have the numeric ID directly exposed if it wasn't added.
-            // Let's check `ShippingController` view data again (Step 272).
-            /*
-            $shipmentData = [
-                'id_spk'     => $spk->id,     // <--- It IS added in previous steps? 
-                                              // Wait, step 272 snippet shows:
-                                              // 'spkDate'    => ...,
-                                              // 'type'       => ...,
-                                              // 'spkNumber'  => $spk->spk_code,
-                                              // ...
-                                              // 'status'     => ...
-            */
-            // I need to verify if `id_spk` is in `shipmentData`.
-            // Looking at Step 272 snippet again...
-            /*
-            $shipmentData = [
-                'spkDate'    => ...,
-                'type'       => ...,
-                'spkNumber'  => $spk->spk_code,
-                'hsCodes'   => [],
-                'status'    => ...
-            ];
-            */
-            // It seems `id_spk` might be missing in the *initial* definition in the Controller if I didn't add it.
-            // But wait, in `handleFinalSave` (Step 113) I see: `router.visit(/shipping/${shipmentData.id_spk}...)`.
-            // So `shipmentData.id_spk` MUST exist.
-
-            // Let's assume `shipmentDataProp.id_spk` exists.
-
+        if (shipmentDataProp?.spkNumber) {
             if ((window as any).Echo && shipmentDataProp.id_spk) {
                 console.log(`Listening to channel: shipping.${shipmentDataProp.id_spk}`);
-                (window as any).Echo.private(`shipping.${shipmentDataProp.id_spk}`)
-                    .listen('ShippingDataUpdated', (e: any) => {
-                        console.log('Realtime update received:', e);
-                        // Reload only the necessary data props
-                        router.reload({ only: ['sectionsTransProp', 'shipmentDataProp'] });
-                    });
+                (window as any).Echo.private(`shipping.${shipmentDataProp.id_spk}`).listen('ShippingDataUpdated', (e: any) => {
+                    console.log('Realtime update received:', e);
+                    // Reload only the necessary data props
+                    router.reload({ only: ['sectionsTransProp', 'shipmentDataProp'] });
+                });
             }
         }
 
@@ -212,7 +179,7 @@ export default function ViewCustomerForm({
             if ((window as any).Echo && shipmentDataProp.id_spk) {
                 (window as any).Echo.leave(`shipping.${shipmentDataProp.id_spk}`);
             }
-        }
+        };
     }, [shipmentDataProp]);
 
     // Initialize deadline states from database data
@@ -225,11 +192,8 @@ export default function ViewCustomerForm({
 
             sectionsTransProp.forEach((section: SectionTrans) => {
                 if (section.deadline_date) {
-                    // Extract YYYY-MM-DD from any date format without timezone conversion
-                    // Supports: "2026-01-18", "2026-01-18T00:00:00", "2026-01-18 00:00:00", ISO strings
                     const dateStr = String(section.deadline_date);
 
-                    // Use regex to extract year, month, day directly (no Date object = no timezone issues)
                     const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
                     const dateValue = match ? `${match[1]}-${match[2]}-${match[3]}` : '';
 
@@ -263,8 +227,6 @@ export default function ViewCustomerForm({
     }, [sectionsTransProp]);
 
     const [processingSectionId, setProcessingSectionId] = useState<number | null>(null);
-
-
 
     const [selectedAdditionalDocs, setSelectedAdditionalDocs] = useState<{ id: string; label: string }[]>([
         { id: 'fumigasi', label: 'Fumigasi' },
@@ -384,18 +346,21 @@ export default function ViewCustomerForm({
         }
 
         // Store rejection in local state instead of sending immediately
-        setPendingRejections(prev => {
+        setPendingRejections((prev) => {
             // Remove existing rejection for this doc if exists (overwrite)
-            const filtered = prev.filter(r => r.docId !== rejectingDocId);
-            return [...filtered, {
-                docId: rejectingDocId,
-                note: rejectionNote,
-                file: rejectionFile
-            }];
+            const filtered = prev.filter((r) => r.docId !== rejectingDocId);
+            return [
+                ...filtered,
+                {
+                    docId: rejectingDocId,
+                    note: rejectionNote,
+                    file: rejectionFile,
+                },
+            ];
         });
 
         // Also remove from pending verifications if it was there
-        setPendingVerifications(prev => prev.filter(id => id !== rejectingDocId));
+        setPendingVerifications((prev) => prev.filter((id) => id !== rejectingDocId));
 
         setRejectionModalOpen(false);
         setRejectionNote('');
@@ -451,7 +416,7 @@ export default function ViewCustomerForm({
         }
 
         // --- VALIDASI: Pastikan semua dokumen yang sudah diupload (ada url_path_file) sudah dinilai ---
-        const uploadedDocs = currentSection.documents.filter(doc => doc.url_path_file);
+        const uploadedDocs = currentSection.documents.filter((doc) => doc.url_path_file);
 
         // Filter dokumen yang belum dinilai:
         // - verify === null (belum dinilai dari DB)
@@ -462,7 +427,7 @@ export default function ViewCustomerForm({
             // SKIP validation if internal_can_upload is set (Auto-verified)
             if (shipmentData.internal_can_upload) return false;
 
-            const isAlreadyAssessed = doc.verify !== null; // True if Checked (true) or Rejected (false) 
+            const isAlreadyAssessed = doc.verify !== null; // True if Checked (true) or Rejected (false)
             const isPendingAccept = pendingVerifications.includes(doc.id);
             const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
 
@@ -477,11 +442,12 @@ export default function ViewCustomerForm({
         });
 
         if (unassessedDocs.length > 0) {
-            alert(`Harap verifikasi (Accept) atau tolak (Reject) semua dokumen yang telah diupload pada section ini.\n\nDokumen belum dinilai: ${unassessedDocs.length}`);
+            alert(
+                `Harap verifikasi (Accept) atau tolak (Reject) semua dokumen yang telah diupload pada section ini.\n\nDokumen belum dinilai: ${unassessedDocs.length}`,
+            );
             setProcessingSectionId(null);
             return;
         }
-
 
         // 3. Filter dokumen yang memiliki file temp
         const filesToProcess = currentSection.documents.filter((doc: DocumentTrans) => {
@@ -520,52 +486,50 @@ export default function ViewCustomerForm({
 
             // 5. BATCH VERIFICATION (NEW)
             // Cari dokumen di section ini yang masuk daftar pendingVerifications
-            const docsToVerify = currentSection.documents
-                .filter(doc => pendingVerifications.includes(doc.id))
-                .map(doc => doc.id);
+            const docsToVerify = currentSection.documents.filter((doc) => pendingVerifications.includes(doc.id)).map((doc) => doc.id);
 
             if (docsToVerify.length > 0) {
                 await axios.post('/shipping/batch-verify', {
                     spk_id: shipmentData.id_spk,
                     section_id: sectionId, // Untuk konteks notifikasi
-                    verified_ids: docsToVerify
+                    verified_ids: docsToVerify,
                 });
 
                 // Hapus ID yang sudah diverifikasi dari pendingVerifications
-                setPendingVerifications(prev => prev.filter(id => !docsToVerify.includes(id)));
+                setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
             }
 
             // 6. PROCESS PENDING REJECTIONS (NEW)
             // Cari dokumen di section ini yang ada di pendingRejections
             const rejectionsToProcess = currentSection.documents
-                .filter(doc => pendingRejections.some(r => r.docId === doc.id))
-                .map(doc => {
-                    return pendingRejections.find(r => r.docId === doc.id);
+                .filter((doc) => pendingRejections.some((r) => r.docId === doc.id))
+                .map((doc) => {
+                    return pendingRejections.find((r) => r.docId === doc.id);
                 })
                 .filter((r): r is PendingRejection => r !== undefined);
 
             if (rejectionsToProcess.length > 0) {
-                await Promise.all(rejectionsToProcess.map(async (rejection) => {
-                    const formData = new FormData();
-                    formData.append('correction_description', rejection.note);
-                    if (rejection.file) {
-                        formData.append('correction_file', rejection.file);
-                    }
+                await Promise.all(
+                    rejectionsToProcess.map(async (rejection) => {
+                        const formData = new FormData();
+                        formData.append('correction_description', rejection.note);
+                        if (rejection.file) {
+                            formData.append('correction_file', rejection.file);
+                        }
 
-                    await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
-                }));
+                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
+                            headers: { 'Content-Type': 'multipart/form-data' },
+                        });
+                    }),
+                );
 
                 // Hapus yang sudah diproses
-                const processedIds = rejectionsToProcess.map(r => r.docId);
-                setPendingRejections(prev => prev.filter(r => !processedIds.includes(r.docId)));
+                const processedIds = rejectionsToProcess.map((r) => r.docId);
+                setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
             }
 
             // 7. Save deadline untuk section ini
-            const deadlineValue = useUnifiedDeadline
-                ? globalDeadlineDate
-                : (sectionDeadlines[sectionId] || null);
+            const deadlineValue = useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[sectionId] || null;
 
             if (deadlineValue) {
                 await axios.post('/shipping/update-deadline', {
@@ -621,14 +585,14 @@ export default function ViewCustomerForm({
         const groups = new Map<number, DocumentTrans[]>();
 
         // 1. Group by id_dokumen
-        docs.forEach(doc => {
+        docs.forEach((doc) => {
             if (!groups.has(doc.id_dokumen)) {
                 groups.set(doc.id_dokumen, []);
             }
             groups.get(doc.id_dokumen)?.push(doc);
         });
 
-        const result: { current: DocumentTrans, history: DocumentTrans[] }[] = [];
+        const result: { current: DocumentTrans; history: DocumentTrans[] }[] = [];
 
         groups.forEach((groupDocs) => {
             // 2. Sort by ID descending (newest first)
@@ -664,8 +628,8 @@ export default function ViewCustomerForm({
             if (!shipmentData.internal_can_upload) {
                 sectionsTransProp.forEach((section: SectionTrans) => {
                     if (section.documents) {
-                        const uploadedDocs = section.documents.filter(doc => doc.url_path_file);
-                        uploadedDocs.forEach(doc => {
+                        const uploadedDocs = section.documents.filter((doc) => doc.url_path_file);
+                        uploadedDocs.forEach((doc) => {
                             const isAlreadyAssessed = doc.verify !== null;
                             const isPendingAccept = pendingVerifications.includes(doc.id);
                             const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
@@ -679,7 +643,9 @@ export default function ViewCustomerForm({
             }
 
             if (allUnassessedDocs.length > 0) {
-                alert(`Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`);
+                alert(
+                    `Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`,
+                );
                 return;
             }
 
@@ -723,7 +689,7 @@ export default function ViewCustomerForm({
                 await axios.post('/shipping/batch-verify', {
                     spk_id: shipmentData.id_spk,
                     section_id: null, // Global save, maybe generic or null
-                    verified_ids: pendingVerifications
+                    verified_ids: pendingVerifications,
                 });
 
                 // Clear pending verifications
@@ -742,7 +708,7 @@ export default function ViewCustomerForm({
 
                     try {
                         await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' }
+                            headers: { 'Content-Type': 'multipart/form-data' },
                         });
                     } catch (err) {
                         console.error(`Failed to reject doc ${rejection.docId}`, err);
@@ -792,27 +758,26 @@ export default function ViewCustomerForm({
             {/* --- Shipment Details --- */}
             <div className="mb-6 space-y-1 pl-1">
                 <div className="flex gap-1">
-                    <span className="font-bold">Shipment Type :</span>
+                    <span className="font-bold">{trans.shipment_type} :</span>
                     <span>{shipmentData.type}</span>
                 </div>
                 <div className="flex gap-1">
                     <span className="font-bold">
-                        {/* Logika kondisi di sini */}
-                        {shipmentData.type === 'Export' ? 'SI' : shipmentData.type === 'Import' ? 'BL' : 'SPK'} :
+                        {shipmentData.type === 'Export' ? trans.si || 'SI' : shipmentData.type === 'Import' ? trans.bl || 'BL' : trans.spk || 'SPK'} :
                     </span>
                     <span>{shipmentData.spkNumber}</span>
                 </div>
 
                 {/* HS Code Section */}
                 <div className="flex gap-1">
-                    <span className="font-bold whitespace-nowrap">HS - Code :</span>
+                    <span className="font-bold whitespace-nowrap">{trans.hs_code} :</span>
                     <div className="flex w-full flex-col">
                         {isEditingHsCodes ? (
                             <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
                                 <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
                                     {/* Header Modal */}
                                     <div className="flex items-center justify-between border-b px-6 py-4">
-                                        <h2 className="text-lg font-bold text-gray-900">Edit Data Hs Code</h2>
+                                        <h2 className="text-lg font-bold text-gray-900">{trans.edit_hs_data}</h2>
                                         <button onClick={cancelEditMode} className="text-gray-500 hover:text-gray-700">
                                             <X className="h-5 w-5" />
                                         </button>
@@ -829,7 +794,7 @@ export default function ViewCustomerForm({
                                                             type="button"
                                                             onClick={() => removeHsCodeField(item.id)}
                                                             className="absolute top-3 right-3 text-red-500 transition-colors hover:text-red-700"
-                                                            title="Hapus HS Code"
+                                                            title={trans.delete_hs || 'Hapus HS Code'}
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </button>
@@ -838,9 +803,9 @@ export default function ViewCustomerForm({
                                                     <div className="grid gap-3 pt-1">
                                                         {/* Input HS Code */}
                                                         <div className="space-y-1">
-                                                            <Label className="text-sm">Input HS Code</Label>
+                                                            <Label className="text-sm">{trans.input_hs_code}</Label>
                                                             <Input
-                                                                placeholder="Input Hs Code number"
+                                                                placeholder={trans.input_hs_code}
                                                                 value={item.code}
                                                                 onChange={(e) => updateHsCode(item.id, 'code', e.target.value)}
                                                             />
@@ -849,20 +814,17 @@ export default function ViewCustomerForm({
                                                         {/* File Upload */}
                                                         <div className="space-y-2">
                                                             <ResettableDropzoneImage
-                                                                label="INSW Link reference"
+                                                                label={trans.insw_link_ref}
                                                                 isRequired={false}
-                                                                // Jika ada file baru (item.file), jangan kirim existingFile
-                                                                // Jika belum ada file baru, cek apakah ada link lama (item.link)
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                              nama_file: item.link, // Nama file dari DB
-                                                                              path: `/file/view/${item.link}`, // URL Preview dari Controller
+                                                                              nama_file: item.link,
+                                                                              path: `/file/view/${item.link}`,
                                                                           }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
-                                                                    // Update state saat file dipilih atau dihapus (file = null)
                                                                     updateHsCode(item.id, 'file', file);
                                                                 }}
                                                             />
@@ -873,7 +835,7 @@ export default function ViewCustomerForm({
 
                                             {/* Tombol Tambah Item Baru */}
                                             <Button variant="outline" onClick={addHsCodeField} className="w-full border-dashed">
-                                                + Tambah HS Code Lain
+                                                + {trans.add_another_hs}
                                             </Button>
                                         </div>
                                     </div>
@@ -881,10 +843,10 @@ export default function ViewCustomerForm({
                                     {/* Footer Modal (Actions) */}
                                     <div className="flex gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
                                         <Button onClick={handleSaveEdit} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
-                                            <Save className="h-4 w-4" /> Simpan Perubahan
+                                            <Save className="h-4 w-4" /> {trans.save_changes}
                                         </Button>
                                         <Button onClick={cancelEditMode} variant="destructive" className="flex-1 gap-2 text-white">
-                                            <Undo2 className="h-4 w-4" /> Batal
+                                            <Undo2 className="h-4 w-4" /> {trans.cancel}
                                         </Button>
                                     </div>
                                 </div>
@@ -895,41 +857,30 @@ export default function ViewCustomerForm({
                                     shipmentData.hsCodes.map((item: any, index: number) => (
                                         <div key={index} className="flex items-center gap-2">
                                             <span>{item.code}</span>
-
-                                            {/* Link INSW */}
                                             {item.link ? (
                                                 <a
                                                     href={`/file/view/${item.link}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="font-bold text-blue-600 hover:underline"
-                                                    title="Lihat Dokumen INSW"
                                                 >
                                                     [INSW]
                                                 </a>
                                             ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => alert('Tidak ada link/file INSW untuk kode ini.')}
-                                                    className="cursor-not-allowed font-bold text-gray-400"
-                                                    title="Tidak ada dokumen"
-                                                >
+                                                <button type="button" className="cursor-not-allowed font-bold text-gray-400">
                                                     [INSW]
                                                 </button>
                                             )}
-
-                                            {/* TOMBOL EDIT -> Trigger Edit Mode */}
                                             <button onClick={enableEditMode} className="text-gray-500 hover:text-black hover:underline">
-                                                [edit]
+                                                {trans.edit || '[edit]'}
                                             </button>
                                         </div>
                                     ))
                                 ) : (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 italic">Tidak ada data HS Code</span>
-                                        {/* Jika kosong, beri opsi untuk menambah */}
+                                        <span className="text-gray-400 italic">-</span>
                                         <button onClick={enableEditMode} className="text-xs text-blue-500 hover:underline">
-                                            + Tambah
+                                            + {trans.add_another_hs}
                                         </button>
                                     </div>
                                 )}
@@ -945,10 +896,10 @@ export default function ViewCustomerForm({
                     <div className="flex flex-col gap-3">
                         {/* Garis Kuning: Global Deadline Field */}
                         <div className="flex items-center gap-3">
-                            <label className="text-sm font-bold text-gray-700 whitespace-nowrap">Set Deadline:</label>
+                            <label className="text-sm font-bold whitespace-nowrap text-gray-700">{trans.set_deadline}:</label>
                             <Input
                                 type="date"
-                                className={`h-9 flex-1 border-gray-300 ${!useUnifiedDeadline ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white'}`}
+                                className={`h-9 flex-1 border-gray-300 ${!useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
                                 value={globalDeadlineDate}
                                 onChange={(e) => setGlobalDeadlineDate(e.target.value)}
                                 disabled={!useUnifiedDeadline}
@@ -964,7 +915,7 @@ export default function ViewCustomerForm({
                                 onCheckedChange={(checked) => setUseUnifiedDeadline(checked === true)}
                             />
                             <label htmlFor="unified_deadline" className="cursor-pointer text-sm text-gray-600">
-                                Apply same deadline to all sections
+                                {trans.apply_deadline_all}
                             </label>
                         </div>
                     </div>
@@ -978,69 +929,67 @@ export default function ViewCustomerForm({
 
                         return (
                             <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
-                                {/* Header Section */}
-                                <div
-                                    className="flex cursor-pointer items-center gap-2 px-3 py-3"
-                                    onClick={() => handleEditSection(section.id)}
-                                >
+                                <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
                                     {isOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-                                    <div className="flex flex-col flex-1">
+                                    <div className="flex flex-1 flex-col">
                                         <span className="text-sm font-bold text-gray-900 uppercase">{section.section_name}</span>
-
-                                        {/* Deadline Warning - ONLY for External Users */}
                                         {!isInternalUser && section.deadline && section.deadline_date && (
-                                            <div className="flex items-center gap-1 mt-1">
-                                                <span className="text-red-500 text-lg font-bold">ⓘ</span>
-                                                <span className="text-red-500 text-xs font-bold">
-                                                    Please submit before {new Date(section.deadline_date).toLocaleDateString('en-GB', {
+                                            <div className="mt-1 flex items-center gap-1">
+                                                <span className="text-lg font-bold text-red-500">ⓘ</span>
+                                                <span className="text-xs font-bold text-red-500">
+                                                    {trans.submit_before}{' '}
+                                                    {new Date(section.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
                                                         day: '2-digit',
                                                         month: '2-digit',
                                                         year: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })} WIB
+                                                    })}{' '}
+                                                    {trans.wib}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Content Section */}
                                 {isOpen && (
                                     <div className="border-t border-gray-100 px-3 pt-2 pb-4">
-                                        {shipmentData.is_created_by_internal && (
-                                            <div className="mb-6 space-y-2">
-                                                <label className="text-sm font-bold text-black">Set Deadline Date</label>
-                                                <div className="relative">
-                                                    <Input
-                                                        type="date"
-                                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
-                                                        placeholder="Pick date"
-                                                        value={deadlineDate}
-                                                        onChange={(e) => setDeadlineDate(e.target.value)}
-                                                    />
-                                                </div>
+                                        {isInternalUser && (
+                                            <div className="mb-4 flex items-center gap-3">
+                                                <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
+                                                <Input
+                                                    type="date"
+                                                    className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                                    value={useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[section.id] || ''}
+                                                    onChange={(e) => {
+                                                        if (!useUnifiedDeadline) {
+                                                            setSectionDeadlines((prev) => ({
+                                                                ...prev,
+                                                                [section.id]: e.target.value,
+                                                            }));
+                                                        }
+                                                    }}
+                                                    disabled={useUnifiedDeadline}
+                                                />
                                             </div>
                                         )}
+
                                         <div className="space-y-4">
-                                            {/* Loop Documents Transaksional */}
                                             {section.documents && section.documents.length > 0 ? (
                                                 processDocumentsForRender(section.documents).map((item, idx: number) => {
                                                     const doc = item.current;
                                                     const allVersions = [doc, ...item.history];
-                                                    const validVersions = allVersions.filter(v => v.url_path_file);
+                                                    const validVersions = allVersions.filter((v) => v.url_path_file);
                                                     const hasHistory = validVersions.length > 1;
 
                                                     const isVerified = doc.verify === true;
                                                     const isRejected = doc.verify === false;
                                                     const isPending = doc.verify === null;
                                                     const isPendingVerification = pendingVerifications.includes(doc.id);
-                                                    const isPendingRejection = pendingRejections.some(r => r.docId === doc.id);
-                                                    const quotaExceeded = (doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0);
+                                                    const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
+                                                    const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
 
                                                     const toggleHistory = (id: number) => {
-                                                        setOpenHistoryIds(prev =>
-                                                            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                                                        setOpenHistoryIds((prev) =>
+                                                            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
                                                         );
                                                     };
 
@@ -1055,7 +1004,7 @@ export default function ViewCustomerForm({
                                                     if (isSpkInternalUpload) {
                                                         // Mode: Internal handles EVERYTHING, Auto-verified
                                                         canUpload = isInternalUser; // Internal ALWAYS shoots
-                                                        canVerify = false;          // No manual verification needed (auto-verified)
+                                                        canVerify = false; // No manual verification needed (auto-verified)
                                                     } else {
                                                         // Mode: Normal (Bidirectional)
                                                         // doc.is_internal = true (1) -> Internal Uploads, External Verifies
@@ -1065,12 +1014,15 @@ export default function ViewCustomerForm({
                                                     }
 
                                                     return (
-                                                        <div key={doc.id} className="flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0 relative">
+                                                        <div
+                                                            key={doc.id}
+                                                            className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0"
+                                                        >
                                                             <div className="flex items-start justify-between">
                                                                 {/* LEFT COLUMN: Name & History */}
-                                                                <div className="flex flex-col gap-1 flex-1">
+                                                                <div className="flex flex-1 flex-col gap-1">
                                                                     <div className="flex items-center gap-2 text-gray-800">
-                                                                        <span className="font-medium text-sm">
+                                                                        <span className="text-sm font-medium">
                                                                             {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
                                                                         </span>
                                                                         <CircleHelp
@@ -1081,9 +1033,21 @@ export default function ViewCustomerForm({
                                                                         {/* Status Badge - Visible if I cannot verify (so I am uploader or viewer) */}
                                                                         {!canVerify && doc.url_path_file && (
                                                                             <>
-                                                                                {isVerified && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">Verified</span>}
-                                                                                {isRejected && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">Rejected</span>}
-                                                                                {isPending && <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">Pending</span>}
+                                                                                {isVerified && (
+                                                                                    <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+                                                                                        {trans.verified}
+                                                                                    </span>
+                                                                                )}
+                                                                                {isRejected && (
+                                                                                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                                                                                        {trans.rejected}
+                                                                                    </span>
+                                                                                )}
+                                                                                {isPending && (
+                                                                                    <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">
+                                                                                        {trans.pending}
+                                                                                    </span>
+                                                                                )}
                                                                             </>
                                                                         )}
                                                                     </div>
@@ -1094,32 +1058,37 @@ export default function ViewCustomerForm({
                                                                             {/* Collapsible Trigger */}
                                                                             <button
                                                                                 onClick={() => toggleHistory(doc.id)}
-                                                                                className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white hover:bg-gray-800 transition-colors"
+                                                                                className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white transition-colors hover:bg-gray-800"
                                                                             >
-                                                                                <FileText className="w-3 h-3" />
-                                                                                Latest File
+                                                                                <FileText className="h-3 w-3" />
+                                                                                {trans.latest_file || 'Latest File'}
                                                                                 {openHistoryIds.includes(doc.id) ? (
-                                                                                    <ChevronUp className="w-3 h-3 ml-1" />
+                                                                                    <ChevronUp className="ml-1 h-3 w-3" />
                                                                                 ) : (
-                                                                                    <ChevronDown className="w-3 h-3 ml-1" />
+                                                                                    <ChevronDown className="ml-1 h-3 w-3" />
                                                                                 )}
                                                                             </button>
 
                                                                             {/* History List */}
                                                                             {openHistoryIds.includes(doc.id) && (
-                                                                                <div className="mt-2 flex flex-col gap-1 pl-2 border-l-2 border-gray-200">
+                                                                                <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
                                                                                     {validVersions.map((v, vIdx) => {
                                                                                         const versionNumber = validVersions.length - vIdx;
                                                                                         const isLatest = vIdx === 0;
                                                                                         return (
-                                                                                            <div key={v.id} className="flex items-center gap-2 text-xs">
-                                                                                                <span className="font-bold text-gray-500">v{versionNumber}</span>
+                                                                                            <div
+                                                                                                key={v.id}
+                                                                                                className="flex items-center gap-2 text-xs"
+                                                                                            >
+                                                                                                <span className="font-bold text-gray-500">
+                                                                                                    v{versionNumber}
+                                                                                                </span>
                                                                                                 <a
                                                                                                     href={`/file/view/${v.url_path_file}`}
                                                                                                     target="_blank"
-                                                                                                    className={`hover:underline ${isLatest ? 'text-black font-bold' : 'text-gray-600'}`}
+                                                                                                    className={`hover:underline ${isLatest ? 'font-bold text-black' : 'text-gray-600'}`}
                                                                                                 >
-                                                                                                    {v.nama_file || 'Document'}
+                                                                                                    {v.nama_file || trans.document}
                                                                                                 </a>
                                                                                                 <span className="text-[10px] text-gray-400">
                                                                                                     {new Date(v.created_at).toLocaleDateString()}
@@ -1131,7 +1100,9 @@ export default function ViewCustomerForm({
                                                                             )}
                                                                         </div>
                                                                     ) : (
-                                                                        <span className="ml-5 text-xs text-gray-400 italic">No file uploaded</span>
+                                                                        <span className="ml-5 text-xs text-gray-400 italic">
+                                                                            {trans.no_file || 'No file uploaded'}
+                                                                        </span>
                                                                     )}
                                                                 </div>
 
@@ -1140,24 +1111,32 @@ export default function ViewCustomerForm({
                                                                     <div className="flex items-center gap-4">
                                                                         {/* Accept */}
                                                                         <div className="flex flex-col items-center">
-                                                                            <span className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}>Accept</span>
+                                                                            <span
+                                                                                className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
+                                                                            >
+                                                                                {trans.accept || 'Accept'}
+                                                                            </span>
                                                                             <Checkbox
                                                                                 checked={isVerified || isPendingVerification}
                                                                                 onCheckedChange={() => handleVerify(doc.id)}
-                                                                                className={`data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600`}
+                                                                                className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
                                                                                 disabled={!isPending}
                                                                             />
                                                                         </div>
 
                                                                         {/* Reject */}
                                                                         <div className="flex flex-col items-center">
-                                                                            <span className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}>Reject</span>
+                                                                            <span
+                                                                                className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
+                                                                            >
+                                                                                {trans.reject || 'Reject'}
+                                                                            </span>
                                                                             <Checkbox
                                                                                 checked={isRejected || isPendingRejection}
                                                                                 onCheckedChange={(checked) => {
                                                                                     if (checked) handleOpenReject(doc.id);
                                                                                 }}
-                                                                                className={`data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600`}
+                                                                                className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
                                                                                 disabled={!isPending}
                                                                             />
                                                                         </div>
@@ -1166,18 +1145,19 @@ export default function ViewCustomerForm({
 
                                                                 {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
                                                                 {canUpload && (
-                                                                    <div className="w-1/2 max-w-xs flex flex-col items-end gap-2">
+                                                                    <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
                                                                         {/* Upload Zone */}
-                                                                        {(!doc.url_path_file || (!isPending && !quotaExceeded)) ? (
+                                                                        {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
                                                                             <ResettableDropzone
                                                                                 label=""
                                                                                 isRequired={false}
                                                                                 existingFile={
                                                                                     tempFiles[doc.id]
                                                                                         ? {
-                                                                                            nama_file: doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                            path: tempFiles[doc.id]
-                                                                                        }
+                                                                                              nama_file:
+                                                                                                  doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                              path: tempFiles[doc.id],
+                                                                                          }
                                                                                         : undefined
                                                                                 }
                                                                                 uploadConfig={{
@@ -1188,7 +1168,10 @@ export default function ViewCustomerForm({
                                                                                     },
                                                                                 }}
                                                                                 onFileChange={(file, response) => {
-                                                                                    if (response && (response.status === 'success' || response.path)) {
+                                                                                    if (
+                                                                                        response &&
+                                                                                        (response.status === 'success' || response.path)
+                                                                                    ) {
                                                                                         setTempFiles((prev) => ({
                                                                                             ...prev,
                                                                                             [doc.id]: response.path,
@@ -1204,32 +1187,49 @@ export default function ViewCustomerForm({
                                                                                 disabled={verifyingDocId === doc.id}
                                                                             />
                                                                         ) : (
-                                                                            <div className="text-xs text-gray-400 italic text-right">
-                                                                                {isPending ? 'On Checking' : 'Quota Exceeded'}
+                                                                            <div className="text-right text-xs text-gray-400 italic">
+                                                                                {isPending
+                                                                                    ? trans.on_checking || 'On Checking'
+                                                                                    : trans.quota_exceeded || 'Quota Exceeded'}
                                                                             </div>
                                                                         )}
 
                                                                         {/* Quota & Rejection Info (Moved Here) */}
                                                                         {doc.url_path_file && (
-                                                                            <div className="flex flex-col items-end text-xs text-right">
+                                                                            <div className="flex flex-col items-end text-right text-xs">
                                                                                 {/* Rejection Note */}
                                                                                 {isRejected && (
                                                                                     <div className="mb-1">
-                                                                                        <div className="text-red-600 font-bold flex items-center justify-end gap-1">
-                                                                                            Rejection Note <AlertTriangle className="w-3 h-3" />
+                                                                                        <div className="flex items-center justify-end gap-1 font-bold text-red-600">
+                                                                                            {trans.rejection_note || 'Rejection Note'}{' '}
+                                                                                            <AlertTriangle className="h-3 w-3" />
                                                                                         </div>
-                                                                                        <p className="text-gray-700 italic">"{doc.correction_description}"</p>
+                                                                                        <p className="text-gray-700 italic">
+                                                                                            "{doc.correction_description}"
+                                                                                        </p>
                                                                                         {doc.correction_attachment_file && (
-                                                                                            <a href={`/file/view/${doc.correction_attachment_file}`} target="_blank" className="text-blue-500 underline block mt-0.5">View Rejection File</a>
+                                                                                            <a
+                                                                                                href={`/file/view/${doc.correction_attachment_file}`}
+                                                                                                target="_blank"
+                                                                                                className="mt-0.5 block text-blue-500 underline"
+                                                                                            >
+                                                                                                {trans.view_rejection_file || 'View Rejection File'}
+                                                                                            </a>
                                                                                         )}
                                                                                     </div>
                                                                                 )}
 
                                                                                 {/* Quota Info */}
                                                                                 <div className="mt-1 text-gray-600">
-                                                                                    Revision Quota: <span className="font-bold">{doc.kuota_revisi ?? 0}</span> remaining
+                                                                                    {trans.revision_quota || 'Revision Quota'}:{' '}
+                                                                                    <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
+                                                                                    {trans.remaining || 'remaining'}
                                                                                 </div>
-                                                                                {quotaExceeded && <div className="text-red-600 font-bold mt-0.5">Quota Exceeded</div>}
+                                                                                {quotaExceeded && (
+                                                                                    <div className="mt-0.5 font-bold text-red-600">
+                                                                                        {trans.quota_exceeded || 'Quota Exceeded'}
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -1239,13 +1239,10 @@ export default function ViewCustomerForm({
                                                     );
                                                 })
                                             ) : (
-                                                <div className="py-4 text-center text-xs text-gray-400 italic">
-                                                    Belum ada dokumen di kategori ini.
-                                                </div>
+                                                <div className="py-4 text-center text-xs text-gray-400 italic">{trans.section_empty}</div>
                                             )}
                                         </div>
 
-                                        {/* Footer Section */}
                                         <div className="mt-8 flex items-center justify-between">
                                             <button
                                                 onClick={handleOpenModal}
@@ -1254,7 +1251,7 @@ export default function ViewCustomerForm({
                                                 <div className="rounded border border-black p-0.5">
                                                     <Plus className="h-4 w-4" />
                                                 </div>
-                                                Add Another Document
+                                                {trans.add_document}
                                             </button>
 
                                             <Button
@@ -1262,7 +1259,7 @@ export default function ViewCustomerForm({
                                                 disabled={processingSectionId === section.id}
                                                 className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
                                             >
-                                                {processingSectionId === section.id ? 'Saving...' : 'Save'}
+                                                {processingSectionId === section.id ? trans.saving || 'Saving...' : trans.save_changes}
                                             </Button>
                                         </div>
                                     </div>
@@ -1272,8 +1269,8 @@ export default function ViewCustomerForm({
                     })
                 ) : (
                     <div className="py-4 text-center text-gray-500">
-                        <p>Memuat data dokumen transaksi...</p>
-                        <p className="text-xs text-gray-400">Pastikan SPK sudah dibuat dan data master sudah tersalin.</p>
+                        <p>{trans.loading_docs}</p>
+                        <p className="text-xs text-gray-400">{trans.ensure_spk}</p>
                     </div>
                 )}
             </div>
@@ -1286,95 +1283,91 @@ export default function ViewCustomerForm({
                     checked={isAdditionalSectionVisible}
                     onCheckedChange={(checked) => setIsAdditionalSectionVisible(checked === true)}
                 />
-                <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold">
-                    REQUEST ADDITIONAL DOCUMENT
+                <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
+                    {trans.req_additional_doc}
                 </label>
             </div>
+            {isAdditionalSectionVisible && (
+                <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
+                    {/* Menggunakan AccordionItem manual style agar sesuai gambar */}
+                    <div
+                        className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
+                        onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
+                    >
+                        <span className="text-sm font-bold uppercase">{trans.additional_document || 'ADDITIONAL DOCUMENT'}</span>
 
-            {
-                isAdditionalSectionVisible && (
-                    <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                        {/* Menggunakan AccordionItem manual style agar sesuai gambar */}
-                        <div
-                            className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                            onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
+                        {/* Ikon Chevron Dinamis */}
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 15 15"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isAdditionalDocsOpen ? 'rotate-180' : ''}`}
                         >
-                            <span className="text-sm font-bold uppercase">ADDITIONAL DOCUMENT</span>
+                            <path
+                                d="M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z"
+                                fill="currentColor"
+                                fillRule="evenodd"
+                                clipRule="evenodd"
+                            ></path>
+                        </svg>
+                    </div>
 
-                            {/* Ikon Chevron Dinamis */}
-                            <svg
-                                width="15"
-                                height="15"
-                                viewBox="0 0 15 15"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isAdditionalDocsOpen ? 'rotate-180' : ''}`}
-                            >
-                                <path
-                                    d="M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z"
-                                    fill="currentColor"
-                                    fillRule="evenodd"
-                                    clipRule="evenodd"
-                                ></path>
-                            </svg>
-                        </div>
-
-                        {isAdditionalDocsOpen && (
-                            <div className="px-3 pt-0 pb-4">
-                                {/* --- Set Deadline Date --- */}
-                                <div className="mb-6 space-y-2">
-                                    <label className="text-sm font-bold text-black">Set Deadline Date</label>
-                                    <div className="relative">
-                                        <Input
-                                            type="date"
-                                            className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
-                                            placeholder="Pick date"
-                                            value={deadlineDate}
-                                            onChange={(e) => setDeadlineDate(e.target.value)}
-                                        />
-                                        {/* <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-black" /> */}
-                                    </div>
-                                </div>
-
-                                {/* List Documents */}
-                                <div className="space-y-4">
-                                    {selectedAdditionalDocs.map((doc, idx) => (
-                                        <div key={doc.id} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-gray-800">
-                                                <span>
-                                                    {idx + 1}. {doc.label}
-                                                </span>
-                                                <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" />
-                                            </div>
-                                            <Button
-                                                variant="outline"
-                                                className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
-                                            >
-                                                Upload here..
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Footer Buttons */}
-                                <div className="mt-8 flex items-center justify-between">
-                                    <button onClick={handleOpenModal} className="flex items-center gap-2 text-sm font-medium text-black">
-                                        <div className="rounded border border-black p-0.5">
-                                            <Plus className="h-4 w-4" />
-                                        </div>
-                                        Add Another Document
-                                    </button>
-                                    <Button className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800">Save</Button>
+                    {isAdditionalDocsOpen && (
+                        <div className="px-3 pt-0 pb-4">
+                            {/* --- Set Deadline Date --- */}
+                            <div className="mb-6 space-y-2">
+                                <label className="text-sm font-bold text-black">{trans.set_deadline || 'Set Deadline Date'}</label>
+                                <div className="relative">
+                                    <Input
+                                        type="date"
+                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
+                                        placeholder="Pick date"
+                                        value={deadlineDate}
+                                        onChange={(e) => setDeadlineDate(e.target.value)}
+                                    />
                                 </div>
                             </div>
-                        )}
-                    </div>
-                )
-            }
+
+                            {/* List Documents */}
+                            <div className="space-y-4">
+                                {selectedAdditionalDocs.map((doc, idx) => (
+                                    <div key={doc.id} className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-gray-800">
+                                            <span>
+                                                {idx + 1}. {doc.label}
+                                            </span>
+                                            <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" />
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
+                                        >
+                                            {trans.upload_here || 'Upload here..'}
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Footer Buttons */}
+                            <div className="mt-8 flex items-center justify-between">
+                                <button onClick={handleOpenModal} className="flex items-center gap-2 text-sm font-medium text-black">
+                                    <div className="rounded border border-black p-0.5">
+                                        <Plus className="h-4 w-4" />
+                                    </div>
+                                    {trans.add_another_doc || 'Add Another Document'}
+                                </button>
+                                <Button className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800">{trans.save}</Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
-                    Save
+                    {trans.save_changes}
                 </Button>
             </div>
 
@@ -1382,7 +1375,7 @@ export default function ViewCustomerForm({
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">
                     {/* Header Modal */}
                     <DialogHeader className="px-4 py-3">
-                        <DialogTitle className="text-left text-lg font-bold">Additional Document</DialogTitle>
+                        <DialogTitle className="text-left text-lg font-bold">{trans.additional_doc}</DialogTitle>
                     </DialogHeader>
 
                     {/* Search Bar */}
@@ -1390,7 +1383,7 @@ export default function ViewCustomerForm({
                         <div className="relative">
                             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <Input
-                                placeholder="Ketik kata kunci...."
+                                placeholder={trans.search_keyword}
                                 className="h-10 rounded-md border-gray-400 pl-9 focus-visible:border-black focus-visible:ring-0"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1421,12 +1414,12 @@ export default function ViewCustomerForm({
 
                     {/* Footer Modal */}
                     <div className="flex flex-col items-center gap-3 border-t p-4 pt-2">
-                        <button className="text-sm text-gray-500 hover:text-black hover:underline">See all..</button>
+                        <button className="text-sm text-gray-500 hover:text-black hover:underline">{trans.see_all}</button>
                         <Button
                             className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800"
                             onClick={() => setIsModalOpen(false)}
                         >
-                            Save
+                            {trans.save_changes}
                         </Button>
                     </div>
                 </DialogContent>
@@ -1451,7 +1444,7 @@ export default function ViewCustomerForm({
                                     variant="outline"
                                     className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                                 >
-                                    Download Contoh Dokumen {selectedHelpData.nama_file}
+                                    {trans.download_example} {selectedHelpData.nama_file}
                                 </Button>
                             </a>
                         </div>
@@ -1465,7 +1458,7 @@ export default function ViewCustomerForm({
                                     variant="outline"
                                     className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                                 >
-                                    Download Template {selectedHelpData.nama_file}
+                                    {trans.download_template} {selectedHelpData.nama_file}
                                 </Button>
                             </a>
                         </div>
@@ -1474,11 +1467,9 @@ export default function ViewCustomerForm({
                     {/* Video Section */}
                     {videoUrl && videoId && (
                         <div>
-                            <h3 className="mb-2 text-sm font-bold text-black">Video Tutorial</h3>
-                            {/* Gunakan aspect-video untuk rasio 16:9 yang responsif */}
+                            <h3 className="mb-2 text-sm font-bold text-black">{trans.video_tutorial}</h3>
                             <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-200 bg-black">
                                 {isVideoPlaying ? (
-                                    // TAMPILAN 2: IFRAME PLAYER (Setelah tombol play diklik)
                                     <iframe
                                         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
                                         title="YouTube video player"
@@ -1488,13 +1479,10 @@ export default function ViewCustomerForm({
                                         className="absolute inset-0 h-full w-full"
                                     ></iframe>
                                 ) : (
-                                    // TAMPILAN 1: THUMBNAIL PREVIEW & TOMBOL PLAY (Sebelum diklik)
-                                    // Kita gunakan button biasa, bukan tag <a> lagi
                                     <button
                                         onClick={() => setIsVideoPlaying(true)}
                                         className="group relative flex h-full w-full items-center justify-center"
                                     >
-                                        {/* Gambar Thumbnail dari YouTube */}
                                         {thumbnailUrl && (
                                             <img
                                                 src={thumbnailUrl}
@@ -1502,8 +1490,6 @@ export default function ViewCustomerForm({
                                                 className="absolute inset-0 h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
                                             />
                                         )}
-
-                                        {/* Tombol Play di Tengah */}
                                         <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-md transition-transform group-hover:scale-110">
                                             <Play className="ml-1 h-6 w-6 fill-black text-black" />
                                         </div>
@@ -1518,29 +1504,28 @@ export default function ViewCustomerForm({
             <Dialog open={rejectionModalOpen} onOpenChange={setRejectionModalOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Reject Document</DialogTitle>
+                        <DialogTitle>{trans.reject_document || 'Reject Document'}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Reason for Rejection</Label>
+                            <Label>{trans.rejection_reason || 'Reason for Rejection'}</Label>
                             <Textarea
                                 value={rejectionNote}
                                 onChange={(e) => setRejectionNote(e.target.value)}
-                                placeholder="Enter reason for rejection..."
+                                placeholder={trans.placeholder_rejection || 'Enter reason for rejection...'}
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label>Correction File (Optional)</Label>
-                            <Input
-                                type="file"
-                                onChange={(e) => setRejectionFile(e.target.files ? e.target.files[0] : null)}
-                            />
+                            <Label>{trans.correction_file || 'Correction File (Optional)'}</Label>
+                            <Input type="file" onChange={(e) => setRejectionFile(e.target.files ? e.target.files[0] : null)} />
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setRejectionModalOpen(false)}>Cancel</Button>
-                        <Button style={{ color: "white" }} variant="destructive" onClick={handleSubmitReject} disabled={verifyingDocId !== null}>
-                            {verifyingDocId ? 'Rejecting...' : 'Confirm Rejection'}
+                        <Button variant="outline" onClick={() => setRejectionModalOpen(false)}>
+                            {trans.cancel}
+                        </Button>
+                        <Button style={{ color: 'white' }} variant="destructive" onClick={handleSubmitReject} disabled={verifyingDocId !== null}>
+                            {verifyingDocId ? trans.rejecting || 'Rejecting...' : trans.confirm_rejection || 'Confirm Rejection'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1549,9 +1534,11 @@ export default function ViewCustomerForm({
             <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>History: {selectedHistoryTitle}</DialogTitle>
+                        <DialogTitle>
+                            {trans.history || 'History'}: {selectedHistoryTitle}
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+                    <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
                         {selectedHistoryDocs.map((doc, idx) => {
                             const isVerified = doc.verify === true;
                             const isRejected = doc.verify === false;
@@ -1559,23 +1546,25 @@ export default function ViewCustomerForm({
                             return (
                                 <div key={doc.id} className="flex flex-col gap-1 border-b pb-2 last:border-0">
                                     <div className="flex items-center justify-between text-sm">
-                                        <span className="font-semibold text-gray-700">Version {selectedHistoryDocs.length - idx}</span>  {/* Actually this is wrong logic for version number, better use created_at */}
+                                        <span className="font-semibold text-gray-700">
+                                            {trans.version || 'Version'} {selectedHistoryDocs.length - idx}
+                                        </span>{' '}
                                         <span className="text-xs text-gray-500">{doc.created_at || 'Unknown Date'}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <a
                                             href={`/file/view/${doc.url_path_file}`}
                                             target="_blank"
-                                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
                                         >
-                                            <FileText className="w-3 h-3" /> {doc.nama_file}
+                                            <FileText className="h-3 w-3" /> {doc.nama_file}
                                         </a>
-                                        {isVerified && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded">Verified</span>}
-                                        {isRejected && <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded">Rejected</span>}
+                                        {isVerified && <span className="rounded bg-green-100 px-1 text-[10px] text-green-700">{trans.verified}</span>}
+                                        {isRejected && <span className="rounded bg-red-100 px-1 text-[10px] text-red-700">{trans.rejected}</span>}
                                     </div>
                                     {isRejected && (
                                         <div className="text-xs text-red-600 italic">
-                                            Note: "{doc.correction_description}"
+                                            {trans.note || 'Note'}: "{doc.correction_description}"
                                         </div>
                                     )}
                                 </div>
@@ -1583,7 +1572,9 @@ export default function ViewCustomerForm({
                         })}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>Close</Button>
+                        <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>
+                            {trans.close || 'Close'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

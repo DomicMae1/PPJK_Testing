@@ -9,18 +9,24 @@ import { toast } from 'sonner';
 import { columns } from './table/columns';
 import { DataTable } from './table/data-table';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Data Shipment',
-        href: '/shipping',
-    },
-];
-
 export default function MasterCustomerPage() {
-    const { customers = [], flash } = usePage().props as unknown as {
+    const {
+        customers = [],
+        flash,
+        trans_general, // <--- INI PROPS TERJEMAHANNYA
+    } = usePage().props as unknown as {
         customers: MasterCustomer[];
         flash: { success?: string; error?: string };
+        trans_general: Record<string, string>; // Definisikan tipe datanya
     };
+
+    const breadcrumbs: BreadcrumbItem[] = [
+        {
+            title: trans_general.shipment_data, // Translate: "Data Shipment"
+            href: '/shipping',
+        },
+    ];
+
     const page = usePage();
 
     useEffect(() => {
@@ -35,9 +41,10 @@ export default function MasterCustomerPage() {
     useEffect(() => {
         const errors = (page.props as any)?.errors;
         if (errors && (errors.status === 403 || errors.code === 403)) {
-            toast.error('Anda tidak memiliki akses ke data ini.');
+            // Translate: "Anda tidak memiliki akses..."
+            toast.error(trans_general.no_access);
         }
-    }, [page.props]);
+    }, [page.props, trans_general]);
 
     const [openDelete, setOpenDelete] = useState(false);
     const [supplierIdToDelete, setSupplierIdToDelete] = useState<number | null>(null);
@@ -61,27 +68,38 @@ export default function MasterCustomerPage() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Master Customer" />
+            {/* Translate Head Title */}
+            <Head title={trans_general.master_customer} />
+
             <div className="md:p-4">
-                <DataTable columns={columns(onDeleteClick)} data={customers || []} />
+                {/* Catatan: Jika header di dalam 'columns' perlu ditranslate,
+                   Anda perlu mengubah cara passing columns, tapi untuk saat ini
+                   kita fokus pada file ini saja.
+                */}
+                <DataTable columns={columns(trans_general, onDeleteClick)} data={customers} />
             </div>
 
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Hapus Data</DialogTitle>
+                        {/* Translate: "Hapus Data" */}
+                        <DialogTitle>{trans_general.delete_data}</DialogTitle>
                         <div className="mt-2">
-                            Data <span className="font-bold text-white">{supplierToDelete?.nama_cust ?? 'Tidak ditemukan'}</span> akan dihapus. Apakah
-                            Anda yakin?
+                            {/* Translate Kalimat Konfirmasi */}
+                            {trans_general.data} {/* "Data" */}
+                            <span className="px-1 font-bold text-white">{supplierToDelete?.nama_cust ?? trans_general.not_found}</span>
+                            {trans_general.delete_confirm} {/* "akan dihapus..." */}
                         </div>
                     </DialogHeader>
                     <div className="flex gap-2">
                         <Button type="button" variant="destructive" onClick={onConfirmDelete}>
-                            Hapus
+                            {/* Translate Tombol Hapus */}
+                            {trans_general.delete}
                         </Button>
                         <DialogClose asChild>
                             <Button type="button" variant="secondary">
-                                Close
+                                {/* Translate Tombol Close */}
+                                {trans_general.close}
                             </Button>
                         </DialogClose>
                     </div>
