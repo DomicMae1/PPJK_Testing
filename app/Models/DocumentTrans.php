@@ -62,7 +62,7 @@ class DocumentTrans extends Model
      */
     public function masterDocument(): BelongsTo
     {
-        return $this->belongsTo(MasterDocument::class, 'id_dokumen', 'id_dokumen');
+        return $this->belongsTo(MasterDocumentTrans::class, 'id_dokumen', 'id_dokumen');
     }
 
     /**

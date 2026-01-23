@@ -22,6 +22,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 1,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
             [
                 'id_section'    => 2,
@@ -29,6 +30,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 2,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
             [
                 'id_section'    => 3,
@@ -36,6 +38,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 3,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
             [
                 'id_section'    => 4,
@@ -43,6 +46,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 4,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
             [
                 'id_section'    => 5,
@@ -50,6 +54,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 5,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
             [
                 'id_section'    => 6,
@@ -57,6 +62,7 @@ class MasterSectionSeeder extends Seeder
                 'section_order' => 6,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                'is_penjaluran' => false,
             ],
         ];
 

@@ -19,6 +19,8 @@ return new class extends Migration
             $table->unsignedBigInteger('id_status'); 
             
             $table->string('status');
+
+            $table->integer('priority');
             
             $table->timestamps();
 

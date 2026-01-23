@@ -25,7 +25,8 @@ return new class extends Migration
             $table->enum('role', ['internal', 'eksternal']);
             
             // 4. User Info
-            $table->unsignedBigInteger('send_to')->nullable(); // User yang melakukan aksi (upload)
+            $table->unsignedBigInteger('send_to')->nullable(); // User yang menerima notif
+            $table->unsignedBigInteger('created_by')->nullable(); // User yang kirim notif
             $table->timestamp('read_at')->nullable(); // User yang melakukan aksi (upload)
 
             // 5. Timestamps (created_at, updated_at)

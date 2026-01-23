@@ -43,6 +43,11 @@ return new class extends Migration
             $table->string('mapping_insw')->nullable();
             $table->string('sla_document')->nullable();
 
+            $table->foreign('id_dokumen')
+                ->references('id_dokumen') // Referensi ke kolom 'id_dokumen' (bukan 'id')
+                ->on('master_documents_trans') // Referensi ke tabel 'master_documents_trans' (pakai 's')
+                ->onDelete('cascade');
+
             // Relasi ke SPK (Table Lokal Tenant)
             $table->foreign('id_spk')
                   ->references('id')->on('spk')

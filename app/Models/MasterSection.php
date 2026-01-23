@@ -21,10 +21,12 @@ class MasterSection extends Model
     protected $fillable = [
         'section_name',
         'section_order',
+        'is_penjaluran',
     ];
 
     protected $casts = [
         'section_order' => 'integer',
+        'is_penjaluran' => 'boolean',
     ];
 
     /*
