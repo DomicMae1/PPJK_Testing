@@ -6,6 +6,10 @@ import { Link, usePage } from '@inertiajs/react';
 import { BookCheck, Building2, Shield, SquareUserRound, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
+// interface ExtendedNavItem extends NavItem {
+//     supervisorManagerOnly?: boolean;
+// }
+
 const mainNavItems: NavItem[] = [
     {
         title: 'Shipment',
@@ -16,7 +20,7 @@ const mainNavItems: NavItem[] = [
         title: 'Manage Users',
         url: '/users',
         icon: Users,
-        adminOnly: true,
+        supervisorManagerOnly: true,
     },
     {
         title: 'Manage Role',
@@ -32,29 +36,20 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Manage Document',
-        url: '/perusahaan',
+        url: '/document',
         icon: BookCheck,
-        adminOnly: true,
+        supervisorManagerOnly: true,
     },
 ];
-
-// const footerNavItems: NavItem[] = [
-//     {
-//         title: 'Repository',
-//         url: 'https://github.com/laravel/react-starter-kit',
-//         icon: Folder,
-//     },
-//     {
-//         title: 'Documentation',
-//         url: 'https://laravel.com/docs/starter-kits',
-//         icon: BookOpen,
-//     },
-// ];
 
 export function AppSidebar() {
     const { auth } = usePage<PageProps>().props;
 
-    const isAdmin = auth?.user?.roles?.some((role: { name: string }) => role.name === 'admin');
+    const userRoles = auth?.user?.roles?.map((role: { name: string }) => role.name) || [];
+
+    const isAdmin = userRoles.includes('admin');
+    const isManager = userRoles.includes('manager');
+    const isSupervisor = userRoles.includes('supervisor');
 
     const userPermissions = auth?.user?.permissions || [];
 
@@ -64,8 +59,13 @@ export function AppSidebar() {
 
     const filteredNavItems = mainNavItems
         .map((item) => {
-            // Filter jika item hanya untuk admin
             if (item.adminOnly && !isAdmin) return null;
+
+            if (item.supervisorManagerOnly) {
+                if (!isAdmin && !isManager && !isSupervisor) {
+                    return null;
+                }
+            }
 
             if ('subItems' in item) {
                 const filteredSubItems =
