@@ -2,41 +2,101 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Perusahaan } from '@/types';
 import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
+import { FileText, MoreHorizontal, Video } from 'lucide-react';
 
-export const columns = (onEditClick: (perusahaan: Perusahaan) => void, onDeleteClick: (id: number) => void): ColumnDef<Perusahaan>[] => [
+// Sesuaikan tipe data dengan output backend Anda
+export type MasterDocument = {
+    id_dokumen: number;
+    id_section: number;
+    nama_file: string;
+    is_internal: boolean;
+    attribute: boolean;
+    link_path_example_file: string | null;
+    link_path_template_file: string | null;
+    link_url_video_file: string | null;
+    description_file: string | null;
+    updated_by: number;
+    created_at: string;
+    updated_at: string;
+    section?: {
+        id_section: number;
+        section_name: string;
+    };
+};
+
+export const columns = (onEditClick: (id: number) => void, onDeleteClick: (id: number) => void): ColumnDef<MasterDocument>[] => [
     {
-        accessorKey: 'nama_perusahaan',
-        header: 'Nama Perusahaan',
-        cell: ({ row }) => <div className="min-w-[150px] px-4 py-2">{row.original.nama_perusahaan}</div>,
+        accessorKey: 'nama_file',
+        header: 'Nama Dokumen',
+        cell: ({ row }) => (
+            <div className="flex flex-col px-4 py-2">
+                <span className="font-medium">{row.original.nama_file}</span>
+                <span className="text-muted-foreground text-xs">Section: {row.original.section?.section_name ?? row.original.id_section}</span>
+            </div>
+        ),
     },
     {
-        accessorKey: 'Notify_1',
-        header: 'Notify 1',
-        cell: ({ row }) => <Badge variant={row.original.notify_1 ? 'default' : 'secondary'}>{row.original.notify_1 || 'tidak ada'}</Badge>,
+        accessorKey: 'description_file',
+        header: 'Deskripsi',
+        cell: ({ row }) => (
+            <div className="text-muted-foreground max-w-[300px] truncate py-2 text-sm" title={row.original.description_file || ''}>
+                {row.original.description_file || '-'}
+            </div>
+        ),
     },
     {
-        accessorKey: 'Notify_2',
-        header: 'Notify 2',
-        cell: ({ row }) => <Badge variant={row.original.Notify_2 ? 'default' : 'secondary'}>{row.original.notify_2 || 'tidak ada'}</Badge>,
+        accessorKey: 'is_internal',
+        header: 'Status',
+        cell: ({ row }) => {
+            const isInternal = row.original.is_internal;
+            return <Badge variant={isInternal ? 'default' : 'secondary'}>{isInternal ? 'Internal' : 'Public'}</Badge>;
+        },
+    },
+    {
+        accessorKey: 'links',
+        header: 'Links',
+        cell: ({ row }) => {
+            const { link_url_video_file, link_path_template_file } = row.original;
+            return (
+                <div className="flex gap-2">
+                    {link_url_video_file && (
+                        <a
+                            href={link_url_video_file}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Tonton Video"
+                        >
+                            <Video className="h-4 w-4" />
+                        </a>
+                    )}
+                    {link_path_template_file && (
+                        <span className="text-muted-foreground" title="Template Available">
+                            <FileText className="h-4 w-4" />
+                        </span>
+                    )}
+                </div>
+            );
+        },
     },
     {
         id: 'actions',
         cell: ({ row }) => {
-            const perusahaan = row.original;
+            const doc = row.original;
 
             return (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEditClick(perusahaan)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDeleteClick(perusahaan.id)}>Delete</DropdownMenuItem>
+                        {/* Menggunakan id_dokumen sesuai data backend */}
+                        <DropdownMenuItem onClick={() => onEditClick(doc.id_dokumen)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDeleteClick(doc.id_dokumen)}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             );

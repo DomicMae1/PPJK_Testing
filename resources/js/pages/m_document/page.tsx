@@ -1,178 +1,108 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { columns } from './table/columns';
 import { DataTable } from './table/data-table';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Manage Company',
-        href: '/perusahaan',
+        title: 'Manage Documents',
+        href: '/master-documents',
     },
 ];
 
-interface FormState {
-    nama_perusahaan: string;
-    domain: string;
-    id_User_1: string;
-    id_User_2: string;
-    id_User_3: string;
-    notify_1: string;
-    notify_2: string;
-    path_company_logo: string;
+interface MasterSection {
+    id_section: number;
+    section_name: string;
 }
 
-export default function ManageCompany() {
-    const { props } = usePage();
-    const { companies, flash } = props as {
-        companies: any[];
-        flash: { success?: string; error?: string };
-        users: any[];
-    };
+interface MasterDocument {
+    id_dokumen: number;
+    id_section: number;
+    nama_file: string;
+    description_file: string;
+    // Tambahkan properti lain sesuai kebutuhan (link, dll)
+}
 
-    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+interface PageProps {
+    documents: MasterDocument[];
+    sections: MasterSection[];
+    flash: { success?: string; error?: string };
+    [key: string]: any;
+}
 
-    const initialFormState: FormState = {
-        nama_perusahaan: '',
-        domain: '',
-        id_User_1: '',
-        id_User_2: '',
-        id_User_3: '',
-        notify_1: '',
-        notify_2: '',
-        path_company_logo: '',
-    };
+export default function ManageDocuments() {
+    const { documents, sections, flash } = usePage<PageProps>().props;
 
-    const [form, setForm] = useState<FormState>(initialFormState);
-    const [openForm, setOpenForm] = useState(false);
+    // --- STATE EDIT ---
+    const [openEdit, setOpenEdit] = useState(false);
+    const [docIdToEdit, setDocIdToEdit] = useState<number | null>(null);
+    const [editForm, setEditForm] = useState({
+        nama_file: '',
+        id_section: '',
+        description_file: '',
+    });
+
+    // --- STATE DELETE ---
     const [openDelete, setOpenDelete] = useState(false);
-    const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
-    const [companyIdToDelete, setCompanyIdToDelete] = useState<number | null>(null);
-
-    const userRoles = [
-        { key: 'id_User_1', label: 'Manager' },
-        { key: 'id_User_2', label: 'Direktur' },
-        { key: 'id_User_3', label: 'Lawyer' },
-    ];
-
-    const handleUserChange = (field: keyof FormState, value: string) => {
-        setForm((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-    };
+    const [docIdToDelete, setDocIdToDelete] = useState<number | null>(null);
+    const docToDelete = documents.find((d) => d.id_dokumen === docIdToDelete);
 
     useEffect(() => {
         if (flash.success) toast.success(flash.success);
         if (flash.error) toast.error(flash.error);
     }, [flash]);
 
-    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setForm((prevForm) => ({
-            ...prevForm,
-            [name]: value,
-        }));
+    // --- HANDLER EDIT ---
+    const onEditClick = (id: number) => {
+        const doc = documents.find((d) => d.id_dokumen === id);
+        if (doc) {
+            setDocIdToEdit(id);
+            setEditForm({
+                nama_file: doc.nama_file,
+                id_section: String(doc.id_section),
+                description_file: doc.description_file || '',
+            });
+            setOpenEdit(true);
+        }
     };
 
-    const resetFormAndClose = () => {
-        setForm(initialFormState);
-        setCompanyLogoFile(null);
-        setSelectedCompany(null);
-        setOpenForm(false);
-    };
-
-    const onEditClick = (company: any) => {
-        setSelectedCompany(company);
-        setCompanyLogoFile(null);
-
-        const manager = company.users.find((u: any) => u.pivot.role === 'manager');
-        const direktur = company.users.find((u: any) => u.pivot.role === 'direktur');
-        const lawyer = company.users.find((u: any) => u.pivot.role === 'lawyer');
-
-        setForm({
-            nama_perusahaan: company.nama_perusahaan || '',
-            domain: company.tenant?.domains?.[0]?.domain || '',
-            id_User_1: manager ? String(manager.id) : '',
-            id_User_2: direktur ? String(direktur.id) : '',
-            id_User_3: lawyer ? String(lawyer.id) : '',
-            notify_1: company.notify_1 || '',
-            notify_2: company.notify_2 || '',
-            path_company_logo: company.path_company_logo || '',
-        });
-
-        setOpenForm(true);
-    };
-
-    const onDeleteClick = (id: number) => {
-        setCompanyIdToDelete(id);
-        setOpenDelete(true);
-    };
-
-    const onConfirmDelete = () => {
-        if (companyIdToDelete) {
-            router.delete(`/perusahaan/${companyIdToDelete}`, {
-                preserveScroll: true,
+    const onConfirmEdit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (docIdToEdit) {
+            router.put(`/master-documents/${docIdToEdit}`, editForm, {
                 onSuccess: () => {
-                    setOpenDelete(false);
-                    setCompanyIdToDelete(null);
-                    toast.success('Perusahaan berhasil dihapus');
-
-                    router.reload({ only: ['companies'] });
+                    setOpenEdit(false);
+                    setDocIdToEdit(null);
+                    toast.success('Document updated successfully!');
                 },
-                onError: () => {
-                    toast.error('Gagal menghapus perusahaan');
-                },
+                onError: (err) => console.error(err),
             });
         }
     };
 
-    const onSubmit = (e: FormEvent) => {
-        e.preventDefault();
+    // --- HANDLER DELETE ---
+    const onDeleteClick = (id: number) => {
+        setDocIdToDelete(id);
+        setOpenDelete(true);
+    };
 
-        const formData = new FormData();
-        Object.entries(form).forEach(([key, value]) => {
-            if (value !== null) formData.append(key, value);
-        });
-
-        // append file logo jika ada upload baru
-        if (companyLogoFile) formData.append('company_logo', companyLogoFile);
-
-        if (selectedCompany) {
-            formData.append('_method', 'PUT');
-            router.post(`/perusahaan/${selectedCompany.id}`, formData, {
-                forceFormData: true,
-                preserveScroll: true,
+    const onConfirmDelete = () => {
+        if (docIdToDelete) {
+            router.delete(`/master-documents/${docIdToDelete}`, {
                 onSuccess: () => {
-                    toast.success('Perusahaan berhasil diperbarui');
-                    resetFormAndClose();
-                    router.reload({ only: ['companies'] });
-                },
-                onError: (errors) => {
-                    console.error(errors);
-                    toast.error('Gagal memperbarui perusahaan');
-                },
-            });
-        } else {
-            router.post('/perusahaan', formData, {
-                forceFormData: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success('Perusahaan berhasil ditambahkan');
-                    resetFormAndClose();
-                    router.reload({ only: ['companies'] });
-                },
-                onError: (errors) => {
-                    console.error(errors);
-                    toast.error('Gagal menambah perusahaan');
+                    setOpenDelete(false);
+                    setDocIdToDelete(null);
+                    toast.success('Document deleted successfully!');
                 },
             });
         }
@@ -180,129 +110,80 @@ export default function ManageCompany() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Manage Companies" />
+            <Head title="Manage Documents" />
             <div className="p-4">
-                <DataTable columns={columns(onEditClick, onDeleteClick)} data={companies} />
+                {/* Kirim data documents ke DataTable */}
+                <DataTable columns={columns(onEditClick, onDeleteClick)} data={documents} />
             </div>
 
+            {/* --- MODAL EDIT --- */}
+            <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Edit Master Document</DialogTitle>
+                        <DialogDescription>Update document details.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={onConfirmEdit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="edit_nama_file">Nama Dokumen</Label>
+                            <Input
+                                id="edit_nama_file"
+                                value={editForm.nama_file}
+                                onChange={(e) => setEditForm({ ...editForm, nama_file: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit_id_section">Section</Label>
+                            <Select value={editForm.id_section} onValueChange={(val) => setEditForm({ ...editForm, id_section: val })}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Section" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {sections.map((sec) => (
+                                        <SelectItem key={sec.id_section} value={String(sec.id_section)}>
+                                            {sec.section_name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="edit_desc">Deskripsi</Label>
+                            <Textarea
+                                id="edit_desc"
+                                value={editForm.description_file}
+                                onChange={(e) => setEditForm({ ...editForm, description_file: e.target.value })}
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button type="submit">Save Changes</Button>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary">
+                                    Cancel
+                                </Button>
+                            </DialogClose>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* --- MODAL DELETE --- */}
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Hapus Perusahaan</DialogTitle>
-                        <div className="mt-2">Apakah Anda yakin ingin menghapus perusahaan ini?</div>
+                        <DialogTitle>Hapus Dokumen</DialogTitle>
+                        <DialogDescription>
+                            Anda yakin ingin menghapus <strong>{docToDelete?.nama_file}</strong>? Tindakan ini tidak dapat dibatalkan.
+                        </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="sm:justify-start">
-                        <Button variant="destructive" className="text-white" onClick={onConfirmDelete}>
+                    <DialogFooter>
+                        <Button variant="destructive" onClick={onConfirmDelete}>
                             Hapus
                         </Button>
                         <DialogClose asChild>
                             <Button variant="secondary">Batal</Button>
                         </DialogClose>
                     </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={openForm} onOpenChange={(isOpen) => !isOpen && resetFormAndClose()}>
-                <DialogContent>
-                    <form onSubmit={onSubmit}>
-                        <DialogHeader>
-                            <DialogTitle>{selectedCompany ? 'Edit Perusahaan' : 'Tambah Perusahaan'}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                            <div>
-                                <Label htmlFor="nama_perusahaan">Nama Perusahaan</Label>
-                                <Input
-                                    id="nama_perusahaan"
-                                    name="nama_perusahaan"
-                                    value={form.nama_perusahaan}
-                                    onChange={handleInputChange}
-                                    placeholder="Contoh: PT. Maju Sejahtera"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="domain">Domain Lengkap</Label>
-                                <Input
-                                    id="domain"
-                                    name="domain"
-                                    value={form.domain}
-                                    onChange={handleInputChange}
-                                    placeholder="Contoh: alpha.registration.tako.co.id"
-                                    required
-                                />
-                                <p className="text-muted-foreground mt-1 text-xs">Masukkan alamat domain lengkap (Full URL) untuk perusahaan ini.</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                {userRoles.map(({ key, label }) => (
-                                    <div key={key}>
-                                        <Label htmlFor={key}>{label}</Label>
-                                        <select
-                                            id={key}
-                                            className="w-full rounded border px-2 py-1"
-                                            value={form[key as keyof FormState]}
-                                            onChange={(e) => handleUserChange(key as keyof FormState, e.target.value)}
-                                        >
-                                            <div className="text-black">
-                                                <option value="">Pilih {label}</option>
-                                                {props.users?.map((user: any) => (
-                                                    <option key={user.id} value={user.id}>
-                                                        {user.name}
-                                                    </option>
-                                                ))}
-                                            </div>
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div>
-                                <Label htmlFor="notify_1">Notifikasi Email 1</Label>
-                                <Input
-                                    id="notify_1"
-                                    name="notify_1"
-                                    value={form.notify_1}
-                                    onChange={handleInputChange}
-                                    placeholder="email1@contoh.com, email2@contoh.com"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="notify_2">Notifikasi Email 2</Label>
-                                <Input
-                                    id="notify_2"
-                                    name="notify_2"
-                                    value={form.notify_2}
-                                    onChange={handleInputChange}
-                                    placeholder="email3@contoh.com, email4@contoh.com"
-                                />
-                            </div>
-                            <div>
-                                <ResettableDropzoneImage
-                                    key={form.path_company_logo}
-                                    label="Upload Logo Perusahaan"
-                                    isRequired={false}
-                                    onFileChange={setCompanyLogoFile}
-                                    existingFile={
-                                        form.path_company_logo
-                                            ? {
-                                                  nama_file: form.path_company_logo.split('/').pop() ?? 'logo.png',
-                                                  path: form.path_company_logo,
-                                              }
-                                            : null
-                                    }
-                                />
-                            </div>
-                        </div>
-                        <DialogFooter className="sm:justify-start">
-                            <Button type="submit">{selectedCompany ? 'Update' : 'Create'}</Button>
-                            <DialogClose asChild>
-                                <Button variant="secondary" type="button">
-                                    Batal
-                                </Button>
-                            </DialogClose>
-                        </DialogFooter>
-                    </form>
                 </DialogContent>
             </Dialog>
         </AppLayout>

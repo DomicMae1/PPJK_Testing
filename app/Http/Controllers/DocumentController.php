@@ -18,18 +18,14 @@ class DocumentController extends Controller
     {
         // Ambil data dokumen dengan relasi section
         // Kita gunakan paginate agar performa terjaga
-        $documents = MasterDocument::with(['section'])
-            ->when($request->search, function ($query, $search) {
-                $query->where('nama_file', 'like', "%{$search}%");
-            })
-            ->latest() // Mengurutkan berdasarkan created_at desc (default Laravel)
-            ->paginate(10)
-            ->withQueryString();
+        $documents = MasterDocument::with('section')->get();
 
         // Ambil data section untuk dropdown di form Create/Edit
         $sections = MasterSection::orderBy('section_order', 'asc')->get();
 
-        return Inertia::render('document/page', [
+        // dd($sections);
+
+        return Inertia::render('m_document/page', [
             'documents' => $documents,
             'sections' => $sections,
             'filters' => $request->only(['search']),
