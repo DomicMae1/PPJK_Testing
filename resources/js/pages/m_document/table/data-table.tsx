@@ -1,4 +1,5 @@
-import { ResettableDropzoneImage } from '@/components/ResettableDropzoneImage';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -22,97 +23,56 @@ import { ChangeEvent, useState } from 'react';
 import { DataTableViewOptions } from './data-table-view-options';
 import { DataTablePagination } from './pagination';
 
-interface User {
-    id: number;
-    name: string;
+// Interface Data dari Backend
+interface MasterDocument {
+    id_dokumen: number;
+    id_section: number;
+    nama_file: string;
+    description_file?: string;
+    // Tambahkan field lain sesuai dd($documents)
 }
 
-interface FormState {
-    nama_perusahaan: string;
-    domain: string;
-    id_User_1: string;
-    id_User_2: string;
-    id_User_3: string;
-    notify_1: string;
-    notify_2?: string;
+interface MasterSection {
+    id_section: number;
+    section_name: string;
+}
+
+interface PageProps {
+    documents: MasterDocument[];
+    sections: MasterSection[];
+    users?: any[]; // Jika masih dibutuhkan untuk form lain
 }
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
+    // Data tabel sekarang dinamis, tapi defaultnya kita pakai TData
     data: TData[];
     filterKey?: string;
 }
 
-export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_perusahaan' }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_file' }: DataTableProps<TData, TValue>) {
+    // 1. Ambil data documents dan sections dari props Inertia
+    const { documents, sections } = usePage<PageProps>().props;
+
     const [sorting, setSorting] = React.useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
     const [rowSelection, setRowSelection] = React.useState({});
+
+    // State Form Create Document (Bukan Perusahaan lagi)
     const [openCreate, setOpenCreate] = React.useState(false);
 
-    const { props } = usePage<{ users: User[] }>();
-    const users = props.users ?? [];
-
-    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
-
-    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setForm((prev) => ({ ...prev, [name]: value }));
-    };
-
-    const [form, setForm] = useState<FormState>({
-        nama_perusahaan: '',
-        domain: '',
-        id_User_1: '',
-        id_User_2: '',
-        id_User_3: '',
-        notify_1: '',
-        notify_2: '',
+    // Sesuaikan form state dengan kebutuhan Master Document
+    const [form, setForm] = useState({
+        nama_file: '',
+        id_section: '',
+        description_file: '',
+        // Tambahkan field lain seperti link_path, video url dll
     });
 
-    const handleSubmit = () => {
-        const fd = new FormData();
-
-        // field biasa
-        fd.append('nama_perusahaan', form.nama_perusahaan);
-        fd.append('domain', form.domain);
-        fd.append('id_User_1', form.id_User_1);
-        fd.append('id_User_2', form.id_User_2);
-        fd.append('id_User_3', form.id_User_3);
-        fd.append('notify_1', form.notify_1 ?? '');
-        fd.append('notify_2', form.notify_2 ?? '');
-
-        // file logo jika ada
-        if (companyLogoFile) {
-            fd.append('company_logo', companyLogoFile);
-        }
-
-        router.post('/perusahaan', fd, {
-            forceFormData: true,
-            onSuccess: () => {
-                setOpenCreate(false);
-                setForm({
-                    nama_perusahaan: '',
-                    domain: '',
-                    id_User_1: '',
-                    id_User_2: '',
-                    id_User_3: '',
-                    notify_1: '',
-                    notify_2: '',
-                });
-                setCompanyLogoFile(null);
-            },
-            onError: (errors) => {
-                console.error('❌ Error:', errors);
-            },
-        });
-    };
-
-    const handleUserChange = (key: keyof FormState, value: string) => {
-        setForm((prev) => ({ ...prev, [key]: value }));
-    };
-
     const table = useReactTable({
+        // Gunakan data dari props 'data' yang dilempar dari parent component (index.tsx)
+        // Pastikan di index.tsx: <DataTable data={documents} ... />
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
@@ -126,23 +86,34 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
         state: { sorting, columnFilters, columnVisibility, rowSelection },
     });
 
-    const userRoles = [
-        { key: 'id_User_1', label: 'Manager' },
-        { key: 'id_User_2', label: 'Direktur' },
-        { key: 'id_User_3', label: 'Lawyer' },
-    ];
+    // --- FORM HANDLERS ---
+    const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = () => {
+        router.post('/master-documents', form, {
+            // Sesuaikan route store
+            onSuccess: () => {
+                setOpenCreate(false);
+                setForm({ nama_file: '', id_section: '', description_file: '' });
+            },
+            onError: (errors) => console.error(errors),
+        });
+    };
 
     return (
         <div className="w-full space-y-4">
             <div className="flex items-center gap-2">
                 <Input
-                    placeholder="Filter nama perusahaan..."
+                    placeholder="Filter nama dokumen..."
                     value={(table.getColumn(filterKey)?.getFilterValue() as string) ?? ''}
                     onChange={(event) => table.getColumn(filterKey)?.setFilterValue(event.target.value)}
                     className="max-w-sm"
                 />
                 <DataTableViewOptions table={table} />
-                <Button onClick={() => setOpenCreate(true)}>Tambah Perusahaan</Button>
+                <Button onClick={() => setOpenCreate(true)}>Tambah Dokumen</Button>
             </div>
 
             <div className="rounded-md border">
@@ -170,7 +141,7 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                                    Tidak ada data.
+                                    Tidak ada data dokumen.
                                 </TableCell>
                             </TableRow>
                         )}
@@ -180,84 +151,56 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_peru
 
             <DataTablePagination table={table} />
 
-            {/* Dialog Tambah */}
+            {/* Dialog Tambah Dokumen */}
             <Dialog open={openCreate} onOpenChange={setOpenCreate}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>Tambah Perusahaan</DialogTitle>
+                        <DialogTitle>Tambah Master Dokumen</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
+                        {/* Nama File */}
                         <div>
-                            <Label htmlFor="nama_perusahaan">Nama Perusahaan</Label>
+                            <Label htmlFor="nama_file">Nama Dokumen</Label>
                             <Input
-                                id="nama_perusahaan"
-                                value={form.nama_perusahaan}
-                                onChange={(e) => setForm({ ...form, nama_perusahaan: e.target.value })}
-                                placeholder="Contoh: PT. Maju Mundur"
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="domain">Domain Lengkap</Label>
-                            <Input
-                                id="domain"
-                                name="domain"
-                                value={form.domain}
+                                id="nama_file"
+                                name="nama_file"
+                                value={form.nama_file}
                                 onChange={handleInputChange}
-                                placeholder="Contoh: alpha.registration.tako.co.id"
-                                required
+                                placeholder="Contoh: Bill of Lading"
                             />
-                            <p className="text-muted-foreground mt-1 text-xs">Masukkan domain lengkap secara manual (Full URL).</p>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {userRoles.map(({ key, label }) => (
-                                <div key={key}>
-                                    <Label htmlFor={key}>{label}</Label>
-                                    <select
-                                        id={key}
-                                        className="w-full rounded border px-2 py-1"
-                                        value={form[key as keyof FormState]}
-                                        onChange={(e) => handleUserChange(key as keyof FormState, e.target.value)}
-                                    >
-                                        <div className="text-black">
-                                            <option value="">Pilih User</option>
-
-                                            {users.map((user) => (
-                                                <option key={user.id} value={user.id}>
-                                                    {user.name}
-                                                </option>
-                                            ))}
-                                        </div>
-                                    </select>
-                                </div>
-                            ))}
-                        </div>
-
+                        {/* Pilihan Section */}
                         <div>
-                            <ResettableDropzoneImage label="Upload Logo Perusahaan" isRequired={false} onFileChange={setCompanyLogoFile} />
+                            <Label htmlFor="id_section">Section</Label>
+                            <select
+                                id="id_section"
+                                name="id_section"
+                                className="w-full rounded border px-2 py-1"
+                                value={form.id_section}
+                                onChange={handleInputChange}
+                            >
+                                <option value="">Pilih Section</option>
+                                {sections.map((sec) => (
+                                    <option key={sec.id_section} value={sec.id_section}>
+                                        {sec.section_name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
+                        {/* Deskripsi */}
                         <div>
-                            <Label htmlFor="notify_1">Notify 1 (email, pisahkan dengan koma)</Label>
+                            <Label htmlFor="description_file">Deskripsi</Label>
                             <textarea
-                                id="notify_1"
+                                id="description_file"
+                                name="description_file"
                                 className="w-full rounded border px-2 py-1"
                                 rows={3}
-                                value={form.notify_1}
-                                onChange={(e) => setForm({ ...form, notify_1: e.target.value })}
-                                placeholder="email1@contoh.com, email2@contoh.com"
+                                value={form.description_file}
+                                onChange={handleInputChange}
+                                placeholder="Deskripsi dokumen..."
                             />
-                            <div>
-                                <Label htmlFor="notify_2">Notifikasi Email 2</Label>
-                                <Input
-                                    id="notify_2"
-                                    name="notify_2"
-                                    value={form.notify_2}
-                                    onChange={handleInputChange}
-                                    placeholder="email2@contoh.com"
-                                />
-                            </div>
                         </div>
                     </div>
 
