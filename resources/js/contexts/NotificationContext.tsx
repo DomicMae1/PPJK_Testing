@@ -140,7 +140,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             Echo.private(userChannelName).listen('.notification.sent', (data: NotificationData) => {
                 console.log('New notification received:', data);
                 addNotification(data);
-            });
+            })
+                .listen('.notification.removed', (data: { id_spk: number }) => {
+                    console.log('Notification removed:', data);
+                    // Remove singular or multiple notifications matching this SPK
+                    setNotifications((prev) => prev.filter((n) => n.data?.id_spk !== data.id_spk));
+                    // Fetch fresh count to be accurate
+                    fetchUnreadCount();
+                });
 
             console.log('Subscribed to notification channel:', userChannelName);
 

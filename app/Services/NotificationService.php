@@ -32,8 +32,8 @@ class NotificationService
                 return null;
             }
 
-            // If role is specified without user_id, create notification for each user with that role
-            if (!empty($data['role']) && empty($data['user_id'])) {
+            // If role is specified without user_id OR send_to, create notification for each user with that role
+            if (!empty($data['role']) && empty($data['user_id']) && empty($data['send_to'])) {
                 return self::sendToRole($data);
             }
 

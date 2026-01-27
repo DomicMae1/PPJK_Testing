@@ -339,7 +339,104 @@ class ShippingController extends Controller
                 ]);
             }
 
+            if ($user->role === 'internal' && $user->role_internal === 'staff') {
+                // If internal staff creates it, auto-validate
+                 $spk->update(['validated_by' => $userId]);
+            }
+
             DB::commit();
+
+            // --- 5. NOTIFICATION LOGIC (MOVED AFTER COMMIT) ---
+            // Move here to prevent Race Condition (Queue Worker checking DB before Commit)
+            try {
+                if ($user->role === 'eksternal') {
+                    // Find all Internal Users with role_internal == 'staff'
+                    // WARNING: Need to query Central USERS table (tako-user)
+                    $staffUsers = \App\Models\User::on('tako-user')
+                        ->where('role', 'internal')
+                        ->where('role_internal', 'staff') // Assuming single value column as per instruction
+                        ->distinct()
+                        ->get();
+                        
+                    // Ensure unique by ID (collection level)
+                    $staffUsers = $staffUsers->unique('id_user')->values();
+                    
+                    foreach ($staffUsers as $staff) {
+                         // 1. Send Email
+                        try {
+                            SectionReminderService::sendSpkCreated($staff, $spk, $user);
+                        } catch (\Exception $e) {
+                             Log::error("Failed to send SPK Created Email to {$staff->email}: " . $e->getMessage());
+                        }
+
+                        // 2. Send In-App Notification
+                        try {
+                            NotificationService::send([
+                                'send_to' => $staff->id_user,
+                                'created_by' => $userId,
+                                'role' => 'internal', // Context
+                                'id_spk' => $spk->id,
+                                'data' => [
+                                    'type' => 'spk_created',
+                                    'title' => 'New SPK Created',
+                                    'message' => "New SPK {$spk->spk_code} created by {$user->name}",
+                                    'url' => "/shipping/{$spk->id}",
+                                    'spk_code' => $spk->spk_code
+                                ]
+                            ]);
+                        } catch (\Exception $e) {
+                             Log::error("Failed to send SPK Created Notification to {$staff->id_user}: " . $e->getMessage());
+                        }
+                    }
+                } elseif (strtolower($user->role) === 'internal' && $user->role_internal === 'staff') {
+                   // Logic: Notify External Customer
+                   
+                   // 1. Find External Users associated with the SPK's Customer
+                   // We query the central user table.
+                   $externalUsers = \App\Models\User::on('tako-user')
+                        ->where('id_customer', $spk->id_customer)
+                        ->where('role', 'eksternal')
+                        ->get();
+
+                   foreach ($externalUsers as $extUser) {
+                        // 2. Send Email
+                        try {
+                            SectionReminderService::sendSpkCreated($extUser, $spk, $user);
+                        } catch (\Exception $e) {
+                             Log::error("Failed to send SPK Email to External {$extUser->email}: " . $e->getMessage());
+                        }
+                        
+                        // 3. Send In-App Notification
+                        try {
+                            NotificationService::send([
+                                'send_to' => $extUser->id_user,
+                                'created_by' => $userId,
+                                'role' => 'eksternal', // Context for the receiver (Required by DB NOT NULL)
+                                'id_spk' => $spk->id,
+                                'data' => [
+                                    'type' => 'spk_created',
+                                    'title' => 'New SPK Created',
+                                    'message' => "New SPK {$spk->spk_code} created by Staff {$user->name}",
+                                    'url' => "/shipping/{$spk->id}",
+                                    'spk_code' => $spk->spk_code
+                                ]
+                            ]);
+                        } catch (\Exception $e) {
+                             Log::error("Failed to send SPK Notification to External {$extUser->id_user}: " . $e->getMessage());
+                        }
+                   }
+                }
+                
+                 // REALTIME UPDATE (Backup for other lists)
+                 try {
+                    ShippingDataUpdated::dispatch($spk->id, 'create');
+                } catch (\Exception $e) {
+                    Log::error('Realtime update failed: ' . $e->getMessage());
+                }
+
+            } catch (\Exception $e) {
+                Log::error("Post-commit notification failed: " . $e->getMessage());
+            }
 
             return Inertia::location(route('shipping.show', $spk->id));
 
@@ -1389,6 +1486,52 @@ class ShippingController extends Controller
         // Karena koneksi sudah pindah ke tenant
         $spk = Spk::with(['creator','hsCodes', 'customer'])->findOrFail($id);
 
+                // --- FIRST CLICK VALIDATION ASSIGNMENT ---
+        if ($user->role === 'internal' && $user->role_internal === 'staff') {
+            if (is_null($spk->validated_by)) {
+                
+                $notificationsToRemove = collect([]);
+
+                DB::transaction(function () use ($spk, $user, &$notificationsToRemove) {
+                    // 1. Assign Validator
+                    $spk->update(['validated_by' => $user->id_user]);
+                    $spk->refresh();
+
+                    // 2. Handle Notifications
+                    // A. Update Current User's Notification (Mark as Read, KEEP it)
+                    \App\Models\Notification::where('id_spk', $spk->id)
+                        ->where('send_to', $user->id_user)
+                        ->update(['read_at' => now()]);
+
+                    // B. Identify Notifications for OTHER staff (to be deleted)
+                    $othersNotifications = \App\Models\Notification::where('id_spk', $spk->id)
+                        ->where('send_to', '!=', $user->id_user)
+                        ->get();
+                    
+                    // Capture for broadcasting after commit
+                    $notificationsToRemove = $othersNotifications;
+
+                    // C. Delete Notifications for OTHER staff
+                    if ($othersNotifications->isNotEmpty()) {
+                        \App\Models\Notification::whereIn('id_notification', $othersNotifications->pluck('id_notification'))
+                            ->delete();
+                    }
+                });
+
+                // 3. Broadcast Removal Events (AFTER COMMIT - ensuring API calls see clean DB)
+                foreach ($notificationsToRemove as $notif) {
+                    if ($notif->send_to) {
+                        try {
+                            // Helper to ensure 'id_spk' is sent in payload
+                            broadcast(new \App\Events\NotificationRemoved($notif->send_to, $spk->id));
+                        } catch (\Exception $e) {
+                            Log::error("Failed to broadcast NotificationRemoved: " . $e->getMessage());
+                        }
+                    }
+                }
+            }
+        }
+
         $latestStatus = SpkStatus::where('id_spk', $spk->id)
         ->orderBy('id', 'desc') // Ambil yang paling terakhir dibuat
         ->first();
@@ -1397,13 +1540,14 @@ class ShippingController extends Controller
         $shipmentData = [
             'id_spk'    => $spk->id,
             // Format tanggal: 12/11/25 17.14 WIB
-            'spkDate'   => Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
+            'spkDate'   => \Carbon\Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
             'type'      => $spk->shipment_type,
             'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
-            'internal_can_upload' => $spk->internal_can_upload, // Added
+            'internal_can_upload' => $spk->internal_can_upload,
             'hsCodes'   => [],
             'status'    => $latestStatus ? $latestStatus->status : 'Unknown',
             'is_created_by_internal' => $spk->is_created_by_internal,
+            'validated_by' => $spk->validated_by, // Send to frontend
         ];
 
         // 3. Mapping HS Code

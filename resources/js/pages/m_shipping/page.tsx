@@ -46,6 +46,25 @@ export default function MasterCustomerPage() {
         }
     }, [page.props, trans_general]);
 
+    // REALTIME UPDATE LISTENER
+    const user = (usePage().props.auth as any).user;
+    useEffect(() => {
+        if (user && (window as any).Echo) {
+            const channel = (window as any).Echo.private(`notifications.${user.id_user}`);
+            channel.listen('.notification.sent', (e: any) => {
+                // If a new SPK is created or relevant update happens
+                if (e.data?.type === 'spk_created') {
+                    router.reload({ only: ['customers'] }); // Efficient reload
+                    toast.info('Data SPK diperbarui', { description: 'Ada SPK baru masuk.' });
+                }
+            });
+
+            return () => {
+                channel.stopListening('.notification.sent');
+            };
+        }
+    }, [user]);
+
     const [openDelete, setOpenDelete] = useState(false);
     const [supplierIdToDelete, setSupplierIdToDelete] = useState<number | null>(null);
     const supplierToDelete = customers?.find((s) => s.id === supplierIdToDelete);

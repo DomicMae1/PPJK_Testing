@@ -25,4 +25,21 @@ class SectionReminderService
         }
         Mail::to($staff->email)->send(new \App\Mail\SectionReminderMail($section, $externalUser, $spk));
     }
+
+    /**
+     * Kirim email notifikasi SPK Baru ke staff internal.
+     * 
+     * @param User $staff
+     * @param Spk $spk
+     * @param User $creator
+     * @return void
+     */
+    public static function sendSpkCreated(User $staff, Spk $spk, User $creator)
+    {
+         if (!$staff || empty($staff->email)) {
+            // Log warning logic here if needed, but for now just return or throw
+            return; 
+        }
+        Mail::to($staff->email)->send(new \App\Mail\SpkCreatedMail($spk, $creator));
+    }
 }
