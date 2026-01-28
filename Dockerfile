@@ -30,7 +30,7 @@ max_execution_time = 600\n\
 " > /usr/local/etc/php/conf.d/uploads.ini
 
 # Aktifkan mod_rewrite
-RUN a2enmod rewrite ssl
+RUN a2enmod rewrite ssl proxy proxy_http proxy_wstunnel
 
 # Ubah DocumentRoot Apache
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
@@ -45,6 +45,25 @@ RUN echo '<VirtualHost *:80>\n\
         AllowOverride All\n\
         Require all granted\n\
     </Directory>\n\
+    \n\
+    # --- KONFIGURASI PROXY REVERB ---\n\
+    # Kita menggunakan "reverb" sebagai host karena itu nama service di docker-compose\n\
+    <IfModule mod_proxy.c>\n\
+        <IfModule mod_proxy_wstunnel.c>\n\
+            RewriteEngine On\n\
+            RewriteCond %{HTTP:Upgrade} =websocket [NC]\n\
+            RewriteCond %{HTTP:Connection} upgrade$ [NC]\n\
+            RewriteRule ^/app(.*)$ ws://reverb:8080/app$1 [P,L]\n\
+            \n\
+            ProxyPass /app ws://reverb:8080/app\n\
+            ProxyPassReverse /app ws://reverb:8080/app\n\
+        </IfModule>\n\
+        \n\
+        # Fallback HTTP\n\
+        ProxyPass /app http://reverb:8080/app\n\
+        ProxyPassReverse /app http://reverb:8080/app\n\
+    </IfModule>\n\
+    # --------------------------------\n\
     \n\
     ErrorLog ${APACHE_LOG_DIR}/error.log\n\
     CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
