@@ -36,11 +36,16 @@ interface Perusahaan {
     nama_perusahaan: string;
 }
 
+interface Customer {
+    id: number;
+    nama_perusahaan: string;
+}
+
 export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
-    const { roles, companies } = usePage().props as unknown as {
-        // const { roles, auth } = usePage().props as unknown as {
-        roles: Role[]; 
+    const { roles, companies, customers } = usePage().props as unknown as {
+        roles: Role[];
         companies: Perusahaan[];
+        customers: Customer[];
     };
 
     const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -53,9 +58,10 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [passwordConfirmation, setPasswordConfirmation] = React.useState('');
-    const [selectedRole, setSelectedRole] = React.useState<string>(''); 
+    const [selectedRole, setSelectedRole] = React.useState<string>('');
+    const [selectedRoleInternal, setSelectedRoleInternal] = React.useState<string>('');
     const [selectedCompany, setSelectedCompany] = React.useState<string>('');
-    const selectedRoleName = roles.find((role) => String(role.id) === selectedRole)?.name;
+    const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
 
     const [filterValue, setFilterValue] = React.useState('');
 
@@ -85,42 +91,89 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const onSubmitCreate = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!name || !email || !password || !passwordConfirmation || !selectedRole) {
-            console.error('All fields are required.');
+        // 1. Basic Validation (All fields required)
+        if (!name || !email || !password || !passwordConfirmation) {
+            console.error('All text fields are required.');
+            alert('Harap isi semua kolom teks (Nama, Email, Password).');
             return;
         }
 
         if (password !== passwordConfirmation) {
-            console.error('Password and password confirmation do not match.');
+            console.error('Password mismatch.');
+            alert('Password dan konfirmasi password tidak cocok.');
             return;
         }
 
-        if (selectedRole === 'user' && !selectedCompany) {
-            console.error('Perusahaan harus dipilih untuk role user.');
+        // 2. Validate Company & User Type Selection
+        if (!selectedCompany) {
+            alert('Harap pilih Perusahaan.');
             return;
         }
 
+        // Note: 'selectedRole' here refers to the User Type dropdown (Internal/External)
+        if (!selectedRole) {
+            alert('Harap pilih Tipe User (Internal / Eksternal).');
+            return;
+        }
+
+        // 3. Specific Validation based on User Type
+        let roleNameToSend = '';
+
+        if (selectedRole === 'internal') {
+            if (!selectedRoleInternal) {
+                alert('Harap pilih Role Internal (Staff/Manager/Supervisor).');
+                return;
+            }
+            // Find role name from ID
+            const foundRole = roles.find((r) => String(r.id) === selectedRoleInternal);
+            roleNameToSend = foundRole ? foundRole.name : '';
+        } else if (selectedRole === 'external') {
+            if (!selectedCustomer) {
+                alert('Harap pilih Customer untuk user Eksternal.');
+                return;
+            }
+            // Default role for external users
+            roleNameToSend = 'customer';
+        }
+
+        // 4. Construct Payload
         const data = {
             name,
             email,
             password,
             password_confirmation: passwordConfirmation,
-            role: selectedRole,
-            id_perusahaan: selectedRoleName === 'user' ? Number(selectedCompany) : null,
+
+            // Relational Data
+            id_perusahaan: Number(selectedCompany), // Always send company ID
+            id_customer: selectedRole === 'external' ? Number(selectedCustomer) : null, // Send customer ID only if external
+
+            // Role Data
+            role: roleNameToSend, // Sends 'staff'/'manager'/'supervisor' OR 'customer'
+
+            // Optional: Send type helper if backend needs it
+            user_type: selectedRole,
         };
 
+        console.log(data);
+
+        // 5. Submit
         router.post('/users', data, {
             onSuccess: () => {
                 setOpenCreate(false);
+                // Reset Form State
                 setName('');
                 setEmail('');
                 setPassword('');
                 setPasswordConfirmation('');
-                setSelectedRole('');
                 setSelectedCompany('');
+                setSelectedRole(''); // Reset User Type
+                setSelectedRoleInternal('');
+                setSelectedCustomer('');
             },
             onError: (errors) => {
-                console.error('❌ Error saat menambah user:', errors);
+                console.error('❌ Error creating user:', errors);
+                // Optional: Alert specific error if needed
+                // alert('Gagal membuat user. Periksa input Anda.');
             },
         });
     };
@@ -201,6 +254,84 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                         <DialogDescription>Fill in the details to create a new user.</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={onSubmitCreate} className="space-y-4">
+                        <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                            <Label htmlFor="company">Perusahaan</Label>
+                            <Select onValueChange={setSelectedCompany} value={selectedCompany}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Pilih perusahaan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {companies.length > 0 ? (
+                                        companies.map((company) => (
+                                            <SelectItem key={company.id} value={String(company.id)}>
+                                                {company.nama_perusahaan}
+                                            </SelectItem>
+                                        ))
+                                    ) : (
+                                        <div className="text-muted-foreground p-2 text-sm">Tidak ada data perusahaan</div>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="role">Role</Label>
+                            <Select onValueChange={setSelectedRole} value={selectedRole}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Pilih jenis role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {/* Kita hardcode value-nya menjadi string spesifik */}
+                                    <SelectItem value="internal">Internal</SelectItem>
+                                    <SelectItem value="external">Eksternal</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Logika: Dropdown Role hanya muncul jika tipe user 'internal' */}
+                        {selectedRole === 'internal' && (
+                            <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                                <Label htmlFor="role">Role Internal</Label>
+                                <Select onValueChange={setSelectedRoleInternal} value={selectedRoleInternal}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Pilih role yang anda inginkan" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {roles
+                                            // 1. Filter hanya staff, manager, dan supervisor
+                                            .filter((role) => ['staff', 'manager', 'supervisor'].includes(role.name))
+                                            .map((role) => (
+                                                <SelectItem key={role.id} value={String(role.id)}>
+                                                    {/* Kapitalisasi huruf pertama agar rapi (opsional) */}
+                                                    {role.name.charAt(0).toUpperCase() + role.name.slice(1)}
+                                                </SelectItem>
+                                            ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {selectedRole === 'external' && (
+                            <div className="animate-in fade-in slide-in-from-top-1 mb-4 duration-300">
+                                <Label htmlFor="customer">Customer</Label>
+                                <Select onValueChange={setSelectedCustomer} value={selectedCustomer}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Pilih Customer" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {customers.length > 0 ? (
+                                            customers.map((cust) => (
+                                                <SelectItem key={cust.id} value={String(cust.id)}>
+                                                    {cust.nama_perusahaan}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <div className="text-muted-foreground p-2 text-sm">Tidak ada data customer</div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         <div>
                             <Label htmlFor="name">Name</Label>
                             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter name" />
@@ -229,43 +360,6 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                 placeholder="Confirm password"
                             />
                         </div>
-                        <div>
-                            <Label htmlFor="role">Role</Label>
-                            <Select onValueChange={setSelectedRole} value={selectedRole}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select a role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {roles.map((role) => (
-                                        <SelectItem key={role.id} value={String(role.id)}>
-                                            {role.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {selectedRoleName === 'user' && (
-                            <div>
-                                <Label htmlFor="company">Perusahaan</Label>
-                                <Select
-                                    onValueChange={(value) => {
-                                        setSelectedCompany(value);
-                                    }}
-                                    value={selectedCompany}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Pilih perusahaan" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {companies.map((company) => (
-                                            <SelectItem key={company.id} value={String(company.id)}>
-                                                {company.nama_perusahaan}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
                         <DialogFooter className="mt-8 sm:justify-start">
                             <Button type="submit">Create</Button>
                             <DialogClose asChild>

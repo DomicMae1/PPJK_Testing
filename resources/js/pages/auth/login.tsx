@@ -23,9 +23,12 @@ interface LoginProps {
         nama_perusahaan: string;
         path_company_logo?: string | null;
     } | null;
+    // Props baru dari HandleInertiaRequests
+    trans_auth: Record<string, string>;
+    locale: string;
 }
 
-export default function Login({ status, canResetPassword, company }: LoginProps) {
+export default function Login({ status, canResetPassword, company, trans_auth, locale }: LoginProps) {
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
         email: '',
         password: '',
@@ -46,17 +49,31 @@ export default function Login({ status, canResetPassword, company }: LoginProps)
         <AuthLayout
             company_name={companyName}
             company_logo={companyLogo}
-            app_name="PPJK Tracking"
-            title="Log in to your account"
-            description="Enter your email and password below to log in"
+            // Mengambil teks langsung dari props Laravel
+            app_name={trans_auth.app_name}
+            title={trans_auth.title}
+            description={trans_auth.description}
         >
-            <Head title="Log in" />
+            <Head title={trans_auth.login_button} />
+
+            {/* --- TOMBOL GANTI BAHASA --- */}
+            {/* Menggunakan Link href ke route laravel, bukan state react */}
+            <div className="absolute top-4 right-4 flex gap-2">
+                <a href="/lang/id" className={`text-xs font-bold ${locale === 'id' ? 'text-black underline' : 'text-gray-400'}`}>
+                    ID
+                </a>
+                <span className="text-xs text-gray-300">|</span>
+                <a href="/lang/en" className={`text-xs font-bold ${locale === 'en' ? 'text-black underline' : 'text-gray-400'}`}>
+                    EN
+                </a>
+            </div>
+            {/* --------------------------- */}
 
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <div className="grid gap-6">
                     <div className="grid gap-2">
                         <Label className="flex" htmlFor="email">
-                            Email address
+                            {trans_auth.email_label}
                         </Label>
                         <Input
                             id="email"
@@ -67,17 +84,17 @@ export default function Login({ status, canResetPassword, company }: LoginProps)
                             autoComplete="email"
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
-                            placeholder="email@example.com"
+                            placeholder={trans_auth.email_placeholder}
                         />
                         <InputError message={errors.email} />
                     </div>
 
                     <div className="grid gap-2">
                         <div className="flex items-center">
-                            <Label htmlFor="password">Password</Label>
+                            <Label htmlFor="password">{trans_auth.password_label}</Label>
                             {canResetPassword && (
                                 <TextLink href={route('password.request')} className="ml-auto text-sm" tabIndex={5}>
-                                    Forgot password?
+                                    {trans_auth.forgot_password}
                                 </TextLink>
                             )}
                         </div>
@@ -89,19 +106,19 @@ export default function Login({ status, canResetPassword, company }: LoginProps)
                             autoComplete="current-password"
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
+                            placeholder={trans_auth.password_placeholder}
                         />
                         <InputError message={errors.password} />
                     </div>
 
                     <div className="flex items-center space-x-3">
                         <Checkbox id="remember" name="remember" tabIndex={3} />
-                        <Label htmlFor="remember">Remember me</Label>
+                        <Label htmlFor="remember">{trans_auth.remember_me}</Label>
                     </div>
 
                     <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing}>
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        Log in
+                        {trans_auth.login_button}
                     </Button>
                 </div>
             </form>

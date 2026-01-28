@@ -26,12 +26,18 @@ return new class extends Migration
             $table->boolean('deadline')->default(false); // status=true/false
 
             // SLA (Service Level Agreement) - Timer Internal
-            $table->string('sla')->nullable();
+            $table->timestamp('deadline_date')->nullable();
 
             $table->timestamps();
             $table->foreign('id_spk')
                   ->references('id')->on('spk')
                   ->onDelete('cascade');
+
+            $table->foreign('id_section')
+                  ->references('id')
+                  ->on('section_trans')
+                  ->onDelete('cascade');
+
         });
     }
 

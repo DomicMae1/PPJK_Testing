@@ -61,7 +61,13 @@ php artisan serve
 npm run dev
 ```
 
-## 9. If u want to update all database
+## 9. Running Notification
+
+```bash
+php artisan reverb:start --debug
+```
+
+## 10. If u want to update all database
 
 ### remove all database
 

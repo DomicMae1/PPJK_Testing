@@ -25,7 +25,7 @@ return new class extends Migration
             $table->unsignedBigInteger('id_section')->nullable();
 
             // 5. Data User & File
-            $table->string('upload_by')->nullable(); // Role user: 'internal' atau 'external'
+            $table->boolean('is_internal')->default(false);
             $table->string('nama_file');
             $table->string('url_path_file')->nullable(); // Lokasi file di storage
 
@@ -41,8 +41,12 @@ return new class extends Migration
 
             // 8. Integrasi
             $table->string('mapping_insw')->nullable();
-            $table->boolean('deadline_document')->nullable();
             $table->string('sla_document')->nullable();
+
+            $table->foreign('id_dokumen')
+                ->references('id_dokumen') // Referensi ke kolom 'id_dokumen' (bukan 'id')
+                ->on('master_documents_trans') // Referensi ke tabel 'master_documents_trans' (pakai 's')
+                ->onDelete('cascade');
 
             // Relasi ke SPK (Table Lokal Tenant)
             $table->foreign('id_spk')

@@ -23,11 +23,12 @@ class SectionTrans extends Model
         'section_name',
         'section_order',
         'deadline',
-        'sla',
+        'deadline_date', // NEW: Tanggal deadline per section
     ];
 
     protected $casts = [
         'deadline' => 'boolean', // Convert 1/0 ke True/False otomatis
+        'deadline_date' => 'date:Y-m-d', // FIX: Use date format only (no time/timezone)
         'section_order' => 'integer',
     ];
 

@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { Table } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
@@ -9,13 +10,17 @@ interface DataTablePaginationProps<TData> {
 }
 
 export function DataTablePagination<TData>({ table }: DataTablePaginationProps<TData>) {
+    const { props } = usePage();
+    const trans = props.trans_general as Record<string, string>;
+
     return (
         <div className="w-full border-t px-2 py-4">
             {/* === MOBILE VERSION (Compact) === */}
             <div className="flex flex-col items-center gap-3 md:hidden">
                 {/* Page Indicator */}
                 <div className="text-sm font-medium">
-                    Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+                    {/* Translate: "Halaman X / Y" */}
+                    {trans.page} {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
                 </div>
 
                 {/* Prev / Next Buttons */}
@@ -33,15 +38,17 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             {/* === DESKTOP VERSION === */}
             <div className="hidden items-center justify-between md:flex">
                 <div className="text-muted-foreground text-sm">
-                    {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
+                    {/* Translate: "X dari Y baris dipilih" */}
+                    {table.getFilteredSelectedRowModel().rows.length} {trans.of} {table.getFilteredRowModel().rows.length} {trans.rows_selected}.
                 </div>
 
                 <div className="flex items-center space-x-6 lg:space-x-8">
                     {/* Rows per page */}
                     <div className="flex items-center space-x-2">
-                        <p className="text-sm font-medium">Rows per page</p>
+                        {/* Translate: "Baris per halaman" */}
+                        <p className="text-sm font-medium">{trans.rows_per_page}</p>
                         <Select value={`${table.getState().pagination.pageSize}`} onValueChange={(value) => table.setPageSize(Number(value))}>
-                            <SelectTrigger className="h-8 w-[70px]">
+                            <SelectTrigger className="h-8 w-17.5">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent side="top">
@@ -55,8 +62,9 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
                     </div>
 
                     {/* Page indicator */}
-                    <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                        Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                    <div className="flex w-30 items-center justify-center text-sm font-medium">
+                        {/* Translate: "Halaman X dari Y" */}
+                        {trans.page} {table.getState().pagination.pageIndex + 1} {trans.of} {table.getPageCount()}
                     </div>
 
                     {/* Pagination buttons */}

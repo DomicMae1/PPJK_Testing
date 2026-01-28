@@ -27,16 +27,17 @@ class DocumentTrans extends Model
         'correction_attachment_file',
         'correction_description',
         'kuota_revisi',
+        'count_revisi', // NEW
         'mapping_insw',
-        'deadline_document',
         'sla_document',
+        'is_internal',
     ];
 
     protected $casts = [
-        'verify' => 'boolean',
+        'verify' => 'boolean', // Nullable boolean
         'correction_attachment' => 'boolean',
-        'logs' => 'array',
         'kuota_revisi' => 'integer',
+        'count_revisi' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -48,12 +49,20 @@ class DocumentTrans extends Model
     */
 
     /**
+     * History status dokumen (Pending, Verified, Rejected, Uploaded)
+     */
+    public function statuses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DocumentStatus::class, 'id_dokumen_trans');
+    }
+
+    /**
      * Relasi ke Master Document (Database Pusat)
      * Menggunakan koneksi 'tako-user'
      */
     public function masterDocument(): BelongsTo
     {
-        return $this->belongsTo(MasterDocument::class, 'id_dokumen', 'id_dokumen');
+        return $this->belongsTo(MasterDocumentTrans::class, 'id_dokumen', 'id_dokumen');
     }
 
     /**

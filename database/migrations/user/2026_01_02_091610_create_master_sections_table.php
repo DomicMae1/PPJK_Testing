@@ -18,6 +18,7 @@ return new class extends Migration
             // 2. Data Utama
             $table->string('section_name');
             $table->integer('section_order')->default(0); // Untuk mengatur urutan tampilan
+            $table->boolean('is_penjaluran')->default(false);
 
             $table->timestamps();
         });

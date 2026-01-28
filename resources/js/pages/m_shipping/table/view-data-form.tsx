@@ -15,13 +15,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface HsCodeItem {
-    id: number;
-    code: string;
-    link: string | null;
-    file?: File | null;
-}
-
 interface ShipmentData {
     id_spk: number;
     spkDate: string;
@@ -73,11 +66,17 @@ interface PageProps {
     sectionsTransProp: SectionTrans[];
     masterDocProp: MasterDocument[];
     docsTransProp: DocumentTrans[];
+    auth: {
+        user: {
+            role?: string;
+            [key: string]: any;
+        };
+    };
 }
 
 export default function PaymentsEdit() {
     const { props } = usePage();
-    const { customer, shipmentDataProp, masterSecProp, sectionsTransProp, masterDocProp, docsTransProp } = props as unknown as PageProps;
+    const { customer, shipmentDataProp, masterSecProp, sectionsTransProp, masterDocProp, docsTransProp, auth } = props as unknown as PageProps;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -90,6 +89,7 @@ export default function PaymentsEdit() {
                     sectionsTransProp={sectionsTransProp}
                     masterDocProp={masterDocProp}
                     docsTransProp={docsTransProp}
+                    userRole={auth?.user?.role}
                 />
             </div>
         </AppLayout>

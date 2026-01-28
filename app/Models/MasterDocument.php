@@ -23,6 +23,7 @@ class MasterDocument extends Model
     protected $fillable = [
         'id_section',
         'nama_file',
+        'is_internal', // Added
         'attribute',
         'link_path_example_file',
         'link_path_template_file',
@@ -34,6 +35,7 @@ class MasterDocument extends Model
 
     // 5. Casting Tipe Data
     protected $casts = [
+        'is_internal' => 'boolean', // Added
         'attribute' => 'boolean',
         'deadline_document' => 'boolean',
         'created_at' => 'datetime',

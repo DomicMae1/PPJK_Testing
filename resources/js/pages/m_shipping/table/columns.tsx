@@ -3,7 +3,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { Link, usePage } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
+import { AlertCircle, MoreHorizontal } from 'lucide-react';
 
 // const downloadPdf = (id: number) => {
 //     const link = document.createElement('a');
@@ -22,9 +22,13 @@ export type Shipping = {
     status_label: string;
     nama_user: string;
     jalur: string;
+    deadline_date?: string | null;
 };
 
-export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef<Shipping>[] => {
+export const columns = (
+    trans: Record<string, string>, // <--- INI PENTING
+    onDeleteClick?: (shipping: Shipping) => void,
+): ColumnDef<Shipping>[] => {
     if (typeof window !== 'undefined') {
         const hasReloaded = localStorage.getItem('hasReloadedCustomerPage');
 
@@ -36,38 +40,32 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
 
     return [
         {
-            // UBAH: Accessor sesuai data controller ('spk_code')
             accessorKey: 'spk_code',
             header: ({ column }) => (
                 <div
                     className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                 >
-                    SPK Number
+                    {/* 2. Gunakan trans */}
+                    {trans.spk_number}
                 </div>
             ),
-            cell: ({ row }) => (
-                <div className="text-sm font-bold md:min-w-[150px] md:truncate md:px-2 md:py-2">
-                    {/* Tampilkan SPK Code */}
-                    {row.original.spk_code ?? '-'}
-                </div>
-            ),
+            cell: ({ row }) => <div className="text-sm font-bold md:min-w-[150px] md:truncate md:px-2 md:py-2">{row.original.spk_code ?? '-'}</div>,
         },
         {
-            // UBAH: Accessor untuk Nama Customer (Nama Perusahaan)
             accessorKey: 'nama_customer',
             header: ({ column }) => (
                 <div
                     className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2"
                     onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
                 >
-                    Nama Customer
+                    {/* 2. Gunakan trans */}
+                    {trans.customer_name}
                 </div>
             ),
             cell: ({ row }) => <div className="text-sm md:min-w-[150px] md:truncate md:px-2">{row.original.nama_customer || '-'}</div>,
         },
         {
-            // LOGIC KETERANGAN STATUS (Tetap sama, mengambil dari created_at/tanggal_status)
             accessorKey: 'keterangan_status',
             accessorFn: (row) => {
                 return {
@@ -75,8 +73,8 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                     label: row.status_label ?? null,
                 };
             },
-            // ... (sortingFn dan filterFn tetap sama) ...
-            header: ({ column }) => <div className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2">Keterangan Status</div>,
+            // 2. Gunakan trans
+            header: ({ column }) => <div className="cursor-pointer text-sm font-medium select-none md:px-2 md:py-2">{trans.status_description}</div>,
             cell: ({ row }) => {
                 const tanggal = row.original.tanggal_status;
                 const label = row.original.status_label;
@@ -85,7 +83,9 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                 if (!tanggal) return <div className="text-sm">-</div>;
 
                 const dateObj = new Date(tanggal);
-                // Format Tanggal: 12/11/2025
+
+                // Gunakan locale dari usePage jika ingin format tanggal ikut berubah (opsional)
+                // Tapi format 'id-ID' biasanya standar di Indonesia meski UI Inggris
                 const tanggalFormat = dateObj
                     .toLocaleDateString('id-ID', {
                         day: '2-digit',
@@ -94,7 +94,6 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                     })
                     .replace(/\./g, '/');
 
-                // Format Jam: 17:14
                 const jamMenit = dateObj
                     .toLocaleTimeString('id-ID', {
                         hour: '2-digit',
@@ -107,9 +106,10 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                     <div className="text-sm md:min-w-[200px] md:truncate md:px-2">
                         <span>
                             {label}
-                            {nama_user ? ' oleh ' : ' '}
+                            {/* 2. Gunakan trans untuk kata sambung */}
+                            {nama_user ? ` ${trans.by} ` : ' '}
                             {nama_user && <strong>{nama_user}</strong>}
-                            {' pada '}
+                            {` ${trans.at} `}
                             <strong>{`${tanggalFormat} ${jamMenit} WIB`}</strong>
                         </span>
                     </div>
@@ -117,20 +117,73 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
             },
         },
         {
-            // UBAH: Kolom Penjaluran (Default Jalur Hijau)
+            accessorKey: 'deadline_date',
+            header: () => <div className="text-sm font-medium md:px-2 md:py-2">{trans.deadline}</div>,
+            cell: ({ row }) => {
+                const deadline = row.original.deadline_date;
+                // Ambil data user dari usePage() di dalam cell render (aman)
+                const { props } = usePage();
+                const auth = props.auth as any;
+                const isUserExternal = auth.user?.role === 'eksternal';
+                const currentLocale = props.locale as string;
+
+                if (!deadline) {
+                    return <div className="text-sm md:px-2">-</div>;
+                }
+
+                return (
+                    <div className="flex flex-col justify-center md:min-w-[200px] md:px-2">
+                        {/* Tampilkan Warning Merah (Khusus External) */}
+                        {isUserExternal && (
+                            <div className="flex items-center gap-1 text-red-600">
+                                <AlertCircle className="h-3 w-3" />
+                                <span className="mt-0.5 flex text-xs font-bold">
+                                    {trans.submit_before}{' '}
+                                    {new Date(deadline).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: '2-digit',
+                                    })}{' '}
+                                    {trans.wib}
+                                </span>
+                            </div>
+                        )}
+
+                        {!isUserExternal && <div className="text-xs font-bold">-</div>}
+                    </div>
+                );
+            },
+        },
+        {
             accessorKey: 'jalur',
-            header: () => <div className="text-sm font-medium md:px-2 md:py-2">Penjaluran</div>,
-            cell: () => {
-                // HARDCODE: Default Jalur Hijau text hijau
-                return <div className="text-sm font-bold text-green-600 md:min-w-[100px] md:px-2">Jalur Hijau</div>;
+            // 2. Gunakan trans
+            header: () => <div className="text-sm font-medium md:px-2 md:py-2">{trans.channel}</div>,
+            cell: ({ row }) => {
+                const jalur = row.original.jalur;
+                let colorClass = 'text-gray-500';
+                let displayText = '-';
+                const jalurLower = jalur ? jalur.toLowerCase() : '';
+
+                if (jalurLower === 'hijau') {
+                    colorClass = 'text-green-600';
+                    displayText = trans.green; // Translate: Hijau/Green
+                } else if (jalurLower === 'merah') {
+                    colorClass = 'text-red-600';
+                    displayText = trans.red; // Translate: Merah/Red
+                } else if (jalurLower === 'kuning') {
+                    colorClass = 'text-yellow-600';
+                    displayText = trans.yellow; // Translate: Kuning/Yellow
+                }
+
+                return <div className={`text-sm font-bold ${colorClass} md:min-w-[100px] md:px-2`}>{displayText}</div>;
             },
         },
         {
             id: 'actions',
-            header: () => <div className="text-right text-sm font-medium md:px-2 md:py-2">{/* kosong agar align */}</div>,
+            header: () => <div className="text-right text-sm font-medium md:px-2 md:py-2"></div>,
             cell: ({ row }) => {
                 const shipping = row.original;
-                const { auth } = usePage().props;
+                const { auth } = usePage().props as any; // Cast any agar tidak merah
                 const currentUser = auth.user;
 
                 const currentUserRole = currentUser.roles?.[0]?.name;
@@ -150,21 +203,16 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
 
                                 <DropdownMenuContent align="end">
                                     <Link href={`/shipping/${shipping.id}`} className="w-full cursor-pointer">
-                                        <DropdownMenuItem>View Customer</DropdownMenuItem>
+                                        {/* 2. Gunakan trans */}
+                                        <DropdownMenuItem>{trans.view_customer}</DropdownMenuItem>
                                     </Link>
-
-                                    {/* {canEdit && (
-                                        <Link href={`/customer/${customer.id}/edit`}>
-                                            <DropdownMenuItem>Edit Customer</DropdownMenuItem>
-                                        </Link>
-                                    )} */}
 
                                     {isAdmin && (
                                         <DropdownMenuItem
                                             className="cursor-pointer text-red-600"
                                             asChild
                                             onClick={(e) => {
-                                                const confirmed = window.confirm('Apakah anda yakin ingin menghapus data tersebut?');
+                                                const confirmed = window.confirm(trans.delete_confirm_alert);
                                                 if (!confirmed) {
                                                     e.preventDefault();
                                                 }
@@ -174,9 +222,9 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                                                 href={`/shipping/${shipping.id}`}
                                                 method="delete"
                                                 as="button"
-                                                onSuccess={() => window.alert('Data berhasil dihapus!')}
+                                                onSuccess={() => window.alert(trans.delete_success_alert)}
                                             >
-                                                Hapus Customer
+                                                {trans.delete_customer}
                                             </Link>
                                         </DropdownMenuItem>
                                     )}
@@ -190,22 +238,16 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                     <div className="flex flex-col gap-2 pt-2">
                         <Link href={`/shipping/${shipping.id}`}>
                             <Button size="sm" variant="outline" className="w-full justify-center dark:border-white">
-                                View Customer
+                                {trans.view_customer}
                             </Button>
                         </Link>
-
-                        {/* {canEdit && (
-                            <Link href={`/customer/${customer.id}/edit`}>
-                                <Button className="w-full justify-center">Edit Customer</Button>
-                            </Link>
-                        )} */}
 
                         {isAdmin && (
                             <Button
                                 className="cursor-pointer bg-red-500 text-white"
                                 asChild
                                 onClick={(e) => {
-                                    const confirmed = window.confirm('Apakah anda yakin ingin menghapus data tersebut?');
+                                    const confirmed = window.confirm(trans.delete_confirm_alert);
                                     if (!confirmed) {
                                         e.preventDefault();
                                     }
@@ -215,9 +257,9 @@ export const columns = (onDeleteClick?: (shipping: Shipping) => void): ColumnDef
                                     href={`/shipping/${shipping.id}`}
                                     method="delete"
                                     as="button"
-                                    onSuccess={() => window.alert('Data berhasil dihapus!')}
+                                    onSuccess={() => window.alert(trans.delete_success_alert)}
                                 >
-                                    Hapus Customer
+                                    {trans.delete_customer}
                                 </Link>
                             </Button>
                         )}
