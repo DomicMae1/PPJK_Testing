@@ -50,6 +50,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unreadCount');
     Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+
+    Route::post('document/upload-temp', [DocumentController::class, 'upload'])->name('document.upload');
 });
 
 Route::get('/file/view/{path}', [FileController::class, 'view'])->middleware('auth')
