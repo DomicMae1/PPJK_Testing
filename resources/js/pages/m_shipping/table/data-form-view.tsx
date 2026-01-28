@@ -926,16 +926,65 @@ export default function ViewCustomerForm({
                     sectionsTransProp.map((section: any) => {
                         const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
+                        // --- Status Logic ---
+                        const docs = section.documents || [];
+                        const validDocs = docs.filter((d: any) => d.verify === true); // Verified
+
+                        // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
+                        const hasRejection = docs.some((d: any) => d.correction_attachment);
+
+                        const allVerified = docs.length > 0 && docs.every((d: any) => d.verify === true);
+
+                        // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
+                        const hasPending = docs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+
+                        // --- Styling Variables ---
+                        let containerClass = "rounded-lg border transition-all ";
+                        let titleClass = "text-sm font-bold uppercase transition-colors ";
+                        let chevronClass = "h-4 w-4 transition-colors ";
+                        let deadlineIconClass = "text-lg font-bold transition-colors ";
+                        let deadlineTextClass = "text-xs font-bold transition-colors ";
+
+                        if (hasRejection) {
+                            // RED (Rejected) - High Priority - Opacity 50%
+                            containerClass += "bg-red-600/80";
+                            titleClass += "text-white";
+                            chevronClass += "text-white";
+                            deadlineIconClass += "text-white";
+                            deadlineTextClass += "text-white";
+                        } else if (allVerified) {
+                            // GREEN (Verified) - Opacity 50%
+                            containerClass += "bg-green-600/80";
+                            titleClass += "text-white";
+                            chevronClass += "text-white";
+                            deadlineIconClass += "text-white";
+                            deadlineTextClass += "text-white";
+                        } else if (hasPending) {
+                            // YELLOW (Pending Grading) - Opacity 50%
+                            containerClass += "bg-yellow-400/80";
+                            titleClass += "text-black";
+                            chevronClass += "text-black";
+                            deadlineIconClass += "text-red-600";
+                            deadlineTextClass += "text-red-600";
+                        } else {
+                            // DEFAULT (Idle/None)
+                            containerClass += "bg-white ";
+                            titleClass += "text-gray-900";
+                            chevronClass += "text-gray-500";
+                            deadlineIconClass += "text-red-500";
+                            deadlineTextClass += "text-red-500";
+                        }
+
                         return (
-                            <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
+                            <div key={section.id_section} className={containerClass}>
                                 <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
-                                    {isOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                                    {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
                                     <div className="flex flex-1 flex-col">
-                                        <span className="text-sm font-bold text-gray-900 uppercase">{section.section_name}</span>
+                                        <span className={titleClass}>{section.section_name}</span>
                                         {!isInternalUser && section.deadline && section.deadline_date && (
                                             <div className="mt-1 flex items-center gap-1">
-                                                <span className="text-lg font-bold text-red-500">ⓘ</span>
-                                                <span className="text-xs font-bold text-red-500">
+                                                <span className={deadlineIconClass}>ⓘ</span>
+                                                <span className={deadlineTextClass}>
                                                     {trans.submit_before}{' '}
                                                     {new Date(section.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
                                                         day: '2-digit',
@@ -950,7 +999,7 @@ export default function ViewCustomerForm({
                                 </div>
 
                                 {isOpen && (
-                                    <div className="border-t border-gray-100 px-3 pt-2 pb-4">
+                                    <div className="mt-1 border-t border-gray-100 bg-white rounded-md px-3 pt-2 pb-4">
                                         {isInternalUser && (
                                             <div className="mb-4 flex items-center gap-3">
                                                 <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
