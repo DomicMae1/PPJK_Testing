@@ -52,10 +52,6 @@ services:
       # Format: path_on_host:path_in_container
       - /mnt/Ppjk:/mnt/Ppjk
 
-      # Apache Configurations
-      - /home/it-admin/sites-available:/etc/apache2/sites-available
-      - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
-      - /home/it-admin/letsencrypt:/etc/letsencrypt
       - /etc/hosts:/tmp/hosts_external:ro
 
     depends_on:
