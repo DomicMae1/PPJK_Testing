@@ -458,25 +458,21 @@ export default function ViewCustomerForm({
         console.log('Files to process:', filesToProcess); // Debugging Step 2
 
         try {
-            // 4. Process documents (if any)
+            // 4. Process documents (Batch Optimized)
             if (filesToProcess.length > 0) {
-                await Promise.all(
-                    filesToProcess.map(async (doc: DocumentTrans) => {
-                        const tempPath = tempFiles[doc.id];
-                        console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
+                const attachmentsPayload = filesToProcess.map(doc => ({
+                    path: tempFiles[doc.id],
+                    document_id: doc.id,
+                    type: doc.nama_file // Filename/Type
+                }));
 
-                        const response = await axios.post('/shipping/process-attachment', {
-                            path: tempPath,
-                            spk_code: shipmentData.spkNumber,
-                            type: doc.nama_file,
-                            mode: 'medium',
-                            customer_id: customer?.id_customer || customer?.id,
-                            document_id: doc.id,
-                        });
+                const response = await axios.post('/shipping/batch-process-attachments', {
+                    spk_id: shipmentData.id_spk,
+                    section_name: currentSection.section_name,
+                    attachments: attachmentsPayload
+                });
 
-                        console.log(`Success ${doc.nama_file}:`, response.data);
-                    }),
-                );
+                console.log('Batch Process Success:', response.data);
 
                 // Bersihkan state tempFiles
                 const newTempFiles = { ...tempFiles };
@@ -662,23 +658,26 @@ export default function ViewCustomerForm({
                 }
             });
 
-            // Process all documents
+            // Process all documents (Batch Optimized)
             if (allDocsToProcess.length > 0) {
-                await Promise.all(
-                    allDocsToProcess.map(async ({ doc }) => {
-                        const tempPath = tempFiles[doc.id];
-                        console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
+                // Determine Last Section Name
+                const lastProcessed = allDocsToProcess[allDocsToProcess.length - 1];
+                const lastSection = sectionsTransProp.find((s) => s.id === lastProcessed.sectionId);
+                const sectionName = lastSection ? lastSection.section_name : 'Document';
 
-                        await axios.post('/shipping/process-attachment', {
-                            path: tempPath,
-                            spk_code: shipmentData.spkNumber,
-                            type: doc.nama_file,
-                            mode: 'medium',
-                            customer_id: customer?.id_customer || customer?.id,
-                            document_id: doc.id,
-                        });
-                    }),
-                );
+                const attachmentsPayload = allDocsToProcess.map(({ doc }) => ({
+                    path: tempFiles[doc.id],
+                    document_id: doc.id,
+                    type: doc.nama_file
+                }));
+
+                const response = await axios.post('/shipping/batch-process-attachments', {
+                    spk_id: shipmentData.id_spk,
+                    section_name: sectionName,
+                    attachments: attachmentsPayload
+                });
+
+                console.log('Batch Process Success:', response.data);
 
                 // Clear temp files
                 setTempFiles({});
@@ -819,9 +818,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                              nama_file: item.link,
-                                                                              path: `/file/view/${item.link}`,
-                                                                          }
+                                                                            nama_file: item.link,
+                                                                            path: `/file/view/${item.link}`,
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -1154,10 +1153,10 @@ export default function ViewCustomerForm({
                                                                                 existingFile={
                                                                                     tempFiles[doc.id]
                                                                                         ? {
-                                                                                              nama_file:
-                                                                                                  doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                              path: tempFiles[doc.id],
-                                                                                          }
+                                                                                            nama_file:
+                                                                                                doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                            path: tempFiles[doc.id],
+                                                                                        }
                                                                                         : undefined
                                                                                 }
                                                                                 uploadConfig={{
@@ -1365,11 +1364,11 @@ export default function ViewCustomerForm({
                 </div>
             )}
 
-            <div className="mt-12 flex justify-end">
+            {/* <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
                     {trans.save_changes}
                 </Button>
-            </div>
+            </div> */}
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">
