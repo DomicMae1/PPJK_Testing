@@ -9,17 +9,19 @@ services:
     env_file:
       - .env
 
-    # BAGIAN INI SANGAT PENTING (OVERRIDE KONFIGURASI .ENV)
+    # OVERRIDE CONFIGURATION FOR DOCKER NETWORKING
     environment:
-      # 1. Setting Koneksi Perusahaan (WAJIB DIARAHKAN KE 'db')
-      - DB_TAKO_CONNECTION=pgsql
-      - DB_TAKO_HOST=db
-      - DB_TAKO_PORT=5432
-      - DB_TAKO_DATABASE=${DB_TAKO_DATABASE}
-      - DB_TAKO_USERNAME=${DB_TAKO_USERNAME}
-      - DB_TAKO_PASSWORD=${DB_TAKO_PASSWORD}
+      # 1. Setting Koneksi Default / Tako Perusahaan
+      # We point host to 'db' (container name) instead of 127.0.0.1
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_SECOND_DATABASE}
+      - DB_USERNAME=${DB_SECOND_USERNAME}
+      - DB_PASSWORD=${DB_SECOND_PASSWORD}
 
-      # 2. Setting Koneksi Second (WAJIB DIARAHKAN KE 'db')
+      # 2. Setting Koneksi User / Central (tako-user)
+      # Based on your config/database.php using DB_SECOND_*
       - DB_SECOND_CONNECTION=pgsql
       - DB_SECOND_HOST=db
       - DB_SECOND_PORT=5432
@@ -27,17 +29,33 @@ services:
       - DB_SECOND_USERNAME=${DB_SECOND_USERNAME}
       - DB_SECOND_PASSWORD=${DB_SECOND_PASSWORD}
 
+      # 3. Setting Koneksi Tako Perusahaan (tako-perusahaan)
+      # Assuming it shares the same DB instance in local docker, or mapped similarly
+      - DB_TAKO_CONNECTION=pgsql
+      - DB_TAKO_HOST=db
+      - DB_TAKO_PORT=5432
+      # If these variables aren't in .env, they will default to empty or need to be added
+      - DB_TAKO_DATABASE=${DB_TAKO_DATABASE:-${DB_SECOND_DATABASE}}
+      - DB_TAKO_USERNAME=${DB_TAKO_USERNAME:-${DB_SECOND_USERNAME}}
+      - DB_TAKO_PASSWORD=${DB_TAKO_PASSWORD:-${DB_SECOND_PASSWORD}}
+
       # Setup URL
       - APP_URL=${APP_URL}
+      - FILESYSTEM_DISK=${FILESYSTEM_DISK:-public}
 
     volumes:
       - ./:/var/www/html
+      # Mounting storage public for consistency
       - ./storage/app/public:/var/www/html/storage/app/public
-      - /mnt/Customer_Registration:/mnt/Customer_Registration
+
+      # UPDATED: Mounting /mnt/Ppjk based on config/filesystem.php 'customers_external'
+      # Format: path_on_host:path_in_container
+      - /mnt/Ppjk:/mnt/Ppjk
+
+      # Apache Configurations
       - /home/it-admin/sites-available:/etc/apache2/sites-available
       - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
       - /home/it-admin/letsencrypt:/etc/letsencrypt
-      # Untuk Update host didalam docker
       - /etc/hosts:/tmp/hosts_external:ro
 
     depends_on:
@@ -50,16 +68,15 @@ services:
     container_name: postgres-db
     restart: always
     environment:
-      # Membuat user dan password master dari .env
-      POSTGRES_DB: ${DB_TAKO_DATABASE}
-      POSTGRES_USER: ${DB_TAKO_USERNAME}
-      POSTGRES_PASSWORD: ${DB_TAKO_PASSWORD}
+      # Using DB_SECOND credentials from .env to initialize the master DB
+      POSTGRES_DB: ${DB_SECOND_DATABASE}
+      POSTGRES_USER: ${DB_SECOND_USERNAME}
+      POSTGRES_PASSWORD: ${DB_SECOND_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
     ports:
-      # Menggunakan port default 5432
       - '${DB_SECOND_PORT:-5432}:5432'
 
 networks:

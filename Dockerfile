@@ -1,7 +1,7 @@
-# Gunakan image PHP dengan Apache built-in (lebih stabil untuk production)
+# Gunakan image PHP dengan Apache built-in
 FROM php:8.2-apache
 
-# Install dependencies sistem dan ekstensi PHP yang dibutuhkan
+# Install dependencies sistem dan ekstensi PHP
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
@@ -17,8 +17,12 @@ RUN apt-get update && apt-get install -y \
     mc \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) gd pdo pdo_pgsql zip \
+    # Install Redis extension if needed (since config/database.php mentions redis)
+    && pecl install redis \
+    && docker-php-ext-enable redis \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Konfigurasi PHP.ini custom
 RUN echo "file_uploads = On\n\
 memory_limit = 256M\n\
 upload_max_filesize = 64M\n\
@@ -26,10 +30,10 @@ post_max_size = 64M\n\
 max_execution_time = 600\n\
 " > /usr/local/etc/php/conf.d/uploads.ini
 
-# Aktifkan mod_rewrite untuk URL rewriting Laravel
+# Aktifkan mod_rewrite
 RUN a2enmod rewrite ssl
 
-# Ubah DocumentRoot Apache ke folder /public Laravel
+# Ubah DocumentRoot Apache
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
@@ -37,53 +41,49 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Node.js (untuk compile aset frontend)
+# Install Node.js
 RUN curl -sL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy semua file project ke dalam container
+# Copy semua file project
 COPY . .
 
-# Install dependency PHP (Composer)
+# Install dependency PHP
 RUN composer install --optimize-autoloader --no-dev
 
-# Install dependency JS (NPM) & Build
+# Install dependency JS & Build
 RUN npm install && npm run build
 
-# Buat Script Startup (Entrypoint) Langsung di dalam Dockerfile
+# Buat Script Startup (Entrypoint)
+# UPDATED: Changed /mnt/Customer_Registration to /mnt/Ppjk
 RUN echo '#!/bin/bash\n\
 \n\
 # Pastikan folder permission storage internal benar\n\
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache\n\
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache\n\
 \n\
-# Tangani Folder External (/mnt/Customer_Registration)\n\
-# Kita ubah ownernya jadi www-data agar Apache bisa baca/tulis\n\
-chown -R www-data:www-data /mnt/Customer_Registration\n\
-chmod -R 775 /mnt/Customer_Registration\n\
+# Tangani Folder External (/mnt/Ppjk) sesuai config/filesystem.php\n\
+# Cek apakah folder ada sebelum chown untuk menghindari error jika mount gagal\n\
+if [ -d "/mnt/Ppjk" ]; then\n\
+    chown -R www-data:www-data /mnt/Ppjk\n\
+    chmod -R 775 /mnt/Ppjk\n\
+    echo "✅ Permissions set for /mnt/Ppjk"\n\
+else\n\
+    echo "⚠️ Warning: /mnt/Ppjk not found inside container"\n\
+fi\n\
 \n\
 if [ -f /tmp/hosts_external ]; then\n\
     echo "Processing /etc/hosts insertion..."\n\
-    \n\
-    # Langkah A: Bersihkan file dari host (buang localhost)\n\
     grep -v "127.0.0.1" /tmp/hosts_external | grep -v "::1" > /tmp/clean_hosts\n\
-    \n\
-    # Langkah B: Buat file baru gabungan (JANGAN pakai sed -i langsung ke /etc/hosts)\n\
-    # Cari baris localhost, sisipkan isi clean_hosts di bawahnya, output ke file temp\n\
     sed "/127.0.0.1.*localhost/r /tmp/clean_hosts" /etc/hosts > /tmp/hosts.new\n\
-    \n\
-    # Langkah C: TIMPA isi /etc/hosts dengan isi file temp (Teknik 'cat' aman untuk Docker)\n\
     cat /tmp/hosts.new > /etc/hosts\n\
-    \n\
-    echo "✅ Success inserted external hosts directly below localhost"\n\
+    echo "✅ Success inserted external hosts"\n\
 fi\n\
 \n\
 # Jalankan storage:link\n\
-# Ini akan membaca config filesystems.php Anda dan membuat symlink\n\
-# baik untuk public/storage maupun public/storage/external\n\
 php artisan storage:link\n\
 \n\
 # Jalankan Apache\n\
@@ -95,5 +95,5 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # Expose port 80
 EXPOSE 80
 
-# Gunakan Script Startup sebagai perintah utama
+# Gunakan Script Startup
 CMD ["/usr/local/bin/docker-entrypoint.sh"]

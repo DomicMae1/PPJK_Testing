@@ -86,7 +86,7 @@ return [
         public_path('storage') => storage_path('app/public'),
         
         // (Opsional) Tambahkan link kedua khusus untuk /mnt/CR jika mau diakses publik
-        public_path('storage/external') =>  '/mnt/Customer_Registration', 
+        public_path('storage/external') =>  '/mnt/Ppjk', 
     ],
 
 ];
