@@ -26,12 +26,14 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'role',
+        'role_internal',
         'id_perusahaan',
         'id_customer',
         'name',
         'nik',
         'email',
         'password',
+        'can_upload',
     ];
 
     /**
@@ -54,6 +56,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'can_upload' => 'boolean',
         ];
     }
     

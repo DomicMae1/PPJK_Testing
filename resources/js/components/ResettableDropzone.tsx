@@ -5,7 +5,7 @@
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
-import { CloudUploadIcon, File as FileIcon, Loader2, Trash2Icon } from 'lucide-react';
+import { File as FileIcon, Loader2, Trash2Icon } from 'lucide-react';
 import React, { useState } from 'react';
 import { Accept, FileRejection, useDropzone } from 'react-dropzone';
 import { Button } from './ui/button';
@@ -39,9 +39,13 @@ export function ResettableDropzone({
     label,
     isRequired = false,
     existingFile,
-    validation = { accept: { 'application/pdf': ['.pdf'] }, maxSize: 5 * 1024 * 1024 },
+    validation = {
+        accept: { 'application/pdf': ['.pdf'] },
+        maxSize: 5 * 1024 * 1024, // 5MB
+    },
     uploadConfig,
-}: ResettableDropzoneProps) {
+    disabled = false,
+}: ResettableDropzoneProps & { disabled?: boolean }) {
     const [fileStatus, setFileStatus] = useState<FileStatus | null>(null);
     const [componentKey, setComponentKey] = useState(Date.now());
 
@@ -152,7 +156,7 @@ export function ResettableDropzone({
         maxFiles: 1,
         accept: validation.accept,
         maxSize: validation.maxSize,
-        disabled: fileStatus?.status === 'uploading' || fileStatus?.status === 'processing',
+        disabled: disabled || fileStatus?.status === 'uploading' || fileStatus?.status === 'processing',
     });
 
     const handleDelete = (e: React.MouseEvent) => {
@@ -168,90 +172,68 @@ export function ResettableDropzone({
         fileStatus?.previewUrl && fileStatus.previewUrl.startsWith('/')
             ? fileStatus.previewUrl
             : fileStatus?.previewUrl
-              ? `/shipping/${fileStatus.previewUrl}`
-              : null;
+                ? `/shipping/${fileStatus.previewUrl}`
+                : null;
 
     return (
         <div className="w-full">
             <Label className="mb-1 block">
                 {label} {isRequired && <span className="text-red-500">*</span>}
             </Label>
-            <div
-                key={componentKey}
-                {...getRootProps()}
-                className={cn(
-                    'flex h-[100px] min-h-[100px] cursor-pointer items-center justify-center rounded-md border-2 border-black p-4 text-center transition-colors md:h-[100px] md:min-h-[200px] dark:border-neutral-800',
-                    borderColor,
-                )}
-            >
-                <input {...getInputProps()} />
+            <div className="flex w-full flex-col items-end">
+                <div
+                    key={componentKey}
+                    {...getRootProps()}
+                    className={cn(
+                        // Base Style
+                        'relative flex cursor-pointer items-center justify-center rounded-lg border transition-all',
+                        // Size & Spacing
+                        fileStatus ? 'w-auto h-auto p-2 bg-blue-50 border-blue-200' : 'h-9 w-28 border-gray-300 bg-white hover:bg-gray-50',
+                        // Dark Mode
+                        'dark:border-neutral-700 dark:bg-neutral-900',
+                        borderColor
+                    )}
+                >
+                    <input {...getInputProps()} />
 
-                {fileStatus ? (
-                    <div className="relative flex h-full w-full flex-row items-center justify-center gap-3 rounded-md bg-gray-100 p-2 text-gray-700 md:flex-col md:gap-0">
-                        {fileStatus.status !== 'uploading' && fileStatus.status !== 'processing' && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-white p-1 shadow-md"
-                                onClick={handleDelete}
-                            >
-                                <Trash2Icon className="size-4 text-black" />
-                            </Button>
-                        )}
-                        <FileIcon className="mb-2 h-10 w-10" />
-                        <p className="hidden max-w-full truncate text-sm font-medium md:block">{fileStatus.fileName}</p>
-                        {/* STATUS: UPLOADING */}
-                        {(fileStatus.status === 'uploading' || fileStatus.status === 'processing') && (
-                            <div className="mt-2 w-full max-w-[90%]">
-                                <div className="mb-1 flex items-center justify-center text-xs font-semibold text-gray-600">
-                                    <div className="flex items-center gap-2">
-                                        {fileStatus.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin items-center text-black" />}
-                                        <span className={fileStatus.status === 'processing' ? 'text-black' : ''}>
-                                            {fileStatus.status === 'processing' ? '' : 'Uploading...'}
+                    {fileStatus ? (
+                        <div className="flex w-full items-center justify-between gap-2">
+                            {/* File Info & View Link */}
+                            <div className="flex items-center gap-2 overflow-hidden flex-1" onClick={(e) => {
+                                if (fixedPreviewUrl) {
+                                    e.stopPropagation();
+                                    window.open(fixedPreviewUrl, '_blank');
+                                }
+                            }}>
+                                <FileIcon className="h-4 w-4 shrink-0 text-blue-600" />
+                                <div className="flex flex-col truncate text-left">
+                                    <span className="truncate text-xs font-semibold text-gray-800">{fileStatus.fileName}</span>
+                                    {fixedPreviewUrl && <span className="text-[10px] text-blue-600 underline">Lihat File</span>}
+                                    {!fixedPreviewUrl && (fileStatus.status === 'uploading' || fileStatus.status === 'processing') && (
+                                        <span className="text-[10px] text-gray-500">
+                                            {fileStatus.status === 'processing' ? 'Processing...' : `Uploading ${fileStatus.progress}%`}
                                         </span>
-                                    </div>
-                                </div>
-
-                                {/* Progress Bar Track */}
-                                <div className="relative w-full">
-                                    <Progress
-                                        value={fileStatus.progress}
-                                        className={cn(
-                                            'h-2.5 w-full bg-gray-200', // Style untuk Track (Latar belakang bar)
-                                            // Mengubah warna Indicator (bar yang jalan) secara dinamis
-                                            // Syntax [&>*] menargetkan child element (Indicator) dari komponen Progress
-                                            fileStatus.status === 'processing' ? 'bg-black' : 'bg-black',
-                                        )}
-                                    />
-                                    <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)]">
-                                        {fileStatus.progress}%
-                                    </div>
+                                    )}
                                 </div>
                             </div>
-                        )}
 
-                        {/* STATUS: ERROR */}
-                        {fileStatus.status === 'error' && <p className="mt-1 text-xs text-red-600">{fileStatus.errorMessage}</p>}
-
-                        {/* STATUS: SUCCESS */}
-                        {fileStatus.status === 'success' && fixedPreviewUrl && (
-                            <a
-                                href={fixedPreviewUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-2 text-xs text-blue-600 underline"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                Lihat File
-                            </a>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center gap-2 text-sm text-gray-500 dark:text-white">
-                        <CloudUploadIcon className="h-10 w-10" />
-                        <p>Klik atau drag file PDF ke sini</p>
-                    </div>
-                )}
+                            {/* Actions */}
+                            {fileStatus.status !== 'uploading' && fileStatus.status !== 'processing' && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 rounded-full text-gray-400 hover:bg-white hover:text-red-500"
+                                    onClick={handleDelete}
+                                >
+                                    <Trash2Icon className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
+                        <span className="text-xs font-medium text-gray-500">Upload here</span>
+                    )}
+                </div>
             </div>
         </div>
     );

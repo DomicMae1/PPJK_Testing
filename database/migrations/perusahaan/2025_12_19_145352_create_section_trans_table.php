@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('master_sections', function (Blueprint $table) {
+        Schema::create('section_trans', function (Blueprint $table) {
             // 1. Primary Key disesuaikan
-            $table->id('id_section');
+            $table->id();
+
+            $table->unsignedBigInteger('id_section')->nullable();
+            $table->unsignedBigInteger('id_spk')->nullable();
 
             // 2. Data Utama
             $table->string('section_name');
@@ -23,9 +26,18 @@ return new class extends Migration
             $table->boolean('deadline')->default(false); // status=true/false
 
             // SLA (Service Level Agreement) - Timer Internal
-            $table->string('sla')->nullable();
+            $table->timestamp('deadline_date')->nullable();
 
             $table->timestamps();
+            $table->foreign('id_spk')
+                  ->references('id')->on('spk')
+                  ->onDelete('cascade');
+
+            $table->foreign('id_section')
+                  ->references('id')
+                  ->on('section_trans')
+                  ->onDelete('cascade');
+
         });
     }
 
@@ -34,6 +46,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('master_sections');
+        Schema::dropIfExists('section_trans');
     }
 };

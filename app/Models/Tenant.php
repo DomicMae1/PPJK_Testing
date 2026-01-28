@@ -18,6 +18,6 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 
     public function perusahaan()
     {
-        return $this->belongsTo(Perusahaan::class, 'perusahaan_id', 'id_perusahaan_int');
+        return $this->belongsTo(Perusahaan::class, 'perusahaan_id', 'id_perusahaan');
     }
 }

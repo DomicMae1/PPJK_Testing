@@ -14,14 +14,18 @@ return new class extends Migration
         Schema::connection('tako-user')->create('perusahaan', function (Blueprint $table) {
             $table->id('id_perusahaan');
             $table->string('nama_perusahaan');
-            $table->string('logo_perusahaan')->nullable();
             $table->string('notify_1')->nullable();
             $table->string('notify_2')->nullable();
+            $table->unsignedInteger('id_domain')->nullable()->after('nama_perusahaan');
 
             // $table->string('Server_DB')->nullable();
             // $table->string('Username_DB')->nullable();
             // $table->string('Password_DB')->nullable();
             // $table->string('DB_Name')->nullable();
+
+            $table->boolean('sla')->default(false); 
+
+            $table->integer('sla_timer')->nullable();
 
             $table->timestamps();
         });

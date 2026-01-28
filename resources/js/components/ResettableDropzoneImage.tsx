@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 // resources/js/components/ResettableDropzone.tsx
 
@@ -40,17 +41,19 @@ export function ResettableDropzoneImage({
     },
 }: ResettableDropzoneProps) {
     const [fileStatus, setFileStatus] = useState<FileStatus | null>(null);
+    const [lastLoadedFile, setLastLoadedFile] = useState<string | null>(null);
     const [componentKey, setComponentKey] = useState(Date.now());
 
     React.useEffect(() => {
         // Jika user sudah upload file baru, jangan timpa dengan existingFile
-        if (!fileStatus && existingFile && existingFile.path) {
+        if (existingFile && existingFile.nama_file && existingFile.nama_file !== lastLoadedFile) {
             setFileStatus({
                 id: `existing-${existingFile.nama_file}`,
                 status: 'success',
                 fileName: existingFile.nama_file,
                 previewUrl: existingFile.path,
             });
+            setLastLoadedFile(existingFile.nama_file);
         }
     }, [existingFile]);
 
@@ -74,23 +77,28 @@ export function ResettableDropzoneImage({
                     previewUrl: URL.createObjectURL(file),
                 });
                 onFileChange(file);
+                setLastLoadedFile(null);
             }
         },
         [onFileChange],
     );
 
-    const { getRootProps, getInputProps, isDragReject } = useDropzone({
+    const { getRootProps, getInputProps, isDragReject, open } = useDropzone({
+        // Tambahkan 'open'
         onDrop,
         maxFiles: 1,
         accept: validation.accept,
         maxSize: validation.maxSize,
+        noClick: !!fileStatus, // DISABLED KLIK DROPZONE JIKA FILE SUDAH ADA
+        noKeyboard: !!fileStatus,
     });
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
+        e.preventDefault();
         setFileStatus(null);
         onFileChange(null);
-        setComponentKey(Date.now());
+        // setComponentKey(Date.now());
     };
 
     const borderColor = isDragReject ? 'border-red-500' : 'border-gray-300';
@@ -105,7 +113,7 @@ export function ResettableDropzoneImage({
                 key={componentKey}
                 {...getRootProps()}
                 className={cn(
-                    'flex min-h-[150px] cursor-pointer items-center justify-center rounded-md border-2 border-black p-4 text-center transition-colors dark:border-neutral-800',
+                    'flex min-h-37.5 cursor-pointer items-center justify-center rounded-md border-2 border-black p-4 text-center transition-colors dark:border-neutral-800',
                     borderColor,
                 )}
             >
@@ -118,6 +126,7 @@ export function ResettableDropzoneImage({
                             size="icon"
                             className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white p-1 shadow-md"
                             onClick={handleDelete}
+                            type="button"
                         >
                             <Trash2Icon className="size-4 text-black" />
                         </Button>
@@ -128,7 +137,10 @@ export function ResettableDropzoneImage({
                                 src={fileStatus.previewUrl}
                                 alt="preview"
                                 className="h-24 w-auto rounded-md object-contain"
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    open(); // Panggil fungsi open manual
+                                }}
                             />
                         )}
 

@@ -56,7 +56,10 @@ class RoleAndPermissionSeeder extends Seeder
 
         $rolesObj = [];
         foreach ($rolesList as $rName) {
-            $rolesObj[$rName] = Role::firstOrCreate(['name' => $rName, 'guard_name' => 'web']);
+            $rolesObj[$rName] = Role::firstOrCreate(
+                ['name' => $rName, 'guard_name' => 'web'],
+                ['change_upload_permission' => null] 
+            );
         }
 
         // 4. Assign Permissions ke Role

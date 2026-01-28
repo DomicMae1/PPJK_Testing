@@ -18,6 +18,7 @@ class HsCode extends Model
     protected $primaryKey = 'id_hscode';
 
     protected $fillable = [
+        'id_spk',
         'hs_code',
         'link_insw',
         'path_link_insw',
@@ -52,8 +53,9 @@ class HsCode extends Model
      * Relasi ke SPK.
      * Satu HS Code bisa dipakai di banyak SPK.
      */
-    public function spk(): HasMany
+    public function spk(): BelongsTo
     {
-        return $this->hasMany(Spk::class, 'id_hscode', 'id_hscode');
+        // Parameter: Model Tujuan, Foreign Key di tabel ini, Owner Key di tabel tujuan
+        return $this->belongsTo(Spk::class, 'id_spk', 'id');
     }
 }

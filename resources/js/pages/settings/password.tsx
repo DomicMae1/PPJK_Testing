@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem } from '@/types';
 import { Transition } from '@headlessui/react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler, useRef } from 'react';
 
 import HeadingSmall from '@/components/heading-small';
@@ -11,14 +11,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Password settings',
-        href: '/settings/password',
-    },
-];
-
 export default function Password() {
+    const { props } = usePage();
+    const trans = props.trans_general as Record<string, string>;
+
+    const breadcrumbs: BreadcrumbItem[] = [
+        {
+            title: trans.password_settings,
+            href: '/settings/password',
+        },
+    ];
+
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
 
@@ -50,15 +53,16 @@ export default function Password() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Profile settings" />
+            <Head title={trans.profile_settings} />
 
             <SettingsLayout>
                 <div className="space-y-6">
-                    <HeadingSmall title="Update password" description="Ensure your account is using a long, random password to stay secure" />
+                    <HeadingSmall title={trans.update_password} description={trans.password_desc} />
 
                     <form onSubmit={updatePassword} className="space-y-6">
+                        {/* Current Password */}
                         <div className="grid gap-2">
-                            <Label htmlFor="current_password">Current password</Label>
+                            <Label htmlFor="current_password">{trans.current_password}</Label>
 
                             <Input
                                 id="current_password"
@@ -68,14 +72,15 @@ export default function Password() {
                                 type="password"
                                 className="mt-1 block w-full"
                                 autoComplete="current-password"
-                                placeholder="Current password"
+                                placeholder={trans.placeholder_current_pass}
                             />
 
                             <InputError message={errors.current_password} />
                         </div>
 
+                        {/* New Password */}
                         <div className="grid gap-2">
-                            <Label htmlFor="password">New password</Label>
+                            <Label htmlFor="password">{trans.new_password}</Label>
 
                             <Input
                                 id="password"
@@ -85,14 +90,15 @@ export default function Password() {
                                 type="password"
                                 className="mt-1 block w-full"
                                 autoComplete="new-password"
-                                placeholder="New password"
+                                placeholder={trans.placeholder_new_pass}
                             />
 
                             <InputError message={errors.password} />
                         </div>
 
+                        {/* Confirm Password */}
                         <div className="grid gap-2">
-                            <Label htmlFor="password_confirmation">Confirm password</Label>
+                            <Label htmlFor="password_confirmation">{trans.confirm_password}</Label>
 
                             <Input
                                 id="password_confirmation"
@@ -101,14 +107,15 @@ export default function Password() {
                                 type="password"
                                 className="mt-1 block w-full"
                                 autoComplete="new-password"
-                                placeholder="Confirm password"
+                                placeholder={trans.placeholder_confirm_pass}
                             />
 
                             <InputError message={errors.password_confirmation} />
                         </div>
 
+                        {/* Actions */}
                         <div className="flex items-center gap-4">
-                            <Button disabled={processing}>Save password</Button>
+                            <Button disabled={processing}>{trans.save_password}</Button>
 
                             <Transition
                                 show={recentlySuccessful}
@@ -117,7 +124,7 @@ export default function Password() {
                                 leave="transition ease-in-out"
                                 leaveTo="opacity-0"
                             >
-                                <p className="text-sm text-neutral-600">Saved</p>
+                                <p className="text-sm text-neutral-600">{trans.saved}</p>
                             </Transition>
                         </div>
                     </form>

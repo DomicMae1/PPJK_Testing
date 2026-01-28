@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('hs_codes', function (Blueprint $table) {
             $table->id('id_hscode');
+            $table->unsignedBigInteger('id_spk')->nullable();
 
             $table->string('hs_code'); 
             $table->string('link_insw')->nullable();
@@ -23,6 +24,11 @@ return new class extends Migration
             $table->json('logs')->nullable();
 
             $table->timestamps();
+
+            $table->foreign('id_spk')
+                  ->references('id')
+                  ->on('spk')
+                  ->onDelete('cascade');
         });
     }
 

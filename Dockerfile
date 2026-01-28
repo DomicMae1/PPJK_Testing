@@ -38,7 +38,7 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Install Node.js (untuk compile aset frontend)
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -sL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs
 
 # Set working directory

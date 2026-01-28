@@ -4,16 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class TemplateDocument extends Model
+class MasterDocumentTrans extends Model
 {
     use HasFactory;
 
-    // 1. Koneksi Database
-    protected $connection = 'tako-user';
-
     // 2. Nama Tabel
-    protected $table = 'template_documents';
+    protected $table = 'master_documents_trans';
 
     // 3. Primary Key
     protected $primaryKey = 'id_dokumen';
@@ -21,9 +19,9 @@ class TemplateDocument extends Model
     // 4. Fillable (Mass Assignment)
     protected $fillable = [
         'id_section',
-        'attribute',
         'nama_file',
-        'url_path_file',
+        'is_internal', // Added
+        'attribute',
         'link_path_example_file',
         'link_path_template_file',
         'link_url_video_file',
@@ -34,19 +32,19 @@ class TemplateDocument extends Model
 
     // 5. Casting Tipe Data
     protected $casts = [
+        'is_internal' => 'boolean', // Added
         'attribute' => 'boolean',
+        'deadline_document' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * Relasi ke Master Section
-     */
-    public function section()
+    public function section(): BelongsTo
     {
+        // Asumsi Model Section bernama MasterSection dan PK-nya id_section
         return $this->belongsTo(MasterSection::class, 'id_section', 'id_section');
     }
-
+    
     /**
      * Relasi ke User (Updated By) - Opsional jika menggunakan tabel users internal
      */

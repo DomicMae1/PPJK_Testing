@@ -50,6 +50,7 @@ export interface SharedData {
 
 export interface User {
     id: number;
+    id_user?: number;
     name: string;
     email: string;
     avatar?: string;
@@ -57,7 +58,9 @@ export interface User {
     created_at: string;
     updated_at: string;
     [key: string]: unknown;
-    roles: { name: string }[];
+    role: 'internal' | 'eksternal'; // Enum di database
+    role_internal?: string | null; // staff, manager, supervisor
+    roles?: Role[];
     companies: { id: number; nama_perusahaan: string }[];
 }
 
@@ -70,6 +73,11 @@ export interface Role {
 export interface Permission {
     id: number;
     name: string;
+}
+
+export interface Customer {
+    id: number;
+    nama: string;
 }
 
 export interface Perusahaan {

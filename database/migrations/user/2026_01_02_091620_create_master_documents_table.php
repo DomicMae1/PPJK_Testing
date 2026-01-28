@@ -11,17 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('tako-user')->create('template_documents', function (Blueprint $table) {
+        Schema::connection('tako-user')->create('master_documents', function (Blueprint $table) {
             // 1. Primary Key (sesuai request: id_dokumen)
             $table->id('id_dokumen');
-
-            // 2. Foreign Key
             $table->unsignedBigInteger('id_section')->nullable();
+            $table->string('nama_file');
+            $table->boolean('is_internal')->default(false)->after('nama_file');
 
             // 3. Data File & Atribut
             $table->boolean('attribute')->default(0); // 1 = mandatory, 0 = optional
-            $table->string('nama_file');
-            $table->string('url_path_file')->nullable(); // Lokasi penyimpanan file utama (jika ada)
 
             // 4. Link Pendukung (Pindahan dari master_documents)
             $table->string('link_path_example_file')->nullable();
@@ -34,6 +32,9 @@ return new class extends Migration
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps(); // created_at, updated_at
 
+            $table->foreign('id_section')
+                  ->references('id_section')->on('master_sections')
+                  ->onDelete('set null');
         });
     }
 
@@ -42,6 +43,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('tako-user')->dropIfExists('template_documents');
+        Schema::connection('tako-user')->dropIfExists('master_documents');
     }
 };

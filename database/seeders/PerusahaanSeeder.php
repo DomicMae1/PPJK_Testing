@@ -11,51 +11,44 @@ class PerusahaanSeeder extends Seeder
     public function run(): void
     {
         $perusahaans = [
-            ['nama' => 'PT Alpha', 'subdomain' => 'alpha'],
-            ['nama' => 'PT Beta',  'subdomain' => 'beta'],
-            ['nama' => 'UD Cherry', 'subdomain' => 'cherry'],
-            ['nama' => 'CV Delta', 'subdomain' => 'delta'],
-            ['nama' => 'OD Bravo', 'subdomain' => 'bravo'],
+            ['nama_perusahaan' => 'PT Alpha', 'subdomain' => 'alpha'],
+            ['nama_perusahaan' => 'PT Beta',  'subdomain' => 'beta'],
+            ['nama_perusahaan' => 'UD Cherry', 'subdomain' => 'cherry'],
+            ['nama_perusahaan' => 'CV Delta', 'subdomain' => 'delta'],
+            ['nama_perusahaan' => 'OD Bravo', 'subdomain' => 'bravo'],
         ];
 
+        $appDomain = env('APP_DOMAIN');
+
+        $appDomain = preg_replace('#^https?://#', '', $appDomain);
+
         foreach ($perusahaans as $data) {
-            // 1. Buat Data Bisnis (Perusahaan)
-            // Perhatikan Case Sensitive: 'Nama_perusahaan' sesuai migrasi
-            $perusahaan = Perusahaan::firstOrCreate(
-                ['nama_perusahaan' => $data['nama']], // Kunci pencarian
-                [] // Data tambahan jika create (kosong)
-            );
+            
+            // 1. Buat Perusahaan
+            $perusahaan = Perusahaan::create([
+                'nama_perusahaan' => $data['nama_perusahaan'],
+            ]);
 
-            // 2. Buat Data System (Tenant)
-            // Stancl Tenancy akan otomatis membuat Database baru di background
-            $tenant = Tenant::find($data['subdomain']);
+            // 2. Buat Tenant
+            $tenant = Tenant::create([
+                'id' => $data['subdomain'],
+                'perusahaan_id' => $perusahaan->id_perusahaan,
+            ]);
 
-            if (!$tenant) {
-                // Jika belum ada, baru create (ini akan trigger pembuatan DB otomatis oleh Stancl)
-                $tenant = Tenant::create([
-                    'id' => $data['subdomain'],
-                    'perusahaan_id' => $perusahaan->id_perusahaan,
-                ]);
-            } else {
-                // Jika sudah ada, pastikan relasi perusahaan_id update (opsional)
-                $tenant->update([
-                    'perusahaan_id' => $perusahaan->id_perusahaan
-                ]);
-            }
+            // 3. Logic Pembentukan Domain (Concatenation)
+            // Rumus: Subdomain + Titik + AppDomain
+            // Contoh: beta + . + customer-review-tako.test
+            $customDomain = $data['subdomain'] . '.' . $appDomain;
 
-            // 3. Buat Domain
-            $appDomain = env('APP_DOMAIN', 'localhost'); // Default localhost jika env kosong
+            // 4. Simpan Domain
+            $domainRecord = $tenant->domains()->create([
+                'domain' => $customDomain,
+            ]);
 
-            $fullDomain = $data['subdomain'] . '.' . $appDomain;
-
-            // Cek apakah domain sudah terdaftar di tenant ini
-            $domainExists = $tenant->domains()->where('domain', $fullDomain)->exists();
-
-            if (!$domainExists) {
-                $tenant->domains()->create([
-                    'domain' => $fullDomain,
-                ]);
-            }
+            // 5. Update Perusahaan dengan ID Domain
+            $perusahaan->update([
+                'id_domain' => $domainRecord->id,
+            ]);
         }
     }
 }

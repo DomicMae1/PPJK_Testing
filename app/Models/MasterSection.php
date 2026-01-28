@@ -10,6 +10,8 @@ class MasterSection extends Model
 {
     use HasFactory;
 
+    protected $connection = 'tako-user';
+
     // protected $connection = 'tako-user';
     protected $table = 'master_sections';
 
@@ -19,13 +21,12 @@ class MasterSection extends Model
     protected $fillable = [
         'section_name',
         'section_order',
-        'deadline',
-        'sla',
+        'is_penjaluran',
     ];
 
     protected $casts = [
-        'deadline' => 'boolean', // Convert 1/0 ke True/False otomatis
         'section_order' => 'integer',
+        'is_penjaluran' => 'boolean',
     ];
 
     /*
@@ -38,9 +39,8 @@ class MasterSection extends Model
      * Relasi ke Master Document.
      * Satu section bisa punya banyak dokumen (list dokumen di dalamnya).
      */
-    public function documents(): HasMany
+    public function masterDocuments(): HasMany
     {
-        // Model MasterDocument akan kita buat setelah ini
         return $this->hasMany(MasterDocument::class, 'id_section', 'id_section');
     }
 }

@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
+use App\Models\Perusahaan;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Http\Controllers\Controller;
-use App\Models\Perusahaan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Inertia\Response;
@@ -24,17 +25,32 @@ class UserController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user->hasRole('admin')) {
-            abort(403, 'Unauthorized access. Only admin can access this page.');
+        $usersQuery = User::with(['role_internal', 'roles']);
+    
+        $companyQuery = Perusahaan::select(['id_perusahaan as id', 'nama_perusahaan']);
+
+        if ($user->hasRole('admin')) {
+        } 
+        elseif ($user->hasRole(['manager', 'supervisor'])) {
+            $usersQuery->where('id_perusahaan', $user->id_perusahaan);
+
+            $companyQuery->where('id_perusahaan', $user->id_perusahaan);
+        }
+        else {
+            $usersQuery->where('id_perusahaan', $user->id_perusahaan);
         }
 
-        $users = User::with(['role_internal', 'roles'])->get();
+        $users = $usersQuery->get();
         $roles = Role::all(['id', 'name']);
+        $perusahaan = $companyQuery->get();
+        
+        $customers = Customer::select(['id_customer as id', 'nama_perusahaan'])->get();
 
         return Inertia::render('auth/page', [
             'users' => $users,
             'roles' => $roles,
-            'companies' => Perusahaan::select('id_perusahaan as id', 'nama_perusahaan')->get(),
+            'companies' => $perusahaan,
+            'customers' => $customers,
         ]);
     }
 
@@ -55,21 +71,27 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => 'required|exists:roles,id',
-            'id_perusahaan' => 'nullable|exists:perusahaan,id',
+            'role' => 'required|string|exists:roles,name', 
+            'user_type' => 'required|string|max:255',
+            'id_perusahaan' => 'nullable|exists:perusahaan,id_perusahaan',
+            'id_customer' => 'nullable|exists:customers,id_customer',
         ]);
+
+        $roleName = $request->role;
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => $request->user_type, // 'internal' atau 'eksternal'
+            'role_internal' => $request->role, // 'staff', 'manager', atau null
             'id_perusahaan' => $request->id_perusahaan,
+            'id_customer' => $request->id_customer, // Simpan ID Customer jika ada
         ]);
 
-        Log::info('Request Data:', $request->all());
-
-        $role = Role::find($request->role);
-        $user->assignRole($role);
+        // 4. Assign Role Spatie (Menggunakan Nama Role)
+        // Karena $request->role berisi string nama (misal: "manager"), kita bisa langsung assign
+        $user->assignRole($roleName);
 
         return redirect()->route('users.index')->with('message', 'User created successfully.');
     }
@@ -97,9 +119,9 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:users,email,' . $user->id,
-            'password' => ['sometimes', 'confirmed', Rules\Password::defaults()],
-            'role' => 'required|exists:roles,id',
+            'email' => 'required|string|lowercase|email|max:255|unique:users,email,' . $user->id_user . ',id_user',
+            'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            'role_internal' => 'nullable|exists:roles,name', 
         ]);
 
         try {
@@ -112,10 +134,14 @@ class UserController extends Controller
                 $data['password'] = Hash::make($request->password);
             }
 
-            $user->update($data);
+            if ($user->role === 'internal') {
+                if ($request->filled('role_internal')) {
+                    $data['role_internal'] = $request->role_internal;
+                    $user->syncRoles($request->role_internal);
+                }
+            } 
 
-            $role = Role::findOrFail($request->role);
-            $user->syncRoles([$role->name]);
+            $user->update($data);
 
             return redirect()->route('users.index')->with('message', 'User updated successfully.');
         } catch (\Exception $e) {

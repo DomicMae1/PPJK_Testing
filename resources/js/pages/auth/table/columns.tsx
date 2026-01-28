@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Users/table/columns.tsx
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -29,6 +30,11 @@ export const columns = (onDeleteClick: (id: number) => void, onEditClick: (id: n
         cell: ({ row }) => {
             const user = row.original;
 
+            // PERBAIKAN DISINI:
+            // Gunakan id_user jika ada, atau fallback ke id
+            // Cast ke 'any' jika TypeScript protes karena interface User belum diupdate
+            const userId = (user as any).id_user || user.id;
+
             return (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -37,8 +43,8 @@ export const columns = (onDeleteClick: (id: number) => void, onEditClick: (id: n
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEditClick(user.id)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDeleteClick(user.id)}>Delete</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEditClick(userId)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDeleteClick(userId)}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             );

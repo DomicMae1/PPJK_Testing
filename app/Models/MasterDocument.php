@@ -10,94 +10,50 @@ class MasterDocument extends Model
 {
     use HasFactory;
 
-    // protected $connection = 'tako-user';
+    // 1. Koneksi Database
+    protected $connection = 'tako-user';
+
+    // 2. Nama Tabel
     protected $table = 'master_documents';
 
-    // PENTING: Definisi Primary Key baru
+    // 3. Primary Key
     protected $primaryKey = 'id_dokumen';
 
+    // 4. Fillable (Mass Assignment)
     protected $fillable = [
-        'id_spk',
         'id_section',
-        'attribute',            // Mandatory check
-        'upload_by',            // Role string: internal/external
         'nama_file',
-        'url_path_file',
+        'is_internal', // Added
+        'attribute',
+        'link_path_example_file',
+        'link_path_template_file',
+        'link_url_video_file',
         'description_file',
-        'verify',               // Status Approval
-        'correction_attachment',
-        'correction_attachment_file',
-        'correction_description',
-        'kuota_revisi',
-        'mapping_insw',
         'updated_by',
-        'logs',
+        // created_at dan updated_at otomatis dihandle
     ];
 
-    /**
-     * Casts attributes to specific types.
-     */
+    // 5. Casting Tipe Data
     protected $casts = [
+        'is_internal' => 'boolean', // Added
         'attribute' => 'boolean',
-        'verify' => 'boolean',
-        'correction_attachment' => 'boolean',
-        'logs' => 'array',
-        'kuota_revisi' => 'integer',
+        'deadline_document' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Relationships
-    |--------------------------------------------------------------------------
-    */
-
-    /**
-     * Relasi ke SPK Induk.
-     */
-    public function spk(): BelongsTo
-    {
-        return $this->belongsTo(Spk::class, 'id_spk', 'id');
-    }
-
-    /**
-     * Relasi ke Section (Kategori Dokumen).
-     * Contoh: PPJK, PIB, dll.
-     */
     public function section(): BelongsTo
     {
+        // Asumsi Model Section bernama MasterSection dan PK-nya id_section
         return $this->belongsTo(MasterSection::class, 'id_section', 'id_section');
     }
-
+    
     /**
-     * Relasi ke User yang melakukan update terakhir.
+     * Relasi ke User (Updated By) - Opsional jika menggunakan tabel users internal
      */
-    public function updater(): BelongsTo
+    public function updater()
     {
-        return $this->belongsTo(User::class, 'updated_by', 'id_user');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Helper Functions
-    |--------------------------------------------------------------------------
-    */
-
-    /**
-     * Cek apakah dokumen ini sudah diverifikasi (valid).
-     */
-    public function isValid(): bool
-    {
-        return $this->verify === true;
-    }
-
-    /**
-     * Cek apakah dokumen ini perlu revisi.
-     */
-    public function needsCorrection(): bool
-    {
-        // Logika: Belum valid, ada lampiran koreksi atau ada deskripsi koreksi
-        return !$this->verify && ($this->correction_attachment || !empty($this->correction_description));
+        // Sesuaikan nama model User dan Foreign Key di tabel users
+        return $this->belongsTo(User::class, 'updated_by', 'id'); 
     }
 }
