@@ -38,6 +38,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('shipping/process-attachment', [ShippingController::class, 'processAttachment'])->name('customer.process-attachment');
     Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
         ->name('shipping.update-hs-codes');
+    Route::post('shipping/batch-process-attachments', [ShippingController::class, 'batchProcessAttachments'])->name('shipping.batchProcessAttachments');
     Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
     Route::post('shipping/update-deadline', [ShippingController::class, 'updateSectionDeadline'])->name('shipping.updateDeadline');
     Route::post('shipping/{id}/verify', [ShippingController::class, 'verifyDocument'])->name('shipping.verify');
