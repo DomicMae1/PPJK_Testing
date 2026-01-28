@@ -39,9 +39,13 @@ interface HsCodeItem {
 
 export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
     const { props } = usePage();
-    const auth = props.auth || {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const auth = (props.auth as any) || {};
     const userRole = auth.user?.roles?.[0]?.name ?? '';
-    const externalCustomers = props.externalCustomers || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const externalCustomers = (props.externalCustomers as any[]) || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const internalStaff = (props.internalStaff as any[]) || []; // NEW: Retrieve Internal Staff
     const isUserExternal = auth.user?.role === 'eksternal';
 
     console.log(data);
@@ -60,6 +64,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
     const [shipmentType, setShipmentType] = useState<'Import' | 'Export'>('Import');
     const [blNumber, setBlNumber] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState('');
+    const [selectedStaff, setSelectedStaff] = useState(''); // NEW: Selected Staff State
     const [hsCodes, setHsCodes] = useState<HsCodeItem[]>([{ id: nanoid(), code: '', link: '', file: null }]);
 
     const [filterColumn, setFilterColumn] = useState<'nama_customer' | 'creator_name' | 'nama_perusahaan' | 'keterangan_status' | 'status'>(
@@ -147,6 +152,11 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         formData.append('shipment_type', shipmentType);
         formData.append('bl_number', blNumber);
         formData.append('id_customer', selectedCustomer);
+
+        // NEW: Append Assigned PIC if selected
+        if (selectedStaff) {
+            formData.append('assigned_pic', selectedStaff);
+        }
 
         // Append Array HS Codes
         hsCodes.forEach((item, index) => {
@@ -330,6 +340,29 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                         </Select>
                                         {isUserExternal && <p className="text-[10px] text-gray-500">{trans.auto_selected_msg}</p>}
                                     </div>
+
+                                    {/* NEW: Supervisor Assigns Staff */}
+                                    {auth.user?.role === 'internal' && auth.user?.role_internal === 'supervisor' && (
+                                        <div className="space-y-2">
+                                            <Label className="font-semibold">{trans.assign_staff || 'Assign Staff'}</Label>
+                                            <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder={trans.select_staff_placeholder || 'Select Staff'} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {internalStaff.length > 0 ? (
+                                                        internalStaff.map((staff: any) => (
+                                                            <SelectItem key={staff.id_user} value={String(staff.id_user)}>
+                                                                {staff.name}
+                                                            </SelectItem>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-2 text-center text-sm text-gray-500">{trans.data_not_found}</div>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
 
                                     {/* Data HS Code Section */}
                                     <div className="space-y-4 pb-4">
@@ -528,17 +561,17 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                         const dateObj = original.tanggal_status ? new Date(original.tanggal_status) : null;
                         const dateStr = dateObj
                             ? dateObj.toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: '2-digit',
-                              })
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: '2-digit',
+                            })
                             : '-';
                         const timeStr = dateObj
                             ? dateObj.toLocaleTimeString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false,
-                              })
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                            })
                             : '';
 
                         // Logic Warna Jalur
@@ -626,8 +659,8 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                                     (header.column.getIsSorted() === 'asc'
                                                         ? '⬆️'
                                                         : header.column.getIsSorted() === 'desc'
-                                                          ? '⬇️'
-                                                          : '')}
+                                                            ? '⬇️'
+                                                            : '')}
                                             </button>
                                         ) : (
                                             flexRender(header.column.columnDef.header, header.getContext())

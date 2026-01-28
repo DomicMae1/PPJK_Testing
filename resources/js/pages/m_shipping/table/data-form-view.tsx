@@ -458,25 +458,21 @@ export default function ViewCustomerForm({
         console.log('Files to process:', filesToProcess); // Debugging Step 2
 
         try {
-            // 4. Process documents (if any)
+            // 4. Process documents (Batch Optimized)
             if (filesToProcess.length > 0) {
-                await Promise.all(
-                    filesToProcess.map(async (doc: DocumentTrans) => {
-                        const tempPath = tempFiles[doc.id];
-                        console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
+                const attachmentsPayload = filesToProcess.map(doc => ({
+                    path: tempFiles[doc.id],
+                    document_id: doc.id,
+                    type: doc.nama_file // Filename/Type
+                }));
 
-                        const response = await axios.post('/shipping/process-attachment', {
-                            path: tempPath,
-                            spk_code: shipmentData.spkNumber,
-                            type: doc.nama_file,
-                            mode: 'medium',
-                            customer_id: customer?.id_customer || customer?.id,
-                            document_id: doc.id,
-                        });
+                const response = await axios.post('/shipping/batch-process-attachments', {
+                    spk_id: shipmentData.id_spk,
+                    section_name: currentSection.section_name,
+                    attachments: attachmentsPayload
+                });
 
-                        console.log(`Success ${doc.nama_file}:`, response.data);
-                    }),
-                );
+                console.log('Batch Process Success:', response.data);
 
                 // Bersihkan state tempFiles
                 const newTempFiles = { ...tempFiles };
@@ -662,23 +658,26 @@ export default function ViewCustomerForm({
                 }
             });
 
-            // Process all documents
+            // Process all documents (Batch Optimized)
             if (allDocsToProcess.length > 0) {
-                await Promise.all(
-                    allDocsToProcess.map(async ({ doc }) => {
-                        const tempPath = tempFiles[doc.id];
-                        console.log(`Processing: ${doc.nama_file} -> ${tempPath}`);
+                // Determine Last Section Name
+                const lastProcessed = allDocsToProcess[allDocsToProcess.length - 1];
+                const lastSection = sectionsTransProp.find((s) => s.id === lastProcessed.sectionId);
+                const sectionName = lastSection ? lastSection.section_name : 'Document';
 
-                        await axios.post('/shipping/process-attachment', {
-                            path: tempPath,
-                            spk_code: shipmentData.spkNumber,
-                            type: doc.nama_file,
-                            mode: 'medium',
-                            customer_id: customer?.id_customer || customer?.id,
-                            document_id: doc.id,
-                        });
-                    }),
-                );
+                const attachmentsPayload = allDocsToProcess.map(({ doc }) => ({
+                    path: tempFiles[doc.id],
+                    document_id: doc.id,
+                    type: doc.nama_file
+                }));
+
+                const response = await axios.post('/shipping/batch-process-attachments', {
+                    spk_id: shipmentData.id_spk,
+                    section_name: sectionName,
+                    attachments: attachmentsPayload
+                });
+
+                console.log('Batch Process Success:', response.data);
 
                 // Clear temp files
                 setTempFiles({});
@@ -819,9 +818,9 @@ export default function ViewCustomerForm({
                                                                 existingFile={
                                                                     !item.file && item.link
                                                                         ? {
-                                                                              nama_file: item.link,
-                                                                              path: `/file/view/${item.link}`,
-                                                                          }
+                                                                            nama_file: item.link,
+                                                                            path: `/file/view/${item.link}`,
+                                                                        }
                                                                         : undefined
                                                                 }
                                                                 onFileChange={(file) => {
@@ -927,16 +926,65 @@ export default function ViewCustomerForm({
                     sectionsTransProp.map((section: any) => {
                         const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
+                        // --- Status Logic ---
+                        const docs = section.documents || [];
+                        const validDocs = docs.filter((d: any) => d.verify === true); // Verified
+
+                        // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
+                        const hasRejection = docs.some((d: any) => d.correction_attachment);
+
+                        const allVerified = docs.length > 0 && docs.every((d: any) => d.verify === true);
+
+                        // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
+                        const hasPending = docs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+
+                        // --- Styling Variables ---
+                        let containerClass = "rounded-lg border transition-all ";
+                        let titleClass = "text-sm font-bold uppercase transition-colors ";
+                        let chevronClass = "h-4 w-4 transition-colors ";
+                        let deadlineIconClass = "text-lg font-bold transition-colors ";
+                        let deadlineTextClass = "text-xs font-bold transition-colors ";
+
+                        if (hasRejection) {
+                            // RED (Rejected) - High Priority - Opacity 50%
+                            containerClass += "bg-red-600/80";
+                            titleClass += "text-white";
+                            chevronClass += "text-white";
+                            deadlineIconClass += "text-white";
+                            deadlineTextClass += "text-white";
+                        } else if (allVerified) {
+                            // GREEN (Verified) - Opacity 50%
+                            containerClass += "bg-green-600/80";
+                            titleClass += "text-white";
+                            chevronClass += "text-white";
+                            deadlineIconClass += "text-white";
+                            deadlineTextClass += "text-white";
+                        } else if (hasPending) {
+                            // YELLOW (Pending Grading) - Opacity 50%
+                            containerClass += "bg-yellow-400/80";
+                            titleClass += "text-black";
+                            chevronClass += "text-black";
+                            deadlineIconClass += "text-red-600";
+                            deadlineTextClass += "text-red-600";
+                        } else {
+                            // DEFAULT (Idle/None)
+                            containerClass += "bg-white ";
+                            titleClass += "text-gray-900";
+                            chevronClass += "text-gray-500";
+                            deadlineIconClass += "text-red-500";
+                            deadlineTextClass += "text-red-500";
+                        }
+
                         return (
-                            <div key={section.id_section} className="rounded-lg border border-gray-200 px-1 transition-all">
+                            <div key={section.id_section} className={containerClass}>
                                 <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
-                                    {isOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                                    {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
                                     <div className="flex flex-1 flex-col">
-                                        <span className="text-sm font-bold text-gray-900 uppercase">{section.section_name}</span>
+                                        <span className={titleClass}>{section.section_name}</span>
                                         {!isInternalUser && section.deadline && section.deadline_date && (
                                             <div className="mt-1 flex items-center gap-1">
-                                                <span className="text-lg font-bold text-red-500">ⓘ</span>
-                                                <span className="text-xs font-bold text-red-500">
+                                                <span className={deadlineIconClass}>ⓘ</span>
+                                                <span className={deadlineTextClass}>
                                                     {trans.submit_before}{' '}
                                                     {new Date(section.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
                                                         day: '2-digit',
@@ -951,7 +999,7 @@ export default function ViewCustomerForm({
                                 </div>
 
                                 {isOpen && (
-                                    <div className="border-t border-gray-100 px-3 pt-2 pb-4">
+                                    <div className="mt-1 border-t border-gray-100 bg-white rounded-md px-3 pt-2 pb-4">
                                         {isInternalUser && (
                                             <div className="mb-4 flex items-center gap-3">
                                                 <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
@@ -1154,10 +1202,10 @@ export default function ViewCustomerForm({
                                                                                 existingFile={
                                                                                     tempFiles[doc.id]
                                                                                         ? {
-                                                                                              nama_file:
-                                                                                                  doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                              path: tempFiles[doc.id],
-                                                                                          }
+                                                                                            nama_file:
+                                                                                                doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                            path: tempFiles[doc.id],
+                                                                                        }
                                                                                         : undefined
                                                                                 }
                                                                                 uploadConfig={{
@@ -1365,11 +1413,11 @@ export default function ViewCustomerForm({
                 </div>
             )}
 
-            <div className="mt-12 flex justify-end">
+            {/* <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
                     {trans.save_changes}
                 </Button>
-            </div>
+            </div> */}
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">

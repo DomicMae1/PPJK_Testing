@@ -122,9 +122,21 @@ class ShippingController extends Controller
             });
         }
 
+        // NEW: Fetch Internal Staff for Supervisor Assignment
+        $internalStaff = [];
+        if ($user->role === 'internal') {
+            $internalStaff = \App\Models\User::on('tako-user')
+                ->where('role', 'internal')
+                ->where('role_internal', 'staff')
+                ->where('id_perusahaan', $user->id_perusahaan)
+                ->select('id_user', 'name')
+                ->get();
+        }
+
         return Inertia::render('m_shipping/page', [
             'customers' => $spkData,
             'externalCustomers' => $externalCustomers,
+            'internalStaff' => $internalStaff, // Pass staff list
             'company' => [
                 'id' => session('company_id'),
                 'name' => session('company_name'),
@@ -197,6 +209,7 @@ class ShippingController extends Controller
             'hs_codes.*.code' => 'required|string',
             'hs_codes.*.link' => 'nullable|string',
             'hs_codes.*.file' => 'nullable|file|image|mimes:jpeg,png,jpg|max:5120',
+            'assigned_pic'    => 'nullable|integer|exists:users,id_user', // Validasi Assigned PIC
         ]);
 
         // --- Logic Tenant ---
@@ -310,6 +323,7 @@ class ShippingController extends Controller
                 $sectionName = $masterDoc->section ? $masterDoc->section->section_name : 'Unknown Section';
                 $logMessage = "Document {$sectionName} requested " . now()->format('d-m-Y H:i') . " WIB";
 
+                // B. Buat Document Transaksi (Nyata)
                 $newDocTrans = DocumentTrans::create([
                     'id_spk'                     => $spk->id,
                     'id_dokumen'                 => $masterDocTrans->id_dokumen, // Menggunakan PK dari MasterDocumentTrans
@@ -319,12 +333,9 @@ class ShippingController extends Controller
                     'url_path_file'              => null,
                     'verify'                     => false,
                     'correction_attachment'      => false,
-                    'correction_attachment_file' => null,
-                    'correction_description'     => null,
                     'kuota_revisi'               => 3,
-                    'mapping_insw'               => null,
-                    'sla_document'               => null,
                     'updated_by'                 => $userId,
+                    'logs'                       => $logMessage,
                     'created_at'                 => now(),
                     'updated_at'                 => now(),
                 ]);
@@ -339,9 +350,18 @@ class ShippingController extends Controller
                 ]);
             }
 
-            if ($user->role === 'internal' && $user->role_internal === 'staff') {
-                // If internal staff creates it, auto-validate
-                 $spk->update(['validated_by' => $userId]);
+            if ($user->role === 'internal') {
+                if ($user->role_internal === 'supervisor' && !empty($validated['assigned_pic'])) {
+                    // SUPERVISOR: Assign to Selected Staff
+                    $spk->update(['validated_by' => $validated['assigned_pic']]);
+                    
+                    // Optional: Notification Logic to Assigned Staff can be added here
+                    /* NotificationService::send([...]); */
+
+                } elseif ($user->role_internal === 'staff') {
+                   // STAFF: Auto-assign to Self
+                   $spk->update(['validated_by' => $userId]);
+                }
             }
 
             DB::commit();
@@ -388,35 +408,73 @@ class ShippingController extends Controller
                              Log::error("Failed to send SPK Created Notification to {$staff->id_user}: " . $e->getMessage());
                         }
                     }
-                } elseif (strtolower($user->role) === 'internal' && $user->role_internal === 'staff') {
-                   // Logic: Notify External Customer
-                   
-                   // 1. Find External Users associated with the SPK's Customer
-                   // We query the central user table.
+                } elseif ($user->role === 'internal') {
+                    // Fetch Customer Name for Notification Context
+                    $customerName = 'Unknown Customer';
+                    $customerObj = Customer::find($validated['id_customer']);
+                    if ($customerObj) {
+                        $customerName = $customerObj->nama_cust ?? $customerObj->nama_perusahaan ?? $customerName;
+                    }
+
+                    // 1. If Supervisor & Assigned Staff -> Notify the Staff
+                    if ($user->role_internal === 'supervisor' && !empty($validated['assigned_pic'])) {
+                        $assignedStaff = \App\Models\User::on('tako-user')->find($validated['assigned_pic']);
+                        if ($assignedStaff) {
+                             // Email
+                            try {
+                                SectionReminderService::sendSpkCreated($assignedStaff, $spk, $user);
+                            } catch (\Exception $e) {
+                                Log::error("Failed to send Assignment Email to Staff {$assignedStaff->email}: " . $e->getMessage());
+                            }
+
+                            // Notification
+                            try {
+                                NotificationService::send([
+                                    'send_to' => $assignedStaff->id_user,
+                                    'created_by' => $userId,
+                                    'role' => 'internal',
+                                    'id_spk' => $spk->id,
+                                    'data' => [
+                                        'type' => 'spk_created',
+                                        'title' => 'Penunjukan PIC SPK', // Assignment Title
+                                        // "kamu menjadi pic untuk customer berikut"
+                                        'message' => "Anda telah ditunjuk sebagai PIC untuk customer {$customerName} (SPK: {$spk->spk_code}) oleh {$user->name}",
+                                        'url' => "/shipping/{$spk->id}",
+                                        'spk_code' => $spk->spk_code
+                                    ]
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error("Failed to send Assignment Notification to {$assignedStaff->id_user}: " . $e->getMessage());
+                            }
+                        }
+                    }
+
+                   // 2. Notify External Customer (For both Staff and Supervisor)
+                   // We query the central user table for users of this customer
                    $externalUsers = \App\Models\User::on('tako-user')
                         ->where('id_customer', $spk->id_customer)
                         ->where('role', 'eksternal')
                         ->get();
 
                    foreach ($externalUsers as $extUser) {
-                        // 2. Send Email
+                        // Email
                         try {
                             SectionReminderService::sendSpkCreated($extUser, $spk, $user);
                         } catch (\Exception $e) {
                              Log::error("Failed to send SPK Email to External {$extUser->email}: " . $e->getMessage());
                         }
                         
-                        // 3. Send In-App Notification
+                        // Notification
                         try {
                             NotificationService::send([
                                 'send_to' => $extUser->id_user,
                                 'created_by' => $userId,
-                                'role' => 'eksternal', // Context for the receiver (Required by DB NOT NULL)
+                                'role' => 'eksternal',
                                 'id_spk' => $spk->id,
                                 'data' => [
                                     'type' => 'spk_created',
-                                    'title' => 'New SPK Created',
-                                    'message' => "New SPK {$spk->spk_code} created by Staff {$user->name}",
+                                    'title' => 'SPK Baru Dibuat',
+                                    'message' => "SPK Baru {$spk->spk_code} telah dibuat oleh {$user->name}",
                                     'url' => "/shipping/{$spk->id}",
                                     'spk_code' => $spk->spk_code
                                 ]
@@ -1216,9 +1274,12 @@ class ShippingController extends Controller
             $spkId = $request->input('spk_id');
             $sectionId = $request->input('section_id');
 
+            $uniqueSections = [];
+            $lastSectionName = '';
+
             // 1. Update Documents
             foreach ($verifiedIds as $docId) {
-                $document = DocumentTrans::find($docId);
+                $document = DocumentTrans::with('sectionTrans')->find($docId);
                 if ($document) {
                     $document->update([
                         'verify' => true,
@@ -1231,36 +1292,108 @@ class ShippingController extends Controller
                         'status'           => 'Verified',
                         'by'               => Auth::user() ? Auth::user()->name : 'System',
                     ]);
+
+                    // Collect Section
+                     if ($document->sectionTrans) {
+                        $uniqueSections[$document->sectionTrans->id] = $document->sectionTrans->section_name;
+                        $lastSectionName = $document->sectionTrans->section_name;
+                    }
                 }
             }
 
-            // 2. Send SINGLE Notification
+            // 2. Post-Processing (Status & Notification)
             if (count($verifiedIds) > 0) {
-                // Get SPK info for notification context
                 $spk = Spk::find($spkId);
-                $sectionName = '';
                 
-                if (count($verifiedIds) > 0) {
-                // Send Notification (External)
-                try {
-                    // ... existing notification logic ...
-                    $message = count($verifiedIds) . ' dokumen telah diverifikasi oleh ' . Auth::user()->name;
-                    $url = url('/shipping/' . $spkId);
+                // Determine Consolidated Section Name
+                $notificationSectionName = $lastSectionName;
+                if (count($uniqueSections) > 0) {
+                    $notificationSectionName = implode(' dan ', $uniqueSections); 
+                }
 
-                     NotificationService::send([
+                // Update SPK Status
+                SpkStatus::create([
+                    'id_spk' => $spkId,
+                    'id_status' => 5, // Verified (Master ID 5)
+                    'status' => "{$lastSectionName} Verified",
+                ]);
+
+                // CHECK FOR COMPLETION (If ALL docs are verified)
+                // verify != true includes: null (pending), false (rejected), 0 (rejected)
+                $hasUnverifiedDocs = DocumentTrans::where('id_spk', $spkId)
+                    ->where(function($query) {
+                        $query->where('verify', '!=', true)
+                              ->orWhereNull('verify');
+                    })
+                    ->exists();
+
+                if (!$hasUnverifiedDocs) {
+                    SpkStatus::create([
                         'id_spk' => $spkId,
-                        'role'   => 'external', // Send to Customer
-                        'data'   => [
-                            'type'    => 'document_verified',
-                            'title'   => 'Dokumen Diverifikasi',
-                            'message' => $message,
-                            'url'     => $url,
-                            'spk_code'=> $spk ? $spk->spk_code : null, // Using $spk instead of $spkData
-                        ]
+                        'id_status' => 7, // Completed (Master ID 7)
+                        'status' => 'Completed',
                     ]);
+                }
 
-                } catch (\Exception $e) {
-                    Log::error('Notification failed: ' . $e->getMessage());
+                $verifier = Auth::user();
+                $count = count($verifiedIds);
+
+                // BIDIRECTIONAL LOGIC
+                // A. Verifier is Internal -> Notify Customer
+                if ($verifier->role === 'internal') {
+                    $customers = \App\Models\User::on('tako-user')
+                        ->where('id_customer', $spk->id_customer)
+                        ->where('role', 'eksternal')
+                        ->get();
+
+                    foreach ($customers as $cust) {
+                         // Email
+                         SectionReminderService::sendDocumentVerified($spk, $notificationSectionName, $verifier, $cust);
+
+                         // Notification
+                         try {
+                            NotificationService::send([
+                                'id_spk' => $spkId,
+                                'send_to' => $cust->id_user,
+                                'created_by' => $verifier->id,
+                                'role'   => 'eksternal', 
+                                'data'   => [
+                                    'type'    => 'document_verified',
+                                    'title'   => 'Dokumen Diverifikasi',
+                                    'message' => "{$count} dokumen pada section {$notificationSectionName} telah diverifikasi oleh {$verifier->name}.",
+                                    'url'     => "/shipping/{$spkId}",
+                                    'spk_code'=> $spk->spk_code,
+                                ]
+                            ]);
+                         } catch (\Exception $e) {}
+                    }
+                } 
+                // B. Verifier is External -> Notify Staff
+                else {
+                    if ($spk->validated_by) {
+                        $staff = \App\Models\User::on('tako-user')->find($spk->validated_by);
+                        if ($staff) {
+                            // Email
+                            SectionReminderService::sendDocumentVerified($spk, $notificationSectionName, $verifier, $staff);
+                            
+                            // Notification
+                            try {
+                                NotificationService::send([
+                                    'id_spk' => $spkId,
+                                    'send_to' => $staff->id_user, // Staff User ID
+                                    'created_by' => $verifier->id,
+                                    'role'   => 'internal', 
+                                    'data'   => [
+                                        'type'    => 'document_verified',
+                                        'title'   => 'Dokumen Diverifikasi',
+                                        'message' => "{$count} dokumen pada section {$notificationSectionName} telah diverifikasi oleh Customer {$verifier->name}.",
+                                        'url'     => "/shipping/{$spkId}",
+                                        'spk_code'=> $spk->spk_code,
+                                    ]
+                                ]);
+                             } catch (\Exception $e) {}
+                        }
+                    }
                 }
 
                  // REALTIME UPDATE
@@ -1269,7 +1402,6 @@ class ShippingController extends Controller
                 } catch (\Exception $e) {
                     Log::error('Realtime update failed: ' . $e->getMessage());
                 }
-            }
             }
 
             DB::commit();
@@ -1312,6 +1444,8 @@ class ShippingController extends Controller
 
 
         try {
+            DB::beginTransaction();
+
             $request->validate([
                 'correction_description' => 'required|string',
                 'correction_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
@@ -1320,7 +1454,8 @@ class ShippingController extends Controller
             // Get current tenant connection
             $tenantConnection = tenancy()->tenant ? 'tenant' : config('database.default');
             
-            $document = DocumentTrans::on($tenantConnection)->findOrFail($id);
+            $document = DocumentTrans::on($tenantConnection)->with(['spk', 'sectionTrans'])->findOrFail($id);
+            $spk = $document->spk;
             
             $correctionFilePath = $document->correction_attachment_file;
             $correctionPath = null; // Initialize correctionPath
@@ -1339,6 +1474,7 @@ class ShippingController extends Controller
                 'correction_attachment' => true,
                 'correction_description' => $request->correction_description,
                 'correction_attachment_file' => $correctionFilePath,
+                // Quota reduction moved to upload only
             ]);
 
             DocumentStatus::on($tenantConnection)->create([
@@ -1346,7 +1482,77 @@ class ShippingController extends Controller
                 'status'           => 'Rejected',
                 'by'               => Auth::user() ? Auth::user()->name : 'System',
             ]);
-            DB::commit();
+
+
+            // SPK Status Update
+            $docName = $document->nama_file ?? 'Document';
+            SpkStatus::create([
+                'id_spk' => $spk->id,
+                'id_status' => 4, // Rejected (Master ID 4)
+                'status' => "{$docName} Rejected",
+            ]);
+
+            // Notification & Email
+            $sectionName = $document->sectionTrans ? $document->sectionTrans->section_name : 'Document';
+            $rejector = Auth::user();
+            $reason = $request->correction_description;
+
+             // BIDIRECTIONAL LOGIC
+             if ($rejector->role === 'internal') {
+                $customers = \App\Models\User::on('tako-user')
+                    ->where('id_customer', $spk->id_customer)
+                    ->where('role', 'eksternal')
+                    ->get();
+
+                foreach ($customers as $cust) {
+                     // Email
+                     SectionReminderService::sendDocumentRejected($spk, $sectionName, $rejector, $cust, $reason, $docName);
+
+                     // Notification
+                     try {
+                        NotificationService::send([
+                            'id_spk' => $spk->id,
+                            'send_to' => $cust->id_user,
+                            'created_by' => $rejector->id,
+                            'role'   => 'eksternal', 
+                            'data'   => [
+                                'type'    => 'document_rejected',
+                                'title'   => 'Dokumen Ditolak',
+                                'message' => "Dokumen {$docName} pada section {$sectionName} ditolak. Alasan: {$reason}.",
+                                'url'     => "/shipping/{$spk->id}",
+                                'spk_code'=> $spk->spk_code,
+                            ]
+                        ]);
+                     } catch (\Exception $e) {}
+                }
+            } else {
+                if ($spk->validated_by) {
+                    $staff = \App\Models\User::on('tako-user')->find($spk->validated_by);
+                    if ($staff) {
+                        // Email
+                        SectionReminderService::sendDocumentRejected($spk, $sectionName, $rejector, $staff, $reason, $docName);
+                        
+                        // Notification
+                        try {
+                            NotificationService::send([
+                                'id_spk' => $spk->id,
+                                'send_to' => $staff->id_user,
+                                'created_by' => $rejector->id,
+                                'role'   => 'internal', 
+                                'data'   => [
+                                    'type'    => 'document_rejected',
+                                    'title'   => 'Dokumen Ditolak',
+                                    'message' => "Dokumen {$docName} pada section {$sectionName} ditolak oleh Customer. Alasan: {$reason}.",
+                                    'url'     => "/shipping/{$spk->id}",
+                                    'spk_code'=> $spk->spk_code,
+                                ]
+                            ]);
+                         } catch (\Exception $e) {}
+                    }
+                }
+            }
+
+            DB::commit(); // Commit Transaction
 
              // REALTIME UPDATE
              try {
@@ -1361,6 +1567,7 @@ class ShippingController extends Controller
                 'file_path' => $correctionPath
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             \Log::error('Rejection error: ' . $e->getMessage());
             \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
@@ -1532,20 +1739,68 @@ class ShippingController extends Controller
             }
         }
 
-        $latestStatus = SpkStatus::where('id_spk', $spk->id)
-        ->orderBy('id', 'desc') // Ambil yang paling terakhir dibuat
-        ->first();
+        // 1. Fetch ALL statuses with Master Relation
+        // 1. Fetch ALL statuses with Master Relation
+        $spkStatuses = SpkStatus::with('masterStatus')->where('id_spk', $spk->id)->get();
 
-        // 2. Format Data sesuai kebutuhan Frontend (shipmentData)
+        // 2. Determine Priority Status based on Index (Lower index = Higher Priority)
+        
+        // Logic: Only consider "Rejected" (ID 4) status IF there are ACTUAL active rejected documents.
+        // We use fresh query and collection filtering to ensure Casts (boolean) are respected.
+        $allDocs = DocumentTrans::where('id_spk', $spk->id)->get();
+        
+        // Check for Active Rejections (correction_attachment is TRUE)
+        $hasActiveRejections = $allDocs->contains(function ($doc) {
+            return $doc->correction_attachment == true;
+        });
+
+        // Check for Pending Review (Uploaded but not Verified & Not Rejected)
+        // verify != true captures both 'false' (0) and 'null' (Pending) safely.
+        $hasPendingReview = $allDocs->contains(function ($doc) {
+            return $doc->verify != true 
+                && $doc->correction_attachment == false 
+                && !empty($doc->url_path_file);
+        });
+
+        // Check for Empty Documents (Not Uploaded)
+        $hasEmptyDocs = $allDocs->contains(function ($doc) {
+            return empty($doc->url_path_file);
+        });
+
+        $activeStatuses = $spkStatuses->filter(function ($status) use ($hasActiveRejections, $hasPendingReview, $hasEmptyDocs) {
+            $id = $status->id_status;
+
+            // 1. Rejected (ID 4): Hide if no active rejections
+            if ($id == 4 && !$hasActiveRejections) return false;
+
+            // 2. Uploaded (ID 1) & Reuploaded (ID 3): Hide if no Pending Reviews
+            if (in_array($id, [1, 3]) && !$hasPendingReview) return false;
+
+            // 3. Requested (ID 2): Hide if no Empty Docs (Meaning all are uploaded)
+            // This is CRITICAL because Requested (Index 1) overrides Verified (Index 2) if not hidden.
+            if ($id == 2 && !$hasEmptyDocs) return false;
+
+            return true;
+        });
+
+        // Sort by Index ASC (Primary), then Created At DESC (Secondary)
+        $priorityStatus = $activeStatuses->sortBy([
+            fn ($a, $b) => ($a->masterStatus->index ?? 999) <=> ($b->masterStatus->index ?? 999),
+            fn ($a, $b) => $b->created_at <=> $a->created_at,
+        ])->first();
+
+        // 3. Format Data sesuai kebutuhan Frontend (shipmentData)
         $shipmentData = [
             'id_spk'    => $spk->id,
-            // Format tanggal: 12/11/25 17.14 WIB
-            'spkDate'   => \Carbon\Carbon::parse($spk->created_at)->format('d/m/y H.i') . ' WIB',
+            // Format tanggal: 12/11/25 10.35 WIB
+            'spkDate'   => $priorityStatus ? $priorityStatus->created_at->format('d/m/y H.i') . ' WIB' : '-',
+            // Use SPK Status Name directly as requested
+            'status'    => $priorityStatus ? $priorityStatus->status : 'UNKNOWN',
+            'shipmentType' => $spk->shipment_type,
             'type'      => $spk->shipment_type,
             'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
             'internal_can_upload' => $spk->internal_can_upload,
             'hsCodes'   => [],
-            'status'    => $latestStatus ? $latestStatus->status : 'Unknown',
             'is_created_by_internal' => $spk->is_created_by_internal,
             'validated_by' => $spk->validated_by, // Send to frontend
         ];
@@ -1577,6 +1832,256 @@ class ShippingController extends Controller
             'sectionsTransProp' => $sectionsTrans,
         ]);
     }
+
+    /**
+     * Batch Process Attachments (Optimized)
+     * Handles multiple file processing in single transaction + Notification.
+     */
+    
+    public function batchProcessAttachments(Request $request)
+    {
+        $user = auth('web')->user();
+        
+        $request->validate([
+            'spk_id' => 'required',
+            'attachments' => 'required|array',
+            'attachments.*.path' => 'required|string',
+            'attachments.*.document_id' => 'required',
+            'attachments.*.type' => 'required|string',
+            'section_name' => 'nullable|string',
+        ]);
+
+        $spkId = $request->spk_id;
+        $attachments = $request->attachments;
+        $sectionName = $request->section_name ?? 'Document';
+
+        // 1. Initialize Tenancy
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) return response()->json(['message' => 'Tenant not found'], 404);
+        tenancy()->initialize($tenant);
+
+        // Limit execution time for batch process
+        set_time_limit(300); 
+
+        Log::info("Batch Process Payload:", ['attachments' => $attachments, 'spk_id' => $spkId]);
+
+        DB::beginTransaction();
+        try {
+            $processedCount = 0;
+            $spk = Spk::findOrFail($spkId);
+
+            $uniqueSections = [];
+            $lastSectionName = $sectionName; // Default to request's section_name
+            $isReupload = false;
+
+            foreach ($attachments as $att) {
+                $tempPath = $att['path'];
+                $docId = $att['document_id'];
+                $type = $att['type']; // Filename/Type
+
+                if (!Storage::disk('customers_external')->exists($tempPath)) {
+                    Log::warning("Batch Process: Temp file not found: $tempPath");
+                     // Try with/without leading slash just in case
+                     if (Storage::disk('customers_external')->exists(ltrim($tempPath, '/'))) {
+                        $tempPath = ltrim($tempPath, '/');
+                    } else {
+                        Log::error("Batch Process: REALLY not found: $tempPath");
+                        continue;
+                    }
+                }
+
+                $tenantConnection = tenancy()->tenant ? 'tenant' : config('database.default');
+                $targetDoc = DocumentTrans::on($tenantConnection)->with('sectionTrans')->find($docId);
+
+                if (!$targetDoc) {
+                    Log::warning("Batch Process: DocumentTrans $docId not found");
+                    continue;
+                }
+
+                // Collect Unique Section Names & Track Last Section
+                if ($targetDoc->sectionTrans) {
+                    $uniqueSections[$targetDoc->sectionTrans->id] = $targetDoc->sectionTrans->section_name;
+                    $lastSectionName = $targetDoc->sectionTrans->section_name; // Update last section
+                }
+
+                // Check Reupload
+                // Condition: 
+                // 1. Fixing Rejection (correction_attachment is TRUE)
+                // 2. Replacing Existing File (url_path_file not empty)
+                // Note: We REMOVED 'verify === false' check because default value for fresh doc is FALSE.
+                if (
+                    $targetDoc->correction_attachment || 
+                    (!empty($targetDoc->url_path_file))
+                ) {
+                    $isReupload = true;
+                }
+
+                // --- MAIN PROCESSING LOGIC (Adapted from upload) ---
+                $fileContent = Storage::disk('customers_external')->get($tempPath);
+                $ext = pathinfo($tempPath, PATHINFO_EXTENSION);
+                
+                $year = date('Y');
+                $month = date('m');
+                $shippingFolder = "shipping/{$year}/{$month}/{$spk->spk_code}";
+                
+                // Ensure directory exists
+                if (!Storage::disk('customers_external')->exists($shippingFolder)) {
+                    Storage::disk('customers_external')->makeDirectory($shippingFolder);
+                }
+
+                $cleanFileName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $type);
+                $newFileName = "{$cleanFileName}.{$ext}";
+                $finalRelPath = "{$shippingFolder}/{$newFileName}";
+                $absPath = Storage::disk('customers_external')->path($finalRelPath);
+
+                // Save File
+                Storage::disk('customers_external')->put($finalRelPath, $fileContent);
+
+                // Post-Processing (Ghostscript/Resize)
+                if (strtolower($ext) === 'pdf') {
+                    // Optimized GS settings for screen
+                    $this->runGhostscript($absPath, $absPath, 'medium'); 
+                } 
+                elseif (in_array(strtolower($ext), ['jpg', 'jpeg', 'png'])) {
+                    // Simple Resize logic 
+                    $this->resizeImage($absPath, 800, 75);
+                }
+
+                // Delete Temp - FROM Customers External
+                Storage::disk('customers_external')->delete($tempPath);
+
+                // Update DB
+                $targetDoc->update([
+                    'url_path_file' => $finalRelPath,
+                    'nama_file'     => $newFileName,
+                    'verify'        => $spk->internal_can_upload ? true : null, // Auto-verify if internal override
+                    'correction_attachment' => false,
+                    'kuota_revisi'  => ($targetDoc->kuota_revisi > 0) ? $targetDoc->kuota_revisi - 1 : 0, 
+                    'updated_at'    => now(),
+                ]);
+
+                // Create Log
+                DocumentStatus::on($tenantConnection)->create([
+                    'id_dokumen_trans' => $targetDoc->id,
+                    'status'           => 'Uploaded',
+                    'by'               => $user->name,
+                ]);
+
+                $processedCount++;
+            } // End Loop
+
+            if ($processedCount > 0) {
+                // Determine Consolidated Section Name (For Notification)
+                $notificationSectionName = $sectionName; // Default
+                if (count($uniqueSections) > 0) {
+                    $notificationSectionName = implode(' dan ', $uniqueSections); 
+                }
+                
+                // 2. Update SPK Status (Batch - Use LAST Section Only)
+                // ID 3 = Reuploaded (Index 1), ID 1 = Upload (Index 2)
+                $statusId = $isReupload ? 3 : 1; 
+                $statusText = $isReupload ? "{$lastSectionName} Reuploaded" : "{$lastSectionName} Uploaded";
+
+                SpkStatus::create([
+                    'id_spk' => $spk->id,
+                    'id_status' => $statusId, 
+                    'status' => $statusText,
+                ]);
+
+                // 3. Send Notification (Batch - Use Consolidated Name)
+                $this->sendBatchUploadNotification($spk, $notificationSectionName, $user, $processedCount);
+                
+                // Realtime Update (Use Last Section name for consistency if needed, but 'batch_upload' type handles it)
+                ShippingDataUpdated::dispatch($spk->id, 'batch_upload');
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'processed' => $processedCount,
+                'message' => "$processedCount documents processed successfully."
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Batch Process Error: " . $e->getMessage());
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Helper to send batch upload notifications
+     */
+    private function sendBatchUploadNotification($spk, $sectionName, $uploader, $count)
+    {
+        // A. Internal Uploader -> Notify Customer
+        if ($uploader->role === 'internal') {
+            $customers = \App\Models\User::on('tako-user')
+                ->where('id_customer', $spk->id_customer)
+                ->where('role', 'eksternal') // Or matching logic
+                ->get();
+            
+            foreach ($customers as $cust) {
+                // Email using Service
+                SectionReminderService::sendDocumentUploaded($spk, $sectionName, $uploader, $cust);
+
+                // Notification
+                try {
+                    NotificationService::send([
+                        'send_to' => $cust->id_user,
+                        'created_by' => $uploader->id,
+                        'role' => 'eksternal',
+                        'id_spk' => $spk->id,
+                        'data' => [
+                            'type' => 'document_uploaded',
+                            'title' => 'Dokumen Baru Diupload',
+                            'message' => "Staff {$uploader->name} mengupload {$count} dokumen pada section {$sectionName}.",
+                            'url' => "/shipping/{$spk->id}",
+                            'spk_code' => $spk->spk_code
+                        ]
+                    ]);
+                } catch (\Exception $e) {}
+            }
+        } 
+        // B. Customer Uploader -> Notify Staff
+        else {
+            if ($spk->validated_by) {
+                $staff = \App\Models\User::on('tako-user')->find($spk->validated_by);
+                if ($staff) {
+                    // Email using Service
+                    SectionReminderService::sendDocumentUploaded($spk, $sectionName, $uploader, $staff);
+
+                    try {
+                        NotificationService::send([
+                            'send_to' => $staff->id_user,
+                            'created_by' => $uploader->id,
+                            'role' => 'internal',
+                            'id_spk' => $spk->id,
+                            'data' => [
+                                'type' => 'document_uploaded',
+                                'title' => 'Dokumen Baru Diupload',
+                                'message' => "Customer {$uploader->name} mengupload {$count} dokumen pada section {$sectionName}.",
+                                'url' => "/shipping/{$spk->id}",
+                                'spk_code' => $spk->spk_code
+                            ]
+                        ]);
+                    } catch (\Exception $e) {}
+                }
+            }
+            
+        }
+    }
+    
 
     /**
      * Show the form for editing the specified resource.
