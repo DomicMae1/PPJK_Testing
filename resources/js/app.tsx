@@ -1,12 +1,12 @@
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/react';
+import Echo from 'laravel-echo';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import Pusher from 'pusher-js';
 import { createRoot } from 'react-dom/client';
 import { route as routeFn } from 'ziggy-js';
 import { initializeTheme } from './hooks/use-appearance';
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
 
 // Initialize Echo for WebSocket
 window.Pusher = Pusher;
@@ -19,8 +19,6 @@ window.Echo = new Echo({
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'http') === 'https',
     enabledTransports: ['ws', 'wss'],
 });
-
-console.log('Echo initialized:', window.Echo);
 
 declare global {
     const route: typeof routeFn;

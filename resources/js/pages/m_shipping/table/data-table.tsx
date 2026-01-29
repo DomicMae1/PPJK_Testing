@@ -39,16 +39,11 @@ interface HsCodeItem {
 
 export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
     const { props } = usePage();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const auth = (props.auth as any) || {};
     const userRole = auth.user?.roles?.[0]?.name ?? '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const externalCustomers = (props.externalCustomers as any[]) || [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const internalStaff = (props.internalStaff as any[]) || []; // NEW: Retrieve Internal Staff
     const isUserExternal = auth.user?.role === 'eksternal';
-
-    console.log(data);
 
     const trans = props.trans_general as Record<string, string>;
     const currentLocale = props.locale as string;
@@ -561,17 +556,17 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                         const dateObj = original.tanggal_status ? new Date(original.tanggal_status) : null;
                         const dateStr = dateObj
                             ? dateObj.toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: '2-digit',
-                            })
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: '2-digit',
+                              })
                             : '-';
                         const timeStr = dateObj
                             ? dateObj.toLocaleTimeString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false,
-                            })
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false,
+                              })
                             : '';
 
                         // Logic Warna Jalur
@@ -659,8 +654,8 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                                     (header.column.getIsSorted() === 'asc'
                                                         ? '⬆️'
                                                         : header.column.getIsSorted() === 'desc'
-                                                            ? '⬇️'
-                                                            : '')}
+                                                          ? '⬇️'
+                                                          : '')}
                                             </button>
                                         ) : (
                                             flexRender(header.column.columnDef.header, header.getContext())

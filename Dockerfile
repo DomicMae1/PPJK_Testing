@@ -16,8 +16,7 @@ RUN apt-get update && apt-get install -y \
     nano \
     mc \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd pdo pdo_pgsql zip \
-    # Install Redis extension if needed (since config/database.php mentions redis)
+    && docker-php-ext-install -j$(nproc) gd pdo pdo_pgsql zip pcntl \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -31,12 +30,47 @@ max_execution_time = 600\n\
 " > /usr/local/etc/php/conf.d/uploads.ini
 
 # Aktifkan mod_rewrite
-RUN a2enmod rewrite ssl
+RUN a2enmod rewrite ssl proxy proxy_http proxy_wstunnel
 
 # Ubah DocumentRoot Apache
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
+
+# Buat file konfigurasi VirtualHost baru secara langsung
+RUN echo '<VirtualHost *:80>\n\
+    ServerAdmin webmaster@localhost\n\
+    DocumentRoot /var/www/html/public\n\
+    \n\
+    <Directory /var/www/html/public>\n\
+        Options Indexes FollowSymLinks\n\
+        AllowOverride All\n\
+        Require all granted\n\
+    </Directory>\n\
+    \n\
+    # --- KONFIGURASI PROXY REVERB ---\n\
+    # Kita menggunakan "reverb" sebagai host karena itu nama service di docker-compose\n\
+    <IfModule mod_proxy.c>\n\
+        <IfModule mod_proxy_wstunnel.c>\n\
+            RewriteEngine On\n\
+            RewriteCond %{HTTP:Upgrade} =websocket [NC]\n\
+            RewriteCond %{HTTP:Connection} upgrade$ [NC]\n\
+            RewriteRule ^/app(.*)$ ws://reverb:8080/app$1 [P,L]\n\
+            \n\
+            ProxyPass /app ws://reverb:8080/app\n\
+            ProxyPassReverse /app ws://reverb:8080/app\n\
+        </IfModule>\n\
+        \n\
+        # Fallback HTTP\n\
+        ProxyPass /app http://reverb:8080/app\n\
+        ProxyPassReverse /app http://reverb:8080/app\n\
+    </IfModule>\n\
+    # --------------------------------\n\
+    \n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
+</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
+# Aktifkan mod_rewrite (sudah ada di kode anda, pastikan tetap ada)
+RUN a2enmod rewrite
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

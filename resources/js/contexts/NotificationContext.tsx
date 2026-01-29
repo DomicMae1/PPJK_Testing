@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 interface DocumentItem {
     id_dokumen: number;
@@ -61,11 +61,7 @@ interface NotificationProviderProps {
     userRole?: string;
 }
 
-export const NotificationProvider: React.FC<NotificationProviderProps> = ({
-    children,
-    userId,
-    userRole,
-}) => {
+export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, userId, userRole }) => {
     const [notifications, setNotifications] = useState<NotificationData[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
 
@@ -137,24 +133,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             // Subscribe to user-specific channel only
             // (Role-based notifications are now sent to individual user channels)
             const userChannelName = `notifications.${userId}`;
-            Echo.private(userChannelName).listen('.notification.sent', (data: NotificationData) => {
-                console.log('New notification received:', data);
-                addNotification(data);
-            })
+            Echo.private(userChannelName)
+                .listen('.notification.sent', (data: NotificationData) => {
+                    addNotification(data);
+                })
                 .listen('.notification.removed', (data: { id_spk: number }) => {
-                    console.log('Notification removed:', data);
                     // Remove singular or multiple notifications matching this SPK
                     setNotifications((prev) => prev.filter((n) => n.data?.id_spk !== data.id_spk));
                     // Fetch fresh count to be accurate
                     fetchUnreadCount();
                 });
 
-            console.log('Subscribed to notification channel:', userChannelName);
-
             // Cleanup on unmount
             return () => {
                 Echo.leave(userChannelName);
-                console.log('Unsubscribed from notification channel');
             };
         } catch (error) {
             console.error('Failed to subscribe to notification channels:', error);

@@ -13,15 +13,16 @@ import { toast } from 'sonner';
 import { columns } from './table/columns';
 import { DataTable } from './table/data-table';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Manage Users',
-        href: '/users',
-    },
-];
-
 export default function ManageUsers() {
-    const { users, roles } = usePage().props as unknown as { users: User[]; roles: Role[] };
+    const { users, roles, trans_auth } = usePage().props as unknown as { users: User[]; roles: Role[]; trans_auth: Record<string, string> };
+
+    const breadcrumbs: BreadcrumbItem[] = [
+        {
+            title: trans_auth.page_title_manage,
+            href: '/users',
+        },
+    ];
+
     const [openDelete, setOpenDelete] = useState(false);
     const [userIdToDelete, setUserIdToDelete] = useState<number | null>(null);
     const [openEdit, setOpenEdit] = useState(false);
@@ -60,9 +61,6 @@ export default function ManageUsers() {
 
                     // Set ID role ke state (untuk dropdown select)
                     setEditRoleInternalId(matchingRole ? String(matchingRole.id) : '');
-
-                    // Debugging
-                    // console.log("Role found:", matchingRole);
                 } else {
                     // Fallback jika tidak ada role
                     setEditRoleInternalId('');
@@ -83,11 +81,11 @@ export default function ManageUsers() {
                 onSuccess: () => {
                     setOpenDelete(false);
                     setUserIdToDelete(null);
-                    toast.success('User deleted successfully!');
+                    toast.success(trans_auth.toast_delete_success);
                 },
                 onError: (errors) => {
                     console.error('❌ Error saat menghapus user:', errors);
-                    toast.error('Failed to delete user.');
+                    toast.error(trans_auth.toast_delete_error);
                 },
             });
         }
@@ -97,13 +95,14 @@ export default function ManageUsers() {
         e.preventDefault();
 
         if (!editName || !editEmail) {
-            toast.error('Nama dan Email wajib diisi.');
+            // Menggunakan trans_auth
+            toast.error(trans_auth.validation_name_email_required);
             return;
         }
 
-        // Jika Internal, wajib pilih role
         if (!isExternalUser && !editRoleInternalId) {
-            toast.error('Role wajib dipilih untuk user Internal.');
+            // Menggunakan trans_auth
+            toast.error(trans_auth.validation_role_internal_required);
             return;
         }
 
@@ -127,12 +126,12 @@ export default function ManageUsers() {
                 onSuccess: () => {
                     setOpenEdit(false);
                     resetEditState();
-                    toast.success('User updated successfully!');
+                    toast.success(trans_auth.toast_update_success);
                 },
                 onError: (errors: any) => {
                     console.error('❌ Error saat mengedit user:', errors);
                     if (errors.email) toast.error(errors.email);
-                    else toast.error('Failed to update user.');
+                    else toast.error(trans_auth.toast_update_error);
                 },
             });
         }
@@ -150,25 +149,25 @@ export default function ManageUsers() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Manage Users" />
             <div className="p-4">
-                <DataTable columns={columns(onDeleteClick, onEditClick)} data={users} />
+                <DataTable columns={columns(onDeleteClick, onEditClick, trans_auth)} data={users} />
             </div>
 
             <Dialog open={openDelete} onOpenChange={setOpenDelete}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Hapus Data</DialogTitle>
-                        <div className="mt-2">
-                            Data <span className="font-bold text-white">{userToDelete?.email ?? 'Tidak ditemukan'}</span> akan dihapus. Apakah Anda
-                            yakin?
+                        <DialogTitle>{trans_auth.title_delete}</DialogTitle>
+                        <div className="text-muted-foreground mt-2 text-sm">
+                            {/* Mengganti placeholder :email dengan email user secara manual menggunakan .replace() */}
+                            {(trans_auth.text_delete_confirm || '').replace(':email', userToDelete?.email ?? '-')}
                         </div>
                     </DialogHeader>
                     <DialogFooter className="sm:justify-start">
                         <Button type="button" variant="destructive" onClick={onConfirmDelete}>
-                            Hapus
+                            {trans_auth.btn_delete}
                         </Button>
                         <DialogClose asChild>
                             <Button type="button" variant="secondary">
-                                Close
+                                {trans_auth.btn_close}
                             </Button>
                         </DialogClose>
                     </DialogFooter>
@@ -184,39 +183,43 @@ export default function ManageUsers() {
             >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
-                        <DialogDescription>Update the details of the user.</DialogDescription>
+                        <DialogTitle>{trans_auth.title_edit}</DialogTitle>
+                        <DialogDescription>{trans_auth.desc_edit}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={onConfirmEdit} className="space-y-4">
                         {/* 1. Nama */}
                         <div>
-                            <Label htmlFor="edit_name">Name</Label>
-                            <Input id="edit_name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Enter name" />
+                            <Label htmlFor="edit_name">{trans_auth.label_name}</Label>
+                            <Input
+                                id="edit_name"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder={trans_auth.placeholder_name}
+                            />
                         </div>
 
                         {/* 2. Email */}
                         <div>
-                            <Label htmlFor="edit_email">Email</Label>
+                            <Label htmlFor="edit_email">{trans_auth.label_email}</Label>
                             <Input
                                 id="edit_email"
                                 type="email"
                                 value={editEmail}
                                 onChange={(e) => setEditEmail(e.target.value)}
-                                placeholder="Enter email"
+                                placeholder={trans_auth.placeholder_email}
                             />
                         </div>
 
-                        {/* 3. Role Internal (Hanya muncul jika user INTERNAL) */}
+                        {/* 3. Role Internal */}
                         {!isExternalUser && (
                             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
-                                <Label htmlFor="edit_role">Role Internal</Label>
+                                <Label htmlFor="edit_role">{trans_auth.label_role_internal}</Label>
                                 <Select onValueChange={setEditRoleInternalId} value={editRoleInternalId}>
                                     <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select a role" />
+                                        <SelectValue placeholder={trans_auth.placeholder_role_internal} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {roles
-                                            // Filter hanya role internal yang relevan
                                             .filter((role) => ['staff', 'manager', 'supervisor'].includes(role.name))
                                             .map((role) => (
                                                 <SelectItem key={role.id} value={String(role.id)}>
@@ -231,15 +234,15 @@ export default function ManageUsers() {
                         {/* Info Text untuk Eksternal */}
                         {isExternalUser && (
                             <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-                                User ini adalah <strong>Eksternal (Customer)</strong>. Tidak ada role di sini.
+                                {trans_auth.text_external_info}
                             </div>
                         )}
 
                         <DialogFooter className="sm:justify-start">
-                            <Button type="submit">Save Changes</Button>
+                            <Button type="submit">{trans_auth.btn_save}</Button>
                             <DialogClose asChild>
                                 <Button type="button" variant="secondary">
-                                    Cancel
+                                    {trans_auth.btn_cancel}
                                 </Button>
                             </DialogClose>
                         </DialogFooter>

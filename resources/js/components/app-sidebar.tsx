@@ -10,40 +10,44 @@ import AppLogo from './app-logo';
 //     supervisorManagerOnly?: boolean;
 // }
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Shipment',
-        url: '/shipping',
-        icon: SquareUserRound,
-    },
-    {
-        title: 'Manage Users',
-        url: '/users',
-        icon: Users,
-        supervisorManagerOnly: true,
-    },
-    {
-        title: 'Manage Role',
-        url: '/role-manager',
-        icon: Shield,
-        adminOnly: true,
-    },
-    {
-        title: 'Manage Company',
-        url: '/perusahaan',
-        icon: Building2,
-        adminOnly: true,
-    },
-    {
-        title: 'Manage Document',
-        url: '/document',
-        icon: BookCheck,
-        supervisorManagerOnly: true,
-    },
-];
+interface SharedProps extends PageProps {
+    trans_nav: Record<string, string>;
+}
 
 export function AppSidebar() {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, trans_nav } = usePage<SharedProps>().props;
+
+    const mainNavItems: NavItem[] = [
+        {
+            title: trans_nav.shipment, // Translate
+            url: '/shipping',
+            icon: SquareUserRound,
+        },
+        {
+            title: trans_nav.manage_users, // Translate
+            url: '/users',
+            icon: Users,
+            supervisorManagerOnly: true,
+        },
+        {
+            title: trans_nav.manage_role, // Translate
+            url: '/role-manager',
+            icon: Shield,
+            adminOnly: true,
+        },
+        {
+            title: trans_nav.manage_company, // Translate
+            url: '/perusahaan',
+            icon: Building2,
+            adminOnly: true,
+        },
+        {
+            title: trans_nav.manage_document, // Translate
+            url: '/document',
+            icon: BookCheck,
+            supervisorManagerOnly: true,
+        },
+    ];
 
     const userRoles = auth?.user?.roles?.map((role: { name: string }) => role.name) || [];
 
