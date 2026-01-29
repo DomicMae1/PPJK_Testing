@@ -42,6 +42,7 @@ services:
 
     volumes:
       - ./:/var/www/html
+      # Mounting storage public for consistency
       - ./storage/app/public:/var/www/html/storage/app/public
       - /mnt/Ppjk:/mnt/Ppjk
       - /etc/hosts:/tmp/hosts_external:ro
