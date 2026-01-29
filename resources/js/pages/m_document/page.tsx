@@ -114,10 +114,11 @@ export default function ManageDocuments() {
                 link_path_template_file: '',
 
                 existing_example: doc.link_path_example_file
-                    ? { nama_file: 'File Contoh Saat Ini', path: `/storage/${doc.link_path_example_file}` }
+                    ? { nama_file: 'File Contoh Saat Ini', path: doc.link_path_example_file } // Backend sudah mengirim URL lengkap
                     : null,
+
                 existing_template: doc.link_path_template_file
-                    ? { nama_file: 'File Template Saat Ini', path: `/storage/${doc.link_path_template_file}` }
+                    ? { nama_file: 'File Template Saat Ini', path: doc.link_path_template_file } // Backend sudah mengirim URL lengkap
                     : null,
             });
             setOpenEdit(true);

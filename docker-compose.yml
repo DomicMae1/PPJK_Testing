@@ -8,18 +8,16 @@ services:
       - '443:443'
     env_file:
       - .env
-
-    # BAGIAN INI SANGAT PENTING (OVERRIDE KONFIGURASI .ENV)
     environment:
-      # 1. Setting Koneksi Perusahaan (WAJIB DIARAHKAN KE 'db')
-      - DB_TAKO_CONNECTION=pgsql
-      - DB_TAKO_HOST=db
-      - DB_TAKO_PORT=5432
-      - DB_TAKO_DATABASE=${DB_TAKO_DATABASE}
-      - DB_TAKO_USERNAME=${DB_TAKO_USERNAME}
-      - DB_TAKO_PASSWORD=${DB_TAKO_PASSWORD}
+      # Database Configuration
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_SECOND_DATABASE}
+      - DB_USERNAME=${DB_SECOND_USERNAME}
+      - DB_PASSWORD=${DB_SECOND_PASSWORD}
 
-      # 2. Setting Koneksi Second (WAJIB DIARAHKAN KE 'db')
+      # Database Second & Tako (Mapped to same DB container)
       - DB_SECOND_CONNECTION=pgsql
       - DB_SECOND_HOST=db
       - DB_SECOND_PORT=5432
@@ -27,39 +25,106 @@ services:
       - DB_SECOND_USERNAME=${DB_SECOND_USERNAME}
       - DB_SECOND_PASSWORD=${DB_SECOND_PASSWORD}
 
+      - DB_TAKO_CONNECTION=pgsql
+      - DB_TAKO_HOST=db
+      - DB_TAKO_PORT=5432
+      - DB_TAKO_DATABASE=${DB_TAKO_DATABASE:-${DB_SECOND_DATABASE}}
+      - DB_TAKO_USERNAME=${DB_TAKO_USERNAME:-${DB_SECOND_USERNAME}}
+      - DB_TAKO_PASSWORD=${DB_TAKO_PASSWORD:-${DB_SECOND_PASSWORD}}
+
+      # Redis Configuration (PENTING AGAR APP BISA KONEK KE REDIS)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
       # Setup URL
       - APP_URL=${APP_URL}
+      - FILESYSTEM_DISK=${FILESYSTEM_DISK:-public}
 
     volumes:
       - ./:/var/www/html
+      # Mounting storage public for consistency
       - ./storage/app/public:/var/www/html/storage/app/public
-      - /mnt/Customer_Registration:/mnt/Customer_Registration
-      - /home/it-admin/sites-available:/etc/apache2/sites-available
-      - /home/it-admin/sites-enabled:/etc/apache2/sites-enabled
-      - /home/it-admin/letsencrypt:/etc/letsencrypt
-      # Untuk Update host didalam docker
+      - /mnt/Ppjk:/mnt/Ppjk
       - /etc/hosts:/tmp/hosts_external:ro
 
     depends_on:
       - db
+      - redis
     networks:
       - app-network
+
+  # --- SERVICE REVERB (YANG SEBELUMNYA HILANG) ---
+  reverb:
+    image: php:8.2-cli # Atau gunakan image custom Anda jika reverb butuh extension khusus
+    container_name: laravel-reverb
+    restart: always
+    working_dir: /var/www/html
+    # Mount code agar reverb bisa baca konfigurasi Laravel
+    volumes:
+      - ./:/var/www/html
+      - ./.env:/var/www/html/.env
+    # Command untuk menjalankan reverb
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - '8080:8080'
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      # Masukkan env lain yang dibutuhkan Reverb
+    networks:
+      - app-network
+    depends_on:
+      - redis # INI YANG SEBELUMNYA ERROR, SEKARANG SUDAH AMAN KARENA ADA SERVICE REDIS DIBAWAH
+  queue:
+    build: .
+    container_name: laravel-queue
+    restart: always
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./.env:/var/www/html/.env
+    command: php artisan queue:work --sleep=1 --tries=3
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+    networks:
+      - app-network
+    depends_on:
+      - redis
+      - db
+  # --- SERVICE REDIS (YANG BARU ANDA TAMBAHKAN) ---
+  redis:
+    image: 'redis:alpine'
+    container_name: redis-cache
+    restart: always
+    ports:
+      - '${FORWARD_REDIS_PORT:-6379}:6379'
+    volumes:
+      - 'redis-data:/data'
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      retries: 3
+      timeout: 5s
 
   db:
     image: postgres:15
     container_name: postgres-db
     restart: always
     environment:
-      # Membuat user dan password master dari .env
-      POSTGRES_DB: ${DB_TAKO_DATABASE}
-      POSTGRES_USER: ${DB_TAKO_USERNAME}
-      POSTGRES_PASSWORD: ${DB_TAKO_PASSWORD}
+      POSTGRES_DB: ${DB_SECOND_DATABASE}
+      POSTGRES_USER: ${DB_SECOND_USERNAME}
+      POSTGRES_PASSWORD: ${DB_SECOND_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
     ports:
-      # Menggunakan port default 5432
       - '${DB_SECOND_PORT:-5432}:5432'
 
 networks:
@@ -68,3 +133,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis-data:

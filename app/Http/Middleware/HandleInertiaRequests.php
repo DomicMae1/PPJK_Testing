@@ -64,6 +64,7 @@ class HandleInertiaRequests extends Middleware
             'locale' => app()->getLocale(),
             'trans_auth' => __('auth'),
             'trans_general' => __('general'),
+            'trans_nav' => __('sidebar'),
             'company' => [
                 'id' => session('company_id'),
                 'name' => session('company_name'),

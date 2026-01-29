@@ -1226,10 +1226,10 @@ class ShippingController extends Controller
                 'message' => 'Document verified successfully'
             ]);
         } catch (\Exception $e) {
-            \Log::error('Verification error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            \Log::error('Current DB connection: ' . config('database.default'));
-            \Log::error('Auth user: ' . (Auth::user() ? Auth::user()->email : 'none'));
+            Log::error('Verification error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Current DB connection: ' . config('database.default'));
+            Log::error('Auth user: ' . (Auth::user() ? Auth::user()->email : 'none'));
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to verify document: ' . $e->getMessage()

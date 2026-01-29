@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bell } from 'lucide-react';
-import axios from 'axios';
 import { useNotifications } from '@/contexts/NotificationContext';
+import axios from 'axios';
+import { Bell } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface Notification {
     id: number;
@@ -45,9 +45,7 @@ export const NotificationBell: React.FC = () => {
         await markAsReadContext(id);
 
         // Update local notifications list for dropdown UI
-        setNotifications((prev) =>
-            prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
-        );
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
     };
 
     // Mark all as read
@@ -97,14 +95,10 @@ export const NotificationBell: React.FC = () => {
 
     // Handle notification click: mark as read (if unread) + redirect to URL
     const handleNotificationClick = async (notification: Notification) => {
-        console.log('Notification clicked:', notification);
-
         const url = notification.data?.url;
-        console.log('URL from notification:', url);
 
         // If notification is unread, mark as read first
         if (!notification.read_at) {
-            console.log('Marking as read...');
             await markAsRead(notification.id);
         } else {
             console.log('Already read, skipping mark as read');
@@ -112,7 +106,6 @@ export const NotificationBell: React.FC = () => {
 
         // Redirect to URL if available
         if (url) {
-            console.log('Redirecting to:', url);
             window.location.href = url;
         } else {
             console.log('No URL available in notification data');
@@ -142,7 +135,7 @@ export const NotificationBell: React.FC = () => {
             >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                    <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                    <span className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
@@ -150,17 +143,12 @@ export const NotificationBell: React.FC = () => {
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 top-12 z-50 w-80 sm:w-96 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                <div className="absolute top-12 right-0 z-50 w-80 rounded-lg border border-gray-200 bg-white shadow-lg sm:w-96 dark:border-gray-700 dark:bg-gray-800">
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Notifications
-                        </h3>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</h3>
                         {unreadCount > 0 && (
-                            <button
-                                onClick={markAllAsRead}
-                                className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                            >
+                            <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">
                                 Mark all as read
                             </button>
                         )}
@@ -171,35 +159,21 @@ export const NotificationBell: React.FC = () => {
                         {loading ? (
                             <div className="p-4 text-center text-sm text-gray-500">Loading...</div>
                         ) : notifications.length === 0 ? (
-                            <div className="p-4 text-center text-sm text-gray-500">
-                                No notifications
-                            </div>
+                            <div className="p-4 text-center text-sm text-gray-500">No notifications</div>
                         ) : (
                             notifications.map((notification) => (
                                 <div
                                     key={notification.id}
                                     onClick={() => handleNotificationClick(notification)}
-                                    className={`
-                                        cursor-pointer border-b border-gray-100 p-4 transition-colors hover:bg-gray-50
-                                        dark:border-gray-700 dark:hover:bg-gray-700/50
-                                        ${!notification.read_at ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
-                                    `}
+                                    className={`cursor-pointer border-b border-gray-100 p-4 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50 ${!notification.read_at ? 'bg-blue-50 dark:bg-blue-900/20' : ''} `}
                                 >
                                     <div className="flex items-start gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                                                {notification.data.title}
-                                            </h4>
-                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                                {notification.data.message}
-                                            </p>
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {formatTime(notification.created_at)}
-                                            </p>
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">{notification.data.title}</h4>
+                                            <p className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">{notification.data.message}</p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatTime(notification.created_at)}</p>
                                         </div>
-                                        {!notification.read_at && (
-                                            <div className="h-2 w-2 flex-shrink-0 rounded-full bg-blue-600"></div>
-                                        )}
+                                        {!notification.read_at && <div className="h-2 w-2 flex-shrink-0 rounded-full bg-blue-600"></div>}
                                     </div>
                                 </div>
                             ))

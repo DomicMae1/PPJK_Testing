@@ -42,8 +42,8 @@ class DocumentController extends Controller
                             'attribute' => $item->attribute,     // Boolean
                             
                             // --- FIELD BARU ---
-                            'link_path_example_file' => $item->link_path_example_file,
-                            'link_path_template_file' => $item->link_path_template_file,
+                            'link_path_example_file' => $item->link_path_example_file ? Storage::url($item->link_path_example_file) : null,
+                            'link_path_template_file' => $item->link_path_template_file ? Storage::url($item->link_path_template_file) : null,
                             'link_url_video_file' => $item->link_url_video_file,
                             
                             'section' => $item->section,

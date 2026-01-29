@@ -62,10 +62,10 @@ return [
 
         'customers_external' => [
             'driver' => 'local',
-            'root' => 'C:\Users\IT-Dev\Herd\customers',
-            'url' => env('APP_URL').'/files',
+            'root' => '/mnt/Ppjk',
+            'url' => env('APP_URL') . '/storage/external',
             'visibility' => 'public',
-            'throw' => false,
+            'throw' => true,
         ],
 
     ],
@@ -86,7 +86,7 @@ return [
         public_path('storage') => storage_path('app/public'),
         
         // (Opsional) Tambahkan link kedua khusus untuk /mnt/CR jika mau diakses publik
-        public_path('storage/external') =>  '/mnt/Customer_Registration', 
+        public_path('storage/external') =>  '/mnt/Ppjk', 
     ],
 
 ];
