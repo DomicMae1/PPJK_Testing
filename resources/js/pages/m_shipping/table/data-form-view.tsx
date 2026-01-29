@@ -13,6 +13,7 @@ import axios from 'axios';
 import { AlertTriangle, ChevronDown, ChevronUp, CircleHelp, FileText, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface HsCodeItem {
     id: number;
@@ -308,7 +309,7 @@ export default function ViewCustomerForm({
                     setIsEditingHsCodes(false);
                 },
                 onError: (errors) => {
-                    alert('Gagal menyimpan perubahan. Periksa inputan Anda.');
+                    toast.error('Gagal menyimpan perubahan. Periksa inputan Anda.');
                     console.error(errors);
                 },
             },
@@ -341,7 +342,7 @@ export default function ViewCustomerForm({
 
     const handleSubmitReject = async () => {
         if (!rejectingDocId || !rejectionNote.trim()) {
-            alert('Please provide a rejection reason');
+            toast.warning('Please provide a rejection reason');
             return;
         }
 
@@ -410,7 +411,7 @@ export default function ViewCustomerForm({
         const currentSection = sectionsTransProp.find((s: SectionTrans) => s.id === sectionId);
 
         if (!currentSection || !currentSection.documents) {
-            alert('Section tidak ditemukan atau kosong.');
+            toast.error('Section tidak ditemukan atau kosong.');
             setProcessingSectionId(null);
             return;
         }
@@ -442,7 +443,7 @@ export default function ViewCustomerForm({
         });
 
         if (unassessedDocs.length > 0) {
-            alert(
+            toast.error(
                 `Harap verifikasi (Accept) atau tolak (Reject) semua dokumen yang telah diupload pada section ini.\n\nDokumen belum dinilai: ${unassessedDocs.length}`,
             );
             setProcessingSectionId(null);
@@ -555,9 +556,9 @@ export default function ViewCustomerForm({
             console.error('Error saving section:', error);
 
             if (error.response && error.response.data) {
-                alert(`Gagal: ${error.response.data.message || JSON.stringify(error.response.data)}`);
+                toast.error(`Gagal: ${error.response.data.message || JSON.stringify(error.response.data)}`);
             } else {
-                alert('Terjadi kesalahan saat menyimpan.');
+                toast.error('Terjadi kesalahan saat menyimpan.');
             }
         } finally {
             setProcessingSectionId(null);
@@ -639,7 +640,7 @@ export default function ViewCustomerForm({
             }
 
             if (allUnassessedDocs.length > 0) {
-                alert(
+                toast.error(
                     `Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`,
                 );
                 return;
@@ -742,7 +743,22 @@ export default function ViewCustomerForm({
             router.visit(`/shipping/${shipmentData.id_spk}`, { replace: true, preserveState: false });
         } catch (error: any) {
             console.error('Error in final save:', error);
-            alert('Gagal menyimpan: ' + (error.response?.data?.message || error.message));
+            toast.error('Gagal menyimpan: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handleSaveGlobalDeadline = async () => {
+        try {
+            await axios.post('/shipping/update-deadline', {
+                spk_id: shipmentData.id_spk,
+                unified: useUnifiedDeadline,
+                global_deadline: useUnifiedDeadline ? globalDeadlineDate : null,
+                section_deadlines: !useUnifiedDeadline ? sectionDeadlines : {},
+            });
+            toast.success('Deadline Global tersimpan!');
+        } catch (error: any) {
+            console.error('Error saving global deadline:', error);
+            toast.error('Gagal menyimpan deadline global.');
         }
     };
 
@@ -916,6 +932,17 @@ export default function ViewCustomerForm({
                             <label htmlFor="unified_deadline" className="cursor-pointer text-sm text-gray-600">
                                 {trans.apply_deadline_all}
                             </label>
+                        </div>
+
+                        {/* Button Save Global Deadline */}
+                        <div className="flex justify-end mt-2">
+                            <Button
+                                onClick={handleSaveGlobalDeadline}
+                                className="h-8 rounded bg-black px-4 text-xs font-bold text-white hover:bg-gray-800"
+                            >
+                                <Save className="mr-2 h-3 w-3" />
+                                {trans.save_changes || 'Save Settings'}
+                            </Button>
                         </div>
                     </div>
                 </div>
