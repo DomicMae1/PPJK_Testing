@@ -275,19 +275,61 @@ class DocumentController extends Controller
      */
     public function destroy($id)
     {
-        $document = MasterDocument::findOrFail($id);
+        $user = Auth::user();
+        $document = null;
 
-        // 1. Hapus File Fisik (Cleanup)
-        if ($document->link_path_example_file && Storage::disk('public')->exists($document->link_path_example_file)) {
-            Storage::disk('public')->delete($document->link_path_example_file);
+        // --- 1. Tentukan Model & Context Berdasarkan Role ---
+
+        if ($user->hasRole('admin')) {
+            // ADMIN: Hapus dari Master Document (Global/Central)
+            // Tidak perlu inisialisasi tenancy karena ada di DB Central
+            $document = MasterDocument::findOrFail($id);
+
+        } elseif ($user->hasRole(['manager', 'supervisor'])) {
+            // MANAGER: Hapus dari Master Document Trans (Tenant)
+            
+            // A. Cari Tenant berdasarkan user
+            $tenant = \App\Models\Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+            
+            if (!$tenant) {
+                return redirect()->back()->withErrors(['error' => 'Tenant perusahaan tidak ditemukan.']);
+            }
+
+            // B. PENTING: Inisialisasi Tenancy
+            // Ini akan mengubah koneksi DB ke DB Tenant dan root path Storage (jika dikonfigurasi)
+            tenancy()->initialize($tenant);
+
+            // C. Cari Dokumen di dalam scope Tenant
+            $document = MasterDocumentTrans::findOrFail($id);
+            
+            // (Opsional) Validasi tambahan keamanan jika diperlukan
+            // if ($document->created_by !== $user->id) { ... }
+
+        } else {
+            abort(403, 'Unauthorized action.');
         }
 
-        if ($document->link_path_template_file && Storage::disk('public')->exists($document->link_path_template_file)) {
-            Storage::disk('public')->delete($document->link_path_template_file);
+        // --- 2. Hapus File Fisik (Cleanup) ---
+        // Gunakan disk 'public' sama seperti saat store
+        $disk = Storage::disk('public');
+
+        // Hapus Example File
+        if ($document->link_path_example_file && $disk->exists($document->link_path_example_file)) {
+            $disk->delete($document->link_path_example_file);
         }
 
-        // 2. Hapus Record Database
+        // Hapus Template File
+        if ($document->link_path_template_file && $disk->exists($document->link_path_template_file)) {
+            $disk->delete($document->link_path_template_file);
+        }
+
+        // --- 3. Hapus Record Database ---
         $document->delete();
+
+        // Jika menggunakan tenancy, end tenancy (opsional, tergantung middleware Anda)
+        // if (function_exists('tenancy') && tenancy()->initialized) {
+        //     tenancy()->end(); 
+        // }
 
         return redirect()->back()->with('success', 'Dokumen berhasil dihapus.');
     }

@@ -123,6 +123,15 @@ export default function ViewCustomerForm({
     const [activeSection, setActiveSection] = useState<number | null>(null);
     const [isAdditionalDocsOpen, setIsAdditionalDocsOpen] = useState(true);
     const [isAdditionalSectionVisible, setIsAdditionalSectionVisible] = useState(false);
+
+    const additionalSection = sectionsTransProp?.find(
+        (s: SectionTrans) => s.section_name.toLowerCase().includes('additional') || s.section_name.toLowerCase().includes('tambahan'),
+    );
+
+    const mainSections = sectionsTransProp?.filter(
+        (s: SectionTrans) => !s.section_name.toLowerCase().includes('additional') && !s.section_name.toLowerCase().includes('tambahan'),
+    );
+
     const [isEditingHsCodes, setIsEditingHsCodes] = useState(false);
     const [hsCodes, setHsCodes] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false); // State untuk buka/tutup modal
@@ -195,6 +204,7 @@ export default function ViewCustomerForm({
     // Initialize deadline states from database data
     useEffect(() => {
         if (sectionsTransProp && sectionsTransProp.length > 0) {
+            // 1. Deadline Logic
             const deadlinesFromDb: Record<number, string> = {};
             let hasAnyDeadline = false;
             let firstDeadline = '';
@@ -203,13 +213,10 @@ export default function ViewCustomerForm({
             sectionsTransProp.forEach((section: SectionTrans) => {
                 if (section.deadline_date) {
                     const dateStr = String(section.deadline_date);
-
                     const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
                     const dateValue = match ? `${match[1]}-${match[2]}-${match[3]}` : '';
-
                     if (dateValue) {
                         deadlinesFromDb[section.id] = dateValue;
-
                         if (!hasAnyDeadline) {
                             firstDeadline = dateValue;
                             hasAnyDeadline = true;
@@ -220,21 +227,21 @@ export default function ViewCustomerForm({
                 }
             });
 
-            // Set per-section deadlines from DB
-            if (Object.keys(deadlinesFromDb).length > 0) {
-                setSectionDeadlines(deadlinesFromDb);
-            }
-
-            // If all sections have same deadline, set unified mode
+            if (Object.keys(deadlinesFromDb).length > 0) setSectionDeadlines(deadlinesFromDb);
             if (hasAnyDeadline && allSameDeadline) {
                 setGlobalDeadlineDate(firstDeadline);
                 setUseUnifiedDeadline(true);
             } else if (hasAnyDeadline) {
-                // Different deadlines = individual mode
                 setUseUnifiedDeadline(false);
             }
+
+            // 2. Auto-show Additional Document if files exist or explicitly requested (by logic/status)
+            // Di sini kita cek jika ada dokumen yang sudah diupload di section additional
+            if (additionalSection && additionalSection.documents.some((d) => d.url_path_file)) {
+                setIsAdditionalSectionVisible(true);
+            }
         }
-    }, [sectionsTransProp]);
+    }, [sectionsTransProp, additionalSection]);
 
     const [processingSectionId, setProcessingSectionId] = useState<number | null>(null);
 
@@ -615,12 +622,190 @@ export default function ViewCustomerForm({
         return result;
     };
 
-    const handleOpenHistory = (docs: DocumentTrans[]) => {
-        if (docs.length === 0) return;
-        const title = docs[0].master_document?.nama_dokumen || docs[0].nama_file;
-        setSelectedHistoryTitle(title);
-        setSelectedHistoryDocs(docs);
-        setHistoryModalOpen(true);
+    const toggleHistory = (id: number) => {
+        setOpenHistoryIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+    };
+
+    // --- REUSABLE DOCUMENT ROW RENDERER ---
+    const renderDocumentRow = (doc: DocumentTrans, idx: number, sectionId: number, hasHistory: boolean, historyDocs: DocumentTrans[]) => {
+        const isSpkInternalUpload = shipmentData.internal_can_upload ?? false;
+        let canUpload = false;
+        let canVerify = false;
+
+        if (isSpkInternalUpload) {
+            canUpload = isInternalUser;
+            canVerify = false;
+        } else {
+            canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
+            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+        }
+
+        const isVerified = doc.verify === true;
+        const isRejected = doc.verify === false;
+        const isPending = doc.verify === null;
+        const isPendingVerification = pendingVerifications.includes(doc.id);
+        const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
+        const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
+
+        return (
+            <div key={doc.id} className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0">
+                <div className="flex items-start justify-between">
+                    {/* Left: Name & History */}
+                    <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2 text-gray-800">
+                            <span className="text-sm font-medium">
+                                {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
+                            </span>
+                            <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" onClick={() => handleOpenHelp(doc)} />
+
+                            {/* Badge if viewer */}
+                            {!canVerify && doc.url_path_file && (
+                                <>
+                                    {isVerified && (
+                                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">{trans.verified}</span>
+                                    )}
+                                    {isRejected && (
+                                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">{trans.rejected}</span>
+                                    )}
+                                    {isPending && (
+                                        <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">{trans.pending}</span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* File & History Trigger */}
+                        {doc.url_path_file ? (
+                            <div className="ml-5">
+                                <button
+                                    onClick={() => toggleHistory(doc.id)}
+                                    className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white hover:bg-gray-800"
+                                >
+                                    <FileText className="h-3 w-3" /> {trans.latest_file || 'Latest File'}
+                                    {openHistoryIds.includes(doc.id) ? (
+                                        <ChevronUp className="ml-1 h-3 w-3" />
+                                    ) : (
+                                        <ChevronDown className="ml-1 h-3 w-3" />
+                                    )}
+                                </button>
+                                {/* History Dropdown */}
+                                {openHistoryIds.includes(doc.id) && (
+                                    <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
+                                        {[doc, ...historyDocs]
+                                            .filter((v) => v.url_path_file)
+                                            .map((v, vIdx, arr) => (
+                                                <div key={v.id} className="flex items-center gap-2 text-xs">
+                                                    <span className="font-bold text-gray-500">v{arr.length - vIdx}</span>
+                                                    <a
+                                                        href={`/file/view/${v.url_path_file}`}
+                                                        target="_blank"
+                                                        className={`hover:underline ${vIdx === 0 ? 'font-bold text-black' : 'text-gray-600'}`}
+                                                    >
+                                                        {v.nama_file}
+                                                    </a>
+                                                    <span className="text-[10px] text-gray-400">{new Date(v.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <span className="ml-5 text-xs text-gray-400 italic">{trans.no_file || 'No file uploaded'}</span>
+                        )}
+                    </div>
+
+                    {/* Middle: Verify Actions */}
+                    {canVerify && doc.url_path_file && (
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-center">
+                                <span className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}>
+                                    {trans.accept || 'Accept'}
+                                </span>
+                                <Checkbox
+                                    checked={isVerified || isPendingVerification}
+                                    onCheckedChange={() => handleVerify(doc.id)}
+                                    className="data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600"
+                                    disabled={!isPending}
+                                />
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}>
+                                    {trans.reject || 'Reject'}
+                                </span>
+                                <Checkbox
+                                    checked={isRejected || isPendingRejection}
+                                    onCheckedChange={(checked) => checked && handleOpenReject(doc.id)}
+                                    className="data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600"
+                                    disabled={!isPending}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Right: Upload Zone & Notes */}
+                    {canUpload && (
+                        <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
+                            {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
+                                <ResettableDropzone
+                                    label=""
+                                    isRequired={false}
+                                    existingFile={
+                                        tempFiles[doc.id]
+                                            ? { nama_file: doc.master_document?.nama_dokumen || doc.nama_file, path: tempFiles[doc.id] }
+                                            : undefined
+                                    }
+                                    uploadConfig={{
+                                        url: '/shipping/upload-temp',
+                                        payload: { type: doc.master_document?.nama_dokumen || doc.nama_file, spk_code: shipmentData.spkNumber },
+                                    }}
+                                    onFileChange={(file, response) => {
+                                        if (response && (response.status === 'success' || response.path))
+                                            setTempFiles((prev) => ({ ...prev, [doc.id]: response.path }));
+                                        else if (file === null)
+                                            setTempFiles((prev) => {
+                                                const n = { ...prev };
+                                                delete n[doc.id];
+                                                return n;
+                                            });
+                                    }}
+                                    disabled={verifyingDocId === doc.id}
+                                />
+                            ) : (
+                                <div className="text-right text-xs text-gray-400 italic">
+                                    {isPending ? trans.on_checking || 'On Checking' : trans.quota_exceeded || 'Quota Exceeded'}
+                                </div>
+                            )}
+                            {/* Notes */}
+                            {doc.url_path_file && (
+                                <div className="flex flex-col items-end text-right text-xs">
+                                    {isRejected && (
+                                        <div className="mb-1">
+                                            <div className="flex items-center justify-end gap-1 font-bold text-red-600">
+                                                {trans.rejection_note} <AlertTriangle className="h-3 w-3" />
+                                            </div>
+                                            <p className="text-gray-700 italic">"{doc.correction_description}"</p>
+                                            {doc.correction_attachment_file && (
+                                                <a
+                                                    href={`/file/view/${doc.correction_attachment_file}`}
+                                                    target="_blank"
+                                                    className="mt-0.5 block text-blue-500 underline"
+                                                >
+                                                    {trans.view_rejection_file}
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="mt-1 text-gray-600">
+                                        {trans.revision_quota}: <span className="font-bold">{doc.kuota_revisi ?? 0}</span> {trans.remaining}
+                                    </div>
+                                    {quotaExceeded && <div className="mt-0.5 font-bold text-red-600">{trans.quota_exceeded}</div>}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
     };
 
     const handleFinalSave = async () => {
@@ -986,7 +1171,7 @@ export default function ViewCustomerForm({
                         </div>
 
                         {/* Button Save Global Deadline */}
-                        <div className="flex justify-end mt-2">
+                        <div className="mt-2 flex justify-end">
                             <Button
                                 onClick={handleSaveGlobalDeadline}
                                 className="h-8 rounded bg-black px-4 text-xs font-bold text-white hover:bg-gray-800"
@@ -1001,8 +1186,17 @@ export default function ViewCustomerForm({
 
             <div className="w-full space-y-3">
                 {sectionsTransProp && sectionsTransProp.length > 0 ? (
-                    sectionsTransProp.map((section: any) => {
-                        const isOpen = activeSection === section.id; // Gunakan ID transaksi
+                    sectionsTransProp
+                        // --- LOGIC TAMBAHAN: FILTER SECTION ---
+                        // Kita filter dulu supaya 'Additional Document' TIDAK MUNCUL di sini
+                        .filter((section: any) => {
+                            const name = section.section_name.toLowerCase();
+                            // Kembalikan true jika namanya TIDAK mengandung kata 'additional' atau 'tambahan'
+                            return !name.includes('additional') && !name.includes('tambahan');
+                        })
+                        // ---------------------------------------
+                        .map((section: any) => {
+                            const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                         // --- Status Logic ---
                         // --- Status Logic ---
@@ -1023,12 +1217,12 @@ export default function ViewCustomerForm({
                         // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
                         const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
-                        // --- Styling Variables ---
-                        let containerClass = "rounded-lg border transition-all ";
-                        let titleClass = "text-sm font-bold uppercase transition-colors ";
-                        let chevronClass = "h-4 w-4 transition-colors ";
-                        let deadlineIconClass = "text-lg font-bold transition-colors ";
-                        let deadlineTextClass = "text-xs font-bold transition-colors ";
+                            // --- Styling Variables ---
+                            let containerClass = 'rounded-lg border transition-all ';
+                            let titleClass = 'text-sm font-bold uppercase transition-colors ';
+                            let chevronClass = 'h-4 w-4 transition-colors ';
+                            let deadlineIconClass = 'text-lg font-bold transition-colors ';
+                            let deadlineTextClass = 'text-xs font-bold transition-colors ';
 
                         if (hasRejection) {
                             // RED (Rejected) - High Priority - Opacity 50%
@@ -1060,182 +1254,317 @@ export default function ViewCustomerForm({
                             deadlineTextClass += "text-red-500";
                         }
 
-                        return (
-                            <div key={section.id_section} className={containerClass}>
-                                <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
-                                    {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
-                                    <div className="flex flex-1 flex-col">
-                                        <span className={titleClass}>{section.section_name}</span>
-                                        {!isInternalUser && section.deadline && section.deadline_date && (
-                                            <div className="mt-1 flex items-center gap-1">
-                                                <span className={deadlineIconClass}>ⓘ</span>
-                                                <span className={deadlineTextClass}>
-                                                    {trans.submit_before}{' '}
-                                                    {new Date(section.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                                        day: '2-digit',
-                                                        month: '2-digit',
-                                                        year: 'numeric',
-                                                    })}{' '}
-                                                    {trans.wib}
-                                                </span>
-                                            </div>
-                                        )}
+                            return (
+                                <div key={section.id_section} className={containerClass}>
+                                    <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
+                                        {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
+                                        <div className="flex flex-1 flex-col">
+                                            <span className={titleClass}>{section.section_name}</span>
+                                            {!isInternalUser && section.deadline && section.deadline_date && (
+                                                <div className="mt-1 flex items-center gap-1">
+                                                    <span className={deadlineIconClass}>ⓘ</span>
+                                                    <span className={deadlineTextClass}>
+                                                        {trans.submit_before}{' '}
+                                                        {new Date(section.deadline_date).toLocaleDateString(
+                                                            currentLocale === 'id' ? 'id-ID' : 'en-GB',
+                                                            {
+                                                                day: '2-digit',
+                                                                month: '2-digit',
+                                                                year: 'numeric',
+                                                            },
+                                                        )}{' '}
+                                                        {trans.wib}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {isOpen && (
-                                    <div className="mt-1 border-t border-gray-100 bg-white rounded-md px-3 pt-2 pb-4">
-                                        {isInternalUser && (
-                                            <div className="mb-4 flex items-center gap-3">
-                                                <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
-                                                <Input
-                                                    type="date"
-                                                    className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
-                                                    value={useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[section.id] || ''}
-                                                    onChange={(e) => {
-                                                        if (!useUnifiedDeadline) {
-                                                            setSectionDeadlines((prev) => ({
-                                                                ...prev,
-                                                                [section.id]: e.target.value,
-                                                            }));
+                                    {isOpen && (
+                                        <div className="mt-1 rounded-md border-t border-gray-100 bg-white px-3 pt-2 pb-4">
+                                            {isInternalUser && (
+                                                <div className="mb-4 flex items-center gap-3">
+                                                    <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
+                                                    <Input
+                                                        type="date"
+                                                        className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                                        value={useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[section.id] || ''}
+                                                        onChange={(e) => {
+                                                            if (!useUnifiedDeadline) {
+                                                                setSectionDeadlines((prev) => ({
+                                                                    ...prev,
+                                                                    [section.id]: e.target.value,
+                                                                }));
+                                                            }
+                                                        }}
+                                                        disabled={useUnifiedDeadline}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-4">
+                                                {section.documents && section.documents.length > 0 ? (
+                                                    processDocumentsForRender(section.documents).map((item, idx: number) => {
+                                                        const doc = item.current;
+                                                        const allVersions = [doc, ...item.history];
+                                                        const validVersions = allVersions.filter((v) => v.url_path_file);
+                                                        const hasHistory = validVersions.length > 1;
+
+                                                        const isVerified = doc.verify === true;
+                                                        const isRejected = doc.verify === false;
+                                                        const isPending = doc.verify === null;
+                                                        const isPendingVerification = pendingVerifications.includes(doc.id);
+                                                        const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
+                                                        const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
+
+                                                        const toggleHistory = (id: number) => {
+                                                            setOpenHistoryIds((prev) =>
+                                                                prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+                                                            );
+                                                        };
+
+                                                        // Logic Determinations
+                                                        // 1. Check SPK level flag
+                                                        const isSpkInternalUpload = shipmentData.internal_can_upload ?? false; // Fallback to false
+
+                                                        // 2. Define permissions
+                                                        let canUpload = false;
+                                                        let canVerify = false;
+
+                                                        if (isSpkInternalUpload) {
+                                                            // Mode: Internal handles EVERYTHING, Auto-verified
+                                                            canUpload = isInternalUser; // Internal ALWAYS shoots
+                                                            canVerify = false; // No manual verification needed (auto-verified)
+                                                        } else {
+                                                            // Mode: Normal (Bidirectional)
+                                                            // doc.is_internal = true (1) -> Internal Uploads, External Verifies
+                                                            // doc.is_internal = false (0) -> External Uploads, Internal Verifies
+                                                            canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
+                                                            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
                                                         }
-                                                    }}
-                                                    disabled={useUnifiedDeadline}
-                                                />
-                                            </div>
-                                        )}
 
-                                        <div className="space-y-4">
-                                            {section.documents && section.documents.length > 0 ? (
-                                                processDocumentsForRender(section.documents).map((item, idx: number) => {
-                                                    const doc = item.current;
-                                                    const allVersions = [doc, ...item.history];
-                                                    const validVersions = allVersions.filter((v) => v.url_path_file);
-                                                    const hasHistory = validVersions.length > 1;
+                                                        return (
+                                                            <div
+                                                                key={doc.id}
+                                                                className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0"
+                                                            >
+                                                                <div className="flex items-start justify-between">
+                                                                    {/* LEFT COLUMN: Name & History */}
+                                                                    <div className="flex flex-1 flex-col gap-1">
+                                                                        <div className="flex items-center gap-2 text-gray-800">
+                                                                            <span className="text-sm font-medium">
+                                                                                {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
+                                                                            </span>
+                                                                            <CircleHelp
+                                                                                className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
+                                                                                onClick={() => handleOpenHelp(doc)}
+                                                                            />
 
-                                                    const isVerified = doc.verify === true;
-                                                    const isRejected = doc.verify === false;
-                                                    const isPending = doc.verify === null;
-                                                    const isPendingVerification = pendingVerifications.includes(doc.id);
-                                                    const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
-                                                    const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
+                                                                            {/* Status Badge - Visible if I cannot verify (so I am uploader or viewer) */}
+                                                                            {!canVerify && doc.url_path_file && (
+                                                                                <>
+                                                                                    {isVerified && (
+                                                                                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+                                                                                            {trans.verified}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {isRejected && (
+                                                                                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                                                                                            {trans.rejected}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {isPending && (
+                                                                                        <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">
+                                                                                            {trans.pending}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </>
+                                                                            )}
+                                                                        </div>
 
-                                                    const toggleHistory = (id: number) => {
-                                                        setOpenHistoryIds((prev) =>
-                                                            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-                                                        );
-                                                    };
+                                                                        {/* File & History UI */}
+                                                                        {doc.url_path_file ? (
+                                                                            <div className="ml-5">
+                                                                                {/* Collapsible Trigger */}
+                                                                                <button
+                                                                                    onClick={() => toggleHistory(doc.id)}
+                                                                                    className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white transition-colors hover:bg-gray-800"
+                                                                                >
+                                                                                    <FileText className="h-3 w-3" />
+                                                                                    {trans.latest_file || 'Latest File'}
+                                                                                    {openHistoryIds.includes(doc.id) ? (
+                                                                                        <ChevronUp className="ml-1 h-3 w-3" />
+                                                                                    ) : (
+                                                                                        <ChevronDown className="ml-1 h-3 w-3" />
+                                                                                    )}
+                                                                                </button>
 
-                                                    // Logic Determinations
-                                                    // 1. Check SPK level flag
-                                                    const isSpkInternalUpload = shipmentData.internal_can_upload ?? false; // Fallback to false
-
-                                                    // 2. Define permissions
-                                                    let canUpload = false;
-                                                    let canVerify = false;
-
-                                                    if (isSpkInternalUpload) {
-                                                        // Mode: Internal handles EVERYTHING, Auto-verified
-                                                        canUpload = isInternalUser; // Internal ALWAYS shoots
-                                                        canVerify = false; // No manual verification needed (auto-verified)
-                                                    } else {
-                                                        // Mode: Normal (Bidirectional)
-                                                        // doc.is_internal = true (1) -> Internal Uploads, External Verifies
-                                                        // doc.is_internal = false (0) -> External Uploads, Internal Verifies
-                                                        canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-                                                        canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
-                                                    }
-
-                                                    return (
-                                                        <div
-                                                            key={doc.id}
-                                                            className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0"
-                                                        >
-                                                            <div className="flex items-start justify-between">
-                                                                {/* LEFT COLUMN: Name & History */}
-                                                                <div className="flex flex-1 flex-col gap-1">
-                                                                    <div className="flex items-center gap-2 text-gray-800">
-                                                                        <span className="text-sm font-medium">
-                                                                            {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
-                                                                        </span>
-                                                                        <CircleHelp
-                                                                            className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
-                                                                            onClick={() => handleOpenHelp(doc)}
-                                                                        />
-
-                                                                        {/* Status Badge - Visible if I cannot verify (so I am uploader or viewer) */}
-                                                                        {!canVerify && doc.url_path_file && (
-                                                                            <>
-                                                                                {isVerified && (
-                                                                                    <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
-                                                                                        {trans.verified}
-                                                                                    </span>
+                                                                                {/* History List */}
+                                                                                {openHistoryIds.includes(doc.id) && (
+                                                                                    <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
+                                                                                        {validVersions.map((v, vIdx) => {
+                                                                                            const versionNumber = validVersions.length - vIdx;
+                                                                                            const isLatest = vIdx === 0;
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={v.id}
+                                                                                                    className="flex items-center gap-2 text-xs"
+                                                                                                >
+                                                                                                    <span className="font-bold text-gray-500">
+                                                                                                        v{versionNumber}
+                                                                                                    </span>
+                                                                                                    <a
+                                                                                                        href={`/file/view/${v.url_path_file}`}
+                                                                                                        target="_blank"
+                                                                                                        className={`hover:underline ${isLatest ? 'font-bold text-black' : 'text-gray-600'}`}
+                                                                                                    >
+                                                                                                        {v.nama_file || trans.document}
+                                                                                                    </a>
+                                                                                                    <span className="text-[10px] text-gray-400">
+                                                                                                        {new Date(v.created_at).toLocaleDateString()}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
                                                                                 )}
-                                                                                {isRejected && (
-                                                                                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                                                                                        {trans.rejected}
-                                                                                    </span>
-                                                                                )}
-                                                                                {isPending && (
-                                                                                    <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">
-                                                                                        {trans.pending}
-                                                                                    </span>
-                                                                                )}
-                                                                            </>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="ml-5 text-xs text-gray-400 italic">
+                                                                                {trans.no_file || 'No file uploaded'}
+                                                                            </span>
                                                                         )}
                                                                     </div>
 
-                                                                    {/* File & History UI */}
-                                                                    {doc.url_path_file ? (
-                                                                        <div className="ml-5">
-                                                                            {/* Collapsible Trigger */}
-                                                                            <button
-                                                                                onClick={() => toggleHistory(doc.id)}
-                                                                                className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white transition-colors hover:bg-gray-800"
-                                                                            >
-                                                                                <FileText className="h-3 w-3" />
-                                                                                {trans.latest_file || 'Latest File'}
-                                                                                {openHistoryIds.includes(doc.id) ? (
-                                                                                    <ChevronUp className="ml-1 h-3 w-3" />
-                                                                                ) : (
-                                                                                    <ChevronDown className="ml-1 h-3 w-3" />
-                                                                                )}
-                                                                            </button>
+                                                                    {/* Verifier Actions: Accept / Reject */}
+                                                                    {canVerify && doc.url_path_file && (
+                                                                        <div className="flex items-center gap-4">
+                                                                            {/* Accept */}
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span
+                                                                                    className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
+                                                                                >
+                                                                                    {trans.accept || 'Accept'}
+                                                                                </span>
+                                                                                <Checkbox
+                                                                                    checked={isVerified || isPendingVerification}
+                                                                                    onCheckedChange={() => handleVerify(doc.id)}
+                                                                                    className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
+                                                                                    disabled={!isPending}
+                                                                                />
+                                                                            </div>
 
-                                                                            {/* History List */}
-                                                                            {openHistoryIds.includes(doc.id) && (
-                                                                                <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
-                                                                                    {validVersions.map((v, vIdx) => {
-                                                                                        const versionNumber = validVersions.length - vIdx;
-                                                                                        const isLatest = vIdx === 0;
-                                                                                        return (
-                                                                                            <div
-                                                                                                key={v.id}
-                                                                                                className="flex items-center gap-2 text-xs"
-                                                                                            >
-                                                                                                <span className="font-bold text-gray-500">
-                                                                                                    v{versionNumber}
-                                                                                                </span>
-                                                                                                <a
-                                                                                                    href={`/file/view/${v.url_path_file}`}
-                                                                                                    target="_blank"
-                                                                                                    className={`hover:underline ${isLatest ? 'font-bold text-black' : 'text-gray-600'}`}
-                                                                                                >
-                                                                                                    {v.nama_file || trans.document}
-                                                                                                </a>
-                                                                                                <span className="text-[10px] text-gray-400">
-                                                                                                    {new Date(v.created_at).toLocaleDateString()}
-                                                                                                </span>
+                                                                            {/* Reject */}
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span
+                                                                                    className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
+                                                                                >
+                                                                                    {trans.reject || 'Reject'}
+                                                                                </span>
+                                                                                <Checkbox
+                                                                                    checked={isRejected || isPendingRejection}
+                                                                                    onCheckedChange={(checked) => {
+                                                                                        if (checked) handleOpenReject(doc.id);
+                                                                                    }}
+                                                                                    className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
+                                                                                    disabled={!isPending}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
+                                                                    {canUpload && (
+                                                                        <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
+                                                                            {/* Upload Zone */}
+                                                                            {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
+                                                                                <ResettableDropzone
+                                                                                    label=""
+                                                                                    isRequired={false}
+                                                                                    existingFile={
+                                                                                        tempFiles[doc.id]
+                                                                                            ? {
+                                                                                                  nama_file:
+                                                                                                      doc.master_document?.nama_dokumen ||
+                                                                                                      doc.nama_file,
+                                                                                                  path: tempFiles[doc.id],
+                                                                                              }
+                                                                                            : undefined
+                                                                                    }
+                                                                                    uploadConfig={{
+                                                                                        url: '/shipping/upload-temp',
+                                                                                        payload: {
+                                                                                            type: doc.master_document?.nama_dokumen || doc.nama_file,
+                                                                                            spk_code: shipmentData.spkNumber,
+                                                                                        },
+                                                                                    }}
+                                                                                    onFileChange={(file, response) => {
+                                                                                        if (
+                                                                                            response &&
+                                                                                            (response.status === 'success' || response.path)
+                                                                                        ) {
+                                                                                            setTempFiles((prev) => ({
+                                                                                                ...prev,
+                                                                                                [doc.id]: response.path,
+                                                                                            }));
+                                                                                        } else if (file === null) {
+                                                                                            setTempFiles((prev) => {
+                                                                                                const newState = { ...prev };
+                                                                                                delete newState[doc.id];
+                                                                                                return newState;
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                    disabled={verifyingDocId === doc.id}
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="text-right text-xs text-gray-400 italic">
+                                                                                    {isPending
+                                                                                        ? trans.on_checking || 'On Checking'
+                                                                                        : trans.quota_exceeded || 'Quota Exceeded'}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Quota & Rejection Info (Moved Here) */}
+                                                                            {doc.url_path_file && (
+                                                                                <div className="flex flex-col items-end text-right text-xs">
+                                                                                    {/* Rejection Note */}
+                                                                                    {isRejected && (
+                                                                                        <div className="mb-1">
+                                                                                            <div className="flex items-center justify-end gap-1 font-bold text-red-600">
+                                                                                                {trans.rejection_note || 'Rejection Note'}{' '}
+                                                                                                <AlertTriangle className="h-3 w-3" />
                                                                                             </div>
-                                                                                        );
-                                                                                    })}
+                                                                                            <p className="text-gray-700 italic">
+                                                                                                "{doc.correction_description}"
+                                                                                            </p>
+                                                                                            {doc.correction_attachment_file && (
+                                                                                                <a
+                                                                                                    href={`/file/view/${doc.correction_attachment_file}`}
+                                                                                                    target="_blank"
+                                                                                                    className="mt-0.5 block text-blue-500 underline"
+                                                                                                >
+                                                                                                    {trans.view_rejection_file ||
+                                                                                                        'View Rejection File'}
+                                                                                                </a>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Quota Info */}
+                                                                                    <div className="mt-1 text-gray-600">
+                                                                                        {trans.revision_quota || 'Revision Quota'}:{' '}
+                                                                                        <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
+                                                                                        {trans.remaining || 'remaining'}
+                                                                                    </div>
+                                                                                    {quotaExceeded && (
+                                                                                        <div className="mt-0.5 font-bold text-red-600">
+                                                                                            {trans.quota_exceeded || 'Quota Exceeded'}
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             )}
                                                                         </div>
-                                                                    ) : (
-                                                                        <span className="ml-5 text-xs text-gray-400 italic">
-                                                                            {trans.no_file || 'No file uploaded'}
-                                                                        </span>
                                                                     )}
                                                                 </div>
 
@@ -1368,38 +1697,37 @@ export default function ViewCustomerForm({
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            ) : (
-                                                <div className="py-4 text-center text-xs text-gray-400 italic">{trans.section_empty}</div>
-                                            )}
-                                        </div>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <div className="py-4 text-center text-xs text-gray-400 italic">{trans.section_empty}</div>
+                                                )}
+                                            </div>
 
-                                        <div className="mt-8 flex items-center justify-between">
-                                            <button
-                                                onClick={handleOpenModal}
-                                                className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
-                                            >
-                                                <div className="rounded border border-black p-0.5">
-                                                    <Plus className="h-4 w-4" />
-                                                </div>
-                                                {trans.add_document}
-                                            </button>
+                                            <div className="mt-8 flex items-center justify-between">
+                                                <button
+                                                    onClick={handleOpenModal}
+                                                    className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
+                                                >
+                                                    <div className="rounded border border-black p-0.5">
+                                                        <Plus className="h-4 w-4" />
+                                                    </div>
+                                                    {trans.add_document}
+                                                </button>
 
-                                            <Button
-                                                onClick={() => handleSaveSection(section.id)}
-                                                disabled={processingSectionId === section.id}
-                                                className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
-                                            >
-                                                {processingSectionId === section.id ? trans.saving || 'Saving...' : trans.save_changes}
-                                            </Button>
+                                                <Button
+                                                    onClick={() => handleSaveSection(section.id)}
+                                                    disabled={processingSectionId === section.id}
+                                                    className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                                                >
+                                                    {processingSectionId === section.id ? trans.saving || 'Saving...' : trans.save_changes}
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })
+                                    )}
+                                </div>
+                            );
+                        })
                 ) : (
                     <div className="py-4 text-center text-gray-500">
                         <p>{trans.loading_docs}</p>
@@ -1408,91 +1736,66 @@ export default function ViewCustomerForm({
                 )}
             </div>
 
-            {/* --- Checkbox Request Additional Document --- */}
-            <div className="mt-6 mb-4 flex items-center space-x-3 pl-1">
-                <Checkbox
-                    id="req_additional"
-                    className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
-                    checked={isAdditionalSectionVisible}
-                    onCheckedChange={(checked) => setIsAdditionalSectionVisible(checked === true)}
-                />
-                <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
-                    {trans.req_additional_doc}
-                </label>
-            </div>
-            {isAdditionalSectionVisible && (
-                <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                    {/* Menggunakan AccordionItem manual style agar sesuai gambar */}
-                    <div
-                        className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                        onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
-                    >
-                        <span className="text-sm font-bold uppercase">{trans.additional_document || 'ADDITIONAL DOCUMENT'}</span>
-
-                        {/* Ikon Chevron Dinamis */}
-                        <svg
-                            width="15"
-                            height="15"
-                            viewBox="0 0 15 15"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isAdditionalDocsOpen ? 'rotate-180' : ''}`}
-                        >
-                            <path
-                                d="M3.13523 6.15803C3.3241 5.95657 3.64052 5.94637 3.84197 6.13523L7.5 9.56464L11.158 6.13523C11.3595 5.94637 11.6759 5.95657 11.8648 6.15803C12.0536 6.35949 12.0434 6.67591 11.842 6.86477L7.84197 10.6148C7.64964 10.7951 7.35036 10.7951 7.15803 10.6148L3.15803 6.86477C2.95657 6.67591 2.94637 6.35949 3.13523 6.15803Z"
-                                fill="currentColor"
-                                fillRule="evenodd"
-                                clipRule="evenodd"
-                            ></path>
-                        </svg>
+            {additionalSection && (
+                <div className="mt-6 mb-4">
+                    <div className="mb-4 flex items-center space-x-3 pl-1">
+                        <Checkbox
+                            id="req_additional"
+                            className="h-5 w-5 rounded border-2 border-black"
+                            checked={isAdditionalSectionVisible}
+                            onCheckedChange={(c) => setIsAdditionalSectionVisible(c === true)}
+                        />
+                        <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
+                            {trans.req_additional_doc}
+                        </label>
                     </div>
 
-                    {isAdditionalDocsOpen && (
-                        <div className="px-3 pt-0 pb-4">
-                            {/* --- Set Deadline Date --- */}
-                            <div className="mb-6 space-y-2">
-                                <label className="text-sm font-bold text-black">{trans.set_deadline || 'Set Deadline Date'}</label>
-                                <div className="relative">
-                                    <Input
-                                        type="date"
-                                        className="h-10 w-full border-gray-200 bg-white pr-10 text-gray-500"
-                                        placeholder="Pick date"
-                                        value={deadlineDate}
-                                        onChange={(e) => setDeadlineDate(e.target.value)}
-                                    />
-                                </div>
+                    {isAdditionalSectionVisible && (
+                        <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
+                            <div
+                                className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
+                                onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
+                            >
+                                <span className="text-sm font-bold uppercase">{additionalSection.section_name}</span>
+                                {isAdditionalDocsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </div>
 
-                            {/* List Documents */}
-                            <div className="space-y-4">
-                                {selectedAdditionalDocs.map((doc, idx) => (
-                                    <div key={doc.id} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-gray-800">
-                                            <span>
-                                                {idx + 1}. {doc.label}
-                                            </span>
-                                            <CircleHelp className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700" />
+                            {isAdditionalDocsOpen && (
+                                <div className="px-3 pt-0 pb-4">
+                                    {isInternalUser && (
+                                        <div className="mb-6 space-y-2">
+                                            <label className="text-sm font-bold text-black">{trans.set_deadline}</label>
+                                            <Input
+                                                type="date"
+                                                value={deadlineDate}
+                                                onChange={(e) => setDeadlineDate(e.target.value)}
+                                                className="h-10 w-full"
+                                            />
                                         </div>
+                                    )}
+
+                                    {/* RENDER DYNAMIC DOCUMENTS FROM DB */}
+                                    <div className="space-y-4">
+                                        {additionalSection.documents && additionalSection.documents.length > 0 ? (
+                                            processDocumentsForRender(additionalSection.documents).map((item, idx) =>
+                                                renderDocumentRow(item.current, idx, additionalSection.id, item.history.length > 0, item.history),
+                                            )
+                                        ) : (
+                                            <div className="py-4 text-center text-xs text-gray-400 italic">Belum ada dokumen tambahan.</div>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-8 flex items-center justify-end">
                                         <Button
-                                            variant="outline"
-                                            className="h-8 w-28 rounded border-gray-200 bg-gray-50 text-xs font-normal text-gray-400 hover:bg-gray-100"
+                                            onClick={() => handleSaveSection(additionalSection.id)}
+                                            disabled={processingSectionId === additionalSection.id}
+                                            className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800"
                                         >
-                                            {trans.upload_here || 'Upload here..'}
+                                            {processingSectionId === additionalSection.id ? trans.saving : trans.save}
                                         </Button>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Footer Buttons */}
-                            <div className="mt-8 flex items-center justify-between">
-                                <button onClick={handleOpenModal} className="flex items-center gap-2 text-sm font-medium text-black">
-                                    <div className="rounded border border-black p-0.5">
-                                        <Plus className="h-4 w-4" />
-                                    </div>
-                                    {trans.add_another_doc || 'Add Another Document'}
-                                </button>
-                                <Button className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800">{trans.save}</Button>
-                            </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
