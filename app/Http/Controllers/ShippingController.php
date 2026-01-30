@@ -1763,20 +1763,24 @@ class ShippingController extends Controller
         $allDocs = DocumentTrans::where('id_spk', $spk->id)->get();
         
         // Check for Active Rejections (correction_attachment is TRUE)
-        $hasActiveRejections = $allDocs->contains(function ($doc) {
+        // FIX: Only check the LATEST version of each document type (id_dokumen).
+        // Since we create new rows on re-upload, we must group by 'id_dokumen' and take the one with Max ID.
+        $latestDocs = $allDocs->sortByDesc('id')->unique('id_dokumen');
+
+        $hasActiveRejections = $latestDocs->contains(function ($doc) {
             return $doc->correction_attachment == true;
         });
 
         // Check for Pending Review (Uploaded but not Verified & Not Rejected)
         // verify != true captures both 'false' (0) and 'null' (Pending) safely.
-        $hasPendingReview = $allDocs->contains(function ($doc) {
+        $hasPendingReview = $latestDocs->contains(function ($doc) {
             return $doc->verify != true 
                 && $doc->correction_attachment == false 
                 && !empty($doc->url_path_file);
         });
 
         // Check for Empty Documents (Not Uploaded)
-        $hasEmptyDocs = $allDocs->contains(function ($doc) {
+        $hasEmptyDocs = $latestDocs->contains(function ($doc) {
             return empty($doc->url_path_file);
         });
 
@@ -1894,8 +1898,10 @@ class ShippingController extends Controller
             $spk = Spk::findOrFail($spkId);
 
             $uniqueSections = [];
+            $uniqueSections = [];
             $lastSectionName = $sectionName; // Default to request's section_name
             $isReupload = false;
+            $hasAnyReupload = false; // NEW: Track if ANY doc in batch is reupload
 
             foreach ($attachments as $att) {
                 $tempPath = $att['path'];
@@ -1939,6 +1945,7 @@ class ShippingController extends Controller
                     (!empty($targetDoc->url_path_file))
                 ) {
                     $isReupload = true;
+                    $hasAnyReupload = true; // Mark batch as having reupload
                 }
                 
                 Log::info("Batch Process Doc ID {$docId}: Path=[{$targetDoc->url_path_file}], Correction=[{$targetDoc->correction_attachment}] -> IsReupload? " . ($isReupload ? 'YES' : 'NO'));
@@ -2037,15 +2044,50 @@ class ShippingController extends Controller
                 }
                 
                 // 2. Update SPK Status (Batch - Use LAST Section Only)
-                // ID 3 = Reuploaded (Index 1), ID 1 = Upload (Index 2)
-                $statusId = $isReupload ? 3 : 1; 
-                $statusText = $isReupload ? "{$lastSectionName} Reuploaded" : "{$lastSectionName} Uploaded";
+                // Logic:
+                // - If isReupload:
+                //      - Check if there are OTHER active rejections (correction_attachment=true) in the entire SPK.
+                //      - If YES: Do NOT add "Reuploaded" status. Keep "Rejected" as the visual priority.
+                //      - If NO: Add "Reuploaded" status.
+                // - If NOT Reupload (New Upload):
+                //      - Always add "Uploaded" status (or whatever the standard flow is).
+                
+                $shouldCreateStatus = true;
+                $statusId = 1; // Default: Uploaded
+                $statusText = "{$lastSectionName} Uploaded";
 
-                SpkStatus::create([
-                    'id_spk' => $spk->id,
-                    'id_status' => $statusId, 
-                    'status' => $statusText,
-                ]);
+                // Use hasAnyReupload instead of just the last $isReupload
+                if ($hasAnyReupload) {
+                    // Check for remaining rejections
+                    // Check for remaining rejections (Latest Versions Only)
+                    $allDocs = DocumentTrans::on($tenantConnection)
+                        ->where('id_spk', $spk->id)
+                        ->get();
+
+                    // Filter to get only the latest ID for each id_dokumen
+                    $latestDocs = $allDocs->sortByDesc('id')->unique('id_dokumen');
+                    
+                    // Check if ANY of the latest docs are rejected
+                    $hasRemainingRejections = $latestDocs->contains(function ($doc) {
+                        return $doc->correction_attachment == true;
+                    });
+
+                    if ($hasRemainingRejections) {
+                        $shouldCreateStatus = false; // Don't flip status yet
+                        Log::info("Batch Process: Skipping SPK Status update. Remaining rejections exist.");
+                    } else {
+                        $statusId = 3; // Reuploaded
+                        $statusText = "{$lastSectionName} Reuploaded";
+                    }
+                }
+
+                if ($shouldCreateStatus) {
+                    SpkStatus::create([
+                        'id_spk' => $spk->id,
+                        'id_status' => $statusId, 
+                        'status' => $statusText,
+                    ]);
+                }
 
                 // 3. Send Notification (Batch - Use Consolidated Name)
                 $this->sendBatchUploadNotification($spk, $notificationSectionName, $user, $processedCount);
@@ -2097,44 +2139,196 @@ class ShippingController extends Controller
 
         tenancy()->initialize($tenant);
 
-        // 3. Update SPK
-        $spk = Spk::findOrFail($id);
-        
-        // Prevent re-assigning same user to avoid spam
-        if ($spk->validated_by == $validated['assigned_pic']) {
-            return response()->json(['message' => 'User is already assigned.']);
-        }
-
-        $spk->update([
-            'validated_by' => $validated['assigned_pic']
-        ]);
-
-        // 4. Send Notification to Assigned Staff
-        // We can reuse NotificationService or manually trigger event
+                // 3. Update SPK & Handle Notification (Centralized)
+        // We use NotificationService that handles transaction, SPK update, and Notification Cleanup
         try {
-            $assignedUser = User::on('tako-user')->find($validated['assigned_pic']);
-            if ($assignedUser) {
-                // Remove old notifications for this SPK
-                \App\Models\Notification::where('id_spk', $spk->id)->delete();
+            // Re-fetch SPK to ensure fresh state
+             $spk = Spk::findOrFail($id); 
 
-                // Create new notification
-                NotificationService::send([
-                    'send_to' => $assignedUser->id_user,
-                    'created_by' => $user->id_user,
-                    'id_spk' => $spk->id,
-                    'data' => [
-                        'type' => 'assignment',
-                        'title' => 'Assigned to SPK',
-                        'message' => "You have been assigned to SPK: {$spk->spk_code}",
-                        'url' => route('shipping.show', $spk->id),
-                    ]
-                ]);
+             if ($spk->validated_by == $validated['assigned_pic']) {
+                return response()->json(['message' => 'User is already assigned.']);
             }
+            
+            $assignedUser = User::on('tako-user')->find($validated['assigned_pic']);
+            
+            if ($assignedUser) {
+                NotificationService::handleSpkAssignment($spk, $assignedUser, $user);
+            }
+            
         } catch (\Exception $e) {
-            Log::error("Failed to send assignment notification: " . $e->getMessage());
+             Log::error("Failed to assign staff: " . $e->getMessage());
+             return redirect()->back()->withErrors(['error' => 'Failed to assign staff']);
         }
 
         return redirect()->back()->with('success', 'Staff has been assigned successfully.');
+    }
+
+    /**
+     * Batch Reject Documents (Internal)
+     */
+    public function batchRejectDocuments(Request $request)
+    {
+        $user = auth('web')->user();
+        
+        // Tenant Init
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        
+        if ($tenant) {
+            tenancy()->initialize($tenant);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $validated = $request->validate([
+                'rejections' => 'required|array',
+                'rejections.*.doc_id' => 'required|integer',
+                'rejections.*.note' => 'required|string',
+                'rejections.*.file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            ]);
+
+            $spkId = null;
+            $uniqueSections = [];
+            $rejectingUser = Auth::user();
+            $rejectedCount = 0;
+            
+            // Tenant Connection
+            $tenantConnection = tenancy()->tenant ? 'tenant' : config('database.default');
+
+            foreach ($validated['rejections'] as $item) {
+                $docId = $item['doc_id'];
+                $note = $item['note'];
+                $file = $item['file'] ?? null;
+
+                $document = DocumentTrans::on($tenantConnection)->with(['spk', 'sectionTrans'])->find($docId);
+                if (!$document) continue;
+
+                $spkId = $document->id_spk; // Capture SPK ID
+                $sectionName = $document->sectionTrans ? $document->sectionTrans->section_name : 'Document';
+                $uniqueSections[$document->sectionTrans->id] = $sectionName;
+
+                $correctionFilePath = $document->correction_attachment_file;
+
+                if ($file) {
+                    $path = $file->store('corrections', 'customers_external');
+                    $correctionFilePath = $path;
+                }
+
+                $document->update([
+                    'verify' => false, // Rejected
+                    'correction_attachment' => true,
+                    'correction_description' => $note,
+                    'correction_attachment_file' => $correctionFilePath,
+                ]);
+
+                DocumentStatus::on($tenantConnection)->create([
+                    'id_dokumen_trans' => $document->id,
+                    'status'           => 'Rejected',
+                    'by'               => $rejectingUser->name,
+                ]);
+                
+                $rejectedCount++;
+            }
+
+            if ($rejectedCount > 0 && $spkId) {
+                $spk = Spk::find($spkId);
+                
+                // Concat Section Names
+                $sectionNamesStr = implode(' dan ', $uniqueSections);
+                
+                // Update SPK Status
+                SpkStatus::create([
+                    'id_spk' => $spkId,
+                    'id_status' => 4, // Rejected
+                    'status' => "{$sectionNamesStr} Rejected", // Use Section Name!
+                ]);
+
+                // Send Notification (Batch)
+                $this->sendBatchRejectionNotification($spk, $sectionNamesStr, $rejectingUser, $rejectedCount, $validated['rejections'][0]['note']); 
+
+                // Realtime Update
+                 try {
+                    ShippingDataUpdated::dispatch($spkId, 'batch_reject');
+                } catch (\Exception $e) {}
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$rejectedCount} documents rejected successfully"
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Batch Rejection error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reject documents: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper to send batch rejection notifications
+     */
+    private function sendBatchRejectionNotification($spk, $sectionName, $rejector, $count, $reason)
+    {
+         if ($rejector->role === 'internal') {
+            $customers = \App\Models\User::on('tako-user')
+                ->where('id_customer', $spk->id_customer)
+                ->where('role', 'eksternal')
+                ->get();
+
+            foreach ($customers as $cust) {
+                 // Email
+                 SectionReminderService::sendBatchDocumentRejected($spk, $sectionName, $rejector, $cust, $reason, $count);
+
+                 // Notification
+                 try {
+                    NotificationService::sendBatchRejectionNotification([
+                        'id_spk' => $spk->id,
+                        'send_to' => $cust->id_user,
+                        'created_by' => $rejector->id,
+                        'role'   => 'eksternal', 
+                        'section_name' => $sectionName,
+                        'reason' => $reason,
+                        'count' => $count,
+                        'spk_code' => $spk->spk_code
+                    ]);
+                 } catch (\Exception $e) {}
+            }
+        } else {
+             if ($spk->validated_by) {
+                $staff = \App\Models\User::on('tako-user')->find($spk->validated_by);
+                if ($staff) {
+                    // Email
+                    SectionReminderService::sendBatchDocumentRejected($spk, $sectionName, $rejector, $staff, $reason, $count);
+                    
+                    // Notification
+                    try {
+                        NotificationService::sendBatchRejectionNotification([
+                            'id_spk' => $spk->id,
+                            'send_to' => $staff->id_user,
+                            'created_by' => $rejector->id,
+                            'role'   => 'internal', 
+                            'section_name' => $sectionName,
+                            'reason' => $reason,
+                            'count' => $count,
+                            'spk_code' => $spk->spk_code
+                        ]);
+                     } catch (\Exception $e) {}
+                }
+            }
+        }
     }
 
     /**
@@ -2615,5 +2809,6 @@ class ShippingController extends Controller
             ], 500);
         }
     }
+
 }
 

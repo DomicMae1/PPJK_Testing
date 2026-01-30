@@ -507,19 +507,25 @@ export default function ViewCustomerForm({
                 .filter((r): r is PendingRejection => r !== undefined);
 
             if (rejectionsToProcess.length > 0) {
-                await Promise.all(
-                    rejectionsToProcess.map(async (rejection) => {
-                        const formData = new FormData();
-                        formData.append('correction_description', rejection.note);
-                        if (rejection.file) {
-                            formData.append('correction_file', rejection.file);
-                        }
+                // BATCH REJECT CALL
+                const rejectionsPayload = rejectionsToProcess.map(r => ({
+                    doc_id: r.docId,
+                    note: r.note,
+                    file: r.file
+                }));
 
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    }),
-                );
+                const formData = new FormData();
+                rejectionsPayload.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.doc_id));
+                    formData.append(`rejections[${index}][note]`, r.note);
+                    if (r.file) {
+                        formData.append(`rejections[${index}][file]`, r.file);
+                    }
+                });
+
+                await axios.post('/shipping/batch-reject', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
 
                 // Hapus yang sudah diproses
                 const processedIds = rejectionsToProcess.map((r) => r.docId);
@@ -697,24 +703,19 @@ export default function ViewCustomerForm({
 
             // 3. BATCH REJECTION (NEW - GLOBAL)
             if (pendingRejections.length > 0) {
-                const rejectionPromises = pendingRejections.map(async (rejection) => {
-                    const formData = new FormData();
-                    formData.append('correction_description', rejection.note);
-                    if (rejection.file) {
-                        formData.append('correction_file', rejection.file);
-                    }
-
-                    try {
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    } catch (err) {
-                        console.error(`Failed to reject doc ${rejection.docId}`, err);
-                        throw err; // Re-throw to be caught by outer catch
+                // BATCH REJECT CALL (GLOBAL)
+                const formData = new FormData();
+                pendingRejections.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.docId));
+                    formData.append(`rejections[${index}][note]`, r.note);
+                    if (r.file) {
+                        formData.append(`rejections[${index}][file]`, r.file);
                     }
                 });
 
-                await Promise.all(rejectionPromises);
+                await axios.post('/shipping/batch-reject', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
 
                 // Clear pending rejections
                 setPendingRejections([]);
@@ -1004,16 +1005,23 @@ export default function ViewCustomerForm({
                         const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                         // --- Status Logic ---
+                        // --- Status Logic ---
                         const docs = section.documents || [];
-                        const validDocs = docs.filter((d: any) => d.verify === true); // Verified
+
+                        // FIX: Use latest documents only for status calculation
+                        // This prevents 'Rejected' status from persisting if a new version exists (which is Pending or Verified)
+                        const latestDocsGroups = processDocumentsForRender(docs);
+                        const latestDocs = latestDocsGroups.map(g => g.current);
+
+                        const validDocs = latestDocs.filter((d: any) => d.verify === true); // Verified (Latest only)
 
                         // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
-                        const hasRejection = docs.some((d: any) => d.correction_attachment);
+                        const hasRejection = latestDocs.some((d: any) => d.correction_attachment);
 
-                        const allVerified = docs.length > 0 && docs.every((d: any) => d.verify === true);
+                        const allVerified = latestDocs.length > 0 && latestDocs.every((d: any) => d.verify === true);
 
                         // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
-                        const hasPending = docs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+                        const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
                         // --- Styling Variables ---
                         let containerClass = "rounded-lg border transition-all ";
@@ -1034,8 +1042,8 @@ export default function ViewCustomerForm({
                             containerClass += "bg-green-600/80";
                             titleClass += "text-white";
                             chevronClass += "text-white";
-                            deadlineIconClass += "text-white";
-                            deadlineTextClass += "text-white";
+                            deadlineIconClass += "text-red-700";
+                            deadlineTextClass += "text-red-700";
                         } else if (hasPending) {
                             // YELLOW (Pending Grading) - Opacity 50%
                             containerClass += "bg-yellow-400/80";
