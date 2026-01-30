@@ -153,25 +153,19 @@ export default function ManageDocuments() {
 
     // --- HANDLER DELETE ---
     const onDeleteClick = (id: number) => {
-        const doc = documents.find((d) => d.id_dokumen === id);
-        if (doc) {
-            // Validasi: Manager tidak boleh hapus Master
-            if (isManager && doc.source === 'master') {
-                toast.error('Anda tidak memiliki izin untuk menghapus Dokumen Master Pusat.');
-                return;
-            }
-            setDocIdToDelete(id);
-            setOpenDelete(true);
-        }
+        setDocIdToDelete(id);
+        setOpenDelete(true);
     };
 
-    const onConfirmDelete = () => {
+    const handleConfirmDelete = () => {
         if (docIdToDelete) {
             router.delete(`/document/${docIdToDelete}`, {
                 onSuccess: () => {
                     setOpenDelete(false);
                     setDocIdToDelete(null);
-                    toast.success('Document deleted successfully!');
+                },
+                onError: (errors) => {
+                    console.error('Gagal menghapus:', errors);
                 },
             });
         }
@@ -355,12 +349,12 @@ export default function ManageDocuments() {
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button variant="destructive" onClick={onConfirmDelete}>
+                        <Button variant="outline" onClick={() => setOpenDelete(false)}>
+                            Batal
+                        </Button>
+                        <Button variant="destructive" className="text-white" onClick={handleConfirmDelete}>
                             Hapus
                         </Button>
-                        <DialogClose asChild>
-                            <Button variant="secondary">Batal</Button>
-                        </DialogClose>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

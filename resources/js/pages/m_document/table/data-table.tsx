@@ -306,9 +306,11 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_file
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <Label htmlFor="file_example">Contoh File</Label>
+                        <div className="max-w-[250px] sm:max-w-[300px]">
+                            <Label className="mb-2" htmlFor="file_example">
+                                Contoh File
+                            </Label>
+                            <div className="w-full">
                                 <ResettableDropzone
                                     label="Upload Contoh"
                                     isRequired={false}
@@ -320,8 +322,11 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_file
                                     // Jika ingin menampilkan file yang sudah ada (saat edit), gunakan existingFile prop
                                 />
                             </div>
-                            <div>
-                                <Label htmlFor="file_template">Template File</Label>
+                        </div>
+
+                        <div className="max-w-[250px] sm:max-w-[300px]">
+                            <Label htmlFor="file_template">Template File</Label>
+                            <div className="w-full">
                                 <ResettableDropzone
                                     label="Upload Template"
                                     isRequired={false}
