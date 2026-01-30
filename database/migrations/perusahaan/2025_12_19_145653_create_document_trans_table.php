@@ -33,7 +33,7 @@ return new class extends Migration
             $table->timestamps(); // created_at, updated_at
 
             // 7. Validasi & Koreksi
-            $table->boolean('verify')->default(false); // Status validasi
+            $table->boolean('verify')->nullable(); // Status validasi
             $table->boolean('correction_attachment')->default(false); // Flag ada revisi file
             $table->string('correction_attachment_file')->nullable(); // Path file revisi
             $table->text('correction_description')->nullable();       // Catatan revisi
