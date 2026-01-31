@@ -62,6 +62,7 @@ interface DocumentTrans {
     correction_description?: string;
     correction_attachment_file?: string;
     is_internal?: boolean; // Added
+    is_verification?: boolean; // Added
 }
 
 // Interface untuk Section Transaksional (dari DB Tenant)
@@ -637,7 +638,7 @@ export default function ViewCustomerForm({
             canVerify = false;
         } else {
             canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+            canVerify = ((isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal)) && (doc.is_verification !== false); // Hide Verify if auto-verfied
         }
 
         const isVerified = doc.verify === true;
@@ -1198,24 +1199,24 @@ export default function ViewCustomerForm({
                         .map((section: any) => {
                             const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
-                        // --- Status Logic ---
-                        // --- Status Logic ---
-                        const docs = section.documents || [];
+                            // --- Status Logic ---
+                            // --- Status Logic ---
+                            const docs = section.documents || [];
 
-                        // FIX: Use latest documents only for status calculation
-                        // This prevents 'Rejected' status from persisting if a new version exists (which is Pending or Verified)
-                        const latestDocsGroups = processDocumentsForRender(docs);
-                        const latestDocs = latestDocsGroups.map(g => g.current);
+                            // FIX: Use latest documents only for status calculation
+                            // This prevents 'Rejected' status from persisting if a new version exists (which is Pending or Verified)
+                            const latestDocsGroups = processDocumentsForRender(docs);
+                            const latestDocs = latestDocsGroups.map(g => g.current);
 
-                        const validDocs = latestDocs.filter((d: any) => d.verify === true); // Verified (Latest only)
+                            const validDocs = latestDocs.filter((d: any) => d.verify === true); // Verified (Latest only)
 
-                        // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
-                        const hasRejection = latestDocs.some((d: any) => d.correction_attachment);
+                            // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
+                            const hasRejection = latestDocs.some((d: any) => d.correction_attachment);
 
-                        const allVerified = latestDocs.length > 0 && latestDocs.every((d: any) => d.verify === true);
+                            const allVerified = latestDocs.length > 0 && latestDocs.every((d: any) => d.verify === true);
 
-                        // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
-                        const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+                            // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
+                            const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
                             // --- Styling Variables ---
                             let containerClass = 'rounded-lg border transition-all ';
@@ -1224,35 +1225,35 @@ export default function ViewCustomerForm({
                             let deadlineIconClass = 'text-lg font-bold transition-colors ';
                             let deadlineTextClass = 'text-xs font-bold transition-colors ';
 
-                        if (hasRejection) {
-                            // RED (Rejected) - High Priority - Opacity 50%
-                            containerClass += "bg-red-600/80";
-                            titleClass += "text-white";
-                            chevronClass += "text-white";
-                            deadlineIconClass += "text-white";
-                            deadlineTextClass += "text-white";
-                        } else if (allVerified) {
-                            // GREEN (Verified) - Opacity 50%
-                            containerClass += "bg-green-600/80";
-                            titleClass += "text-white";
-                            chevronClass += "text-white";
-                            deadlineIconClass += "text-red-700";
-                            deadlineTextClass += "text-red-700";
-                        } else if (hasPending) {
-                            // YELLOW (Pending Grading) - Opacity 50%
-                            containerClass += "bg-yellow-400/80";
-                            titleClass += "text-black";
-                            chevronClass += "text-black";
-                            deadlineIconClass += "text-red-600";
-                            deadlineTextClass += "text-red-600";
-                        } else {
-                            // DEFAULT (Idle/None)
-                            containerClass += "bg-white ";
-                            titleClass += "text-gray-900";
-                            chevronClass += "text-gray-500";
-                            deadlineIconClass += "text-red-500";
-                            deadlineTextClass += "text-red-500";
-                        }
+                            if (hasRejection) {
+                                // RED (Rejected) - High Priority - Opacity 50%
+                                containerClass += "bg-red-600/80";
+                                titleClass += "text-white";
+                                chevronClass += "text-white";
+                                deadlineIconClass += "text-white";
+                                deadlineTextClass += "text-white";
+                            } else if (allVerified) {
+                                // GREEN (Verified) - Opacity 50%
+                                containerClass += "bg-green-600/80";
+                                titleClass += "text-white";
+                                chevronClass += "text-white";
+                                deadlineIconClass += "text-red-700";
+                                deadlineTextClass += "text-red-700";
+                            } else if (hasPending) {
+                                // YELLOW (Pending Grading) - Opacity 50%
+                                containerClass += "bg-yellow-400/80";
+                                titleClass += "text-black";
+                                chevronClass += "text-black";
+                                deadlineIconClass += "text-red-600";
+                                deadlineTextClass += "text-red-600";
+                            } else {
+                                // DEFAULT (Idle/None)
+                                containerClass += "bg-white ";
+                                titleClass += "text-gray-900";
+                                chevronClass += "text-gray-500";
+                                deadlineIconClass += "text-red-500";
+                                deadlineTextClass += "text-red-500";
+                            }
 
                             return (
                                 <div key={section.id_section} className={containerClass}>
@@ -1340,7 +1341,7 @@ export default function ViewCustomerForm({
                                                             // doc.is_internal = true (1) -> Internal Uploads, External Verifies
                                                             // doc.is_internal = false (0) -> External Uploads, Internal Verifies
                                                             canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-                                                            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+                                                            canVerify = ((isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal)) && (doc.is_verification !== false);
                                                         }
 
                                                         return (
@@ -1484,11 +1485,11 @@ export default function ViewCustomerForm({
                                                                                     existingFile={
                                                                                         tempFiles[doc.id]
                                                                                             ? {
-                                                                                                  nama_file:
-                                                                                                      doc.master_document?.nama_dokumen ||
-                                                                                                      doc.nama_file,
-                                                                                                  path: tempFiles[doc.id],
-                                                                                              }
+                                                                                                nama_file:
+                                                                                                    doc.master_document?.nama_dokumen ||
+                                                                                                    doc.nama_file,
+                                                                                                path: tempFiles[doc.id],
+                                                                                            }
                                                                                             : undefined
                                                                                     }
                                                                                     uploadConfig={{
@@ -1567,135 +1568,6 @@ export default function ViewCustomerForm({
                                                                         </div>
                                                                     )}
                                                                 </div>
-
-                                                                {/* Verifier Actions: Accept / Reject */}
-                                                                {canVerify && doc.url_path_file && (
-                                                                    <div className="flex items-center gap-4">
-                                                                        {/* Accept */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.accept || 'Accept'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isVerified || isPendingVerification}
-                                                                                onCheckedChange={() => handleVerify(doc.id)}
-                                                                                className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-
-                                                                        {/* Reject */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.reject || 'Reject'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isRejected || isPendingRejection}
-                                                                                onCheckedChange={(checked) => {
-                                                                                    if (checked) handleOpenReject(doc.id);
-                                                                                }}
-                                                                                className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
-                                                                {canUpload && (
-                                                                    <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
-                                                                        {/* Upload Zone */}
-                                                                        {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
-                                                                            <ResettableDropzone
-                                                                                label=""
-                                                                                isRequired={false}
-                                                                                existingFile={
-                                                                                    tempFiles[doc.id]
-                                                                                        ? {
-                                                                                            nama_file:
-                                                                                                doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                            path: tempFiles[doc.id],
-                                                                                        }
-                                                                                        : undefined
-                                                                                }
-                                                                                uploadConfig={{
-                                                                                    url: '/shipping/upload-temp',
-                                                                                    payload: {
-                                                                                        type: doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                        spk_code: shipmentData.spkNumber,
-                                                                                    },
-                                                                                }}
-                                                                                onFileChange={(file, response) => {
-                                                                                    if (
-                                                                                        response &&
-                                                                                        (response.status === 'success' || response.path)
-                                                                                    ) {
-                                                                                        setTempFiles((prev) => ({
-                                                                                            ...prev,
-                                                                                            [doc.id]: response.path,
-                                                                                        }));
-                                                                                    } else if (file === null) {
-                                                                                        setTempFiles((prev) => {
-                                                                                            const newState = { ...prev };
-                                                                                            delete newState[doc.id];
-                                                                                            return newState;
-                                                                                        });
-                                                                                    }
-                                                                                }}
-                                                                                disabled={verifyingDocId === doc.id}
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="text-right text-xs text-gray-400 italic">
-                                                                                {isPending
-                                                                                    ? trans.on_checking || 'On Checking'
-                                                                                    : trans.quota_exceeded || 'Quota Exceeded'}
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Quota & Rejection Info (Moved Here) */}
-                                                                        {doc.url_path_file && (
-                                                                            <div className="flex flex-col items-end text-right text-xs">
-                                                                                {/* Rejection Note */}
-                                                                                {isRejected && (
-                                                                                    <div className="mb-1">
-                                                                                        <div className="flex items-center justify-end gap-1 font-bold text-red-600">
-                                                                                            {trans.rejection_note || 'Rejection Note'}{' '}
-                                                                                            <AlertTriangle className="h-3 w-3" />
-                                                                                        </div>
-                                                                                        <p className="text-gray-700 italic">
-                                                                                            "{doc.correction_description}"
-                                                                                        </p>
-                                                                                        {doc.correction_attachment_file && (
-                                                                                            <a
-                                                                                                href={`/file/view/${doc.correction_attachment_file}`}
-                                                                                                target="_blank"
-                                                                                                className="mt-0.5 block text-blue-500 underline"
-                                                                                            >
-                                                                                                {trans.view_rejection_file || 'View Rejection File'}
-                                                                                            </a>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-
-                                                                                {/* Quota Info */}
-                                                                                <div className="mt-1 text-gray-600">
-                                                                                    {trans.revision_quota || 'Revision Quota'}:{' '}
-                                                                                    <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
-                                                                                    {trans.remaining || 'remaining'}
-                                                                                </div>
-                                                                                {quotaExceeded && (
-                                                                                    <div className="mt-0.5 font-bold text-red-600">
-                                                                                        {trans.quota_exceeded || 'Quota Exceeded'}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         );
                                                     })

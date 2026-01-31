@@ -310,6 +310,7 @@ class ShippingController extends Controller
                     [
                         // Data yang akan dicopy jika belum ada
                         'is_internal'             => $masterDoc->is_internal,
+                        'is_verification'         => $masterDoc->is_verification ?? true, // New: Copy flag, default true
                         'attribute'               => $masterDoc->attribute,
                         'link_path_example_file'  => $masterDoc->link_path_example_file,
                         'link_path_template_file' => $masterDoc->link_path_template_file,
@@ -330,6 +331,7 @@ class ShippingController extends Controller
                     'id_section'                 => $masterDocTrans->id_section,
                     'nama_file'                  => $masterDocTrans->nama_file,
                     'is_internal'                => $masterDocTrans->is_internal ?? false,
+                    'is_verification'            => $masterDocTrans->is_verification ?? true, // New: from Master
                     'url_path_file'              => null,
                     'verify'                     => false,
                     'correction_attachment'      => false,
@@ -1136,7 +1138,8 @@ class ShippingController extends Controller
                     'nama_file'                  => $newFileName,
                     'url_path_file'              => $finalRelPath,
                     'is_internal'                => $existingDoc->is_internal, // Copy from existing
-                    'verify'                     => $isInternalCanUpload ? true : null, // Reset status OR auto-verify
+                    'is_verification'            => $existingDoc->is_verification, // Copy from existing
+                    'verify'                     => ($isInternalCanUpload || ($existingDoc->is_verification === false)) ? true : null, // Reset status OR auto-verify If internal_can_upload OR no_verification_needed
                     'correction_attachment'      => false,
                     'correction_attachment_file' => null,
                     'correction_description'     => null,
@@ -1153,7 +1156,7 @@ class ShippingController extends Controller
                     'url_path_file' => $finalRelPath,
                     'nama_file'     => $newFileName,
                     // 'upload_by'     => null, // Removed
-                    'verify'        => $isInternalCanUpload ? true : null, // Reset or auto-verify
+                    'verify'        => ($isInternalCanUpload || ($targetDoc->is_verification === false)) ? true : null, // Reset or auto-verify
                     'correction_attachment' => false,
                     'kuota_revisi'  => $newQuota, // Update kuota_revisi here too
                     'updated_at'    => now(),
@@ -2004,7 +2007,7 @@ class ShippingController extends Controller
                      $newDoc = $targetDoc->replicate();
                      $newDoc->url_path_file = $finalRelPath;
                      // $newDoc->nama_file = $newFileName; // Keep existing label
-                     $newDoc->verify = $spk->internal_can_upload ? true : null;
+                     $newDoc->verify = ($spk->internal_can_upload || ($targetDoc->is_verification === false)) ? true : null;
                      $newDoc->correction_attachment = false;
                      $newDoc->kuota_revisi = ($targetDoc->kuota_revisi > 0) ? $targetDoc->kuota_revisi - 1 : 0;
                      $newDoc->created_at = now();
@@ -2018,7 +2021,7 @@ class ShippingController extends Controller
                      $targetDoc->update([
                         'url_path_file' => $finalRelPath,
                          // 'nama_file'     => $newFileName, // DISABLED
-                        'verify'        => $spk->internal_can_upload ? true : null,
+                        'verify'        => ($spk->internal_can_upload || ($targetDoc->is_verification === false)) ? true : null,
                         'correction_attachment' => false,
                         'kuota_revisi'  => ($targetDoc->kuota_revisi > 0) ? $targetDoc->kuota_revisi - 1 : 0, 
                         'updated_at'    => now(),

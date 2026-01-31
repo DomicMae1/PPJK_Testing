@@ -21,6 +21,7 @@ class MasterDocumentTrans extends Model
         'id_section',
         'nama_file',
         'is_internal', // Added
+        'is_verification', // New
         'attribute',
         'link_path_example_file',
         'link_path_template_file',
@@ -33,6 +34,7 @@ class MasterDocumentTrans extends Model
     // 5. Casting Tipe Data
     protected $casts = [
         'is_internal' => 'boolean', // Added
+        'is_verification' => 'boolean', // New
         'attribute' => 'boolean',
         'deadline_document' => 'boolean',
         'created_at' => 'datetime',
