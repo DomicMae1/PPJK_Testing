@@ -702,6 +702,29 @@ export default function ViewCustomerForm({
         }
     };
 
+    // Penjaluran Handler
+    const [isUpdatingPenjaluran, setIsUpdatingPenjaluran] = useState(false);
+
+    const handleUpdatePenjaluran = async (jalur: 'merah' | 'biru') => {
+        setIsUpdatingPenjaluran(true);
+        try {
+            const response = await axios.post('/shipping/update-penjaluran', {
+                id_spk: shipmentData.id_spk,
+                penjaluran: jalur
+            });
+
+            if (response.data.success) {
+                toast.success(`Penjaluran updated to ${jalur}`);
+            } else {
+                toast.error(response.data.message || 'Failed to update penjaluran');
+            }
+        } catch (error: any) {
+            console.error('Error updating penjaluran:', error);
+            toast.error(error.response?.data?.message || 'Failed to update penjaluran');
+        } finally {
+            setIsUpdatingPenjaluran(false);
+        }
+    };
 
     // --- REUSABLE DOCUMENT ROW RENDERER ---
     const renderDocumentRow = (doc: DocumentTrans, idx: number, sectionId: number, hasHistory: boolean, historyDocs: DocumentTrans[]) => {
@@ -1082,20 +1105,29 @@ export default function ViewCustomerForm({
                     </div>
                 )}
             </div>
-
             {/* --- Shipment Details --- */}
             <div className="mb-6 space-y-1 pl-1">
                 <div className="flex gap-1">
                     <span className="font-bold">{trans.shipment_type} :</span>
                     <span>{shipmentData.type}</span>
                 </div>
+                {shipmentData.penjaluran && (
+                    <div className="flex gap-1 items-center">
+                        <span className="font-bold">Penjaluran : </span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${shipmentData.penjaluran === 'merah'
+                                ? 'bg-red-100 text-red-700 border border-red-300'
+                                : 'bg-blue-100 text-blue-700 border border-blue-300'
+                            }`}>
+                            {shipmentData.penjaluran.charAt(0).toUpperCase() + shipmentData.penjaluran.slice(1)}
+                        </span>
+                    </div>
+                )}
                 <div className="flex gap-1">
                     <span className="font-bold">
                         {shipmentData.type === 'Export' ? trans.si || 'SI' : shipmentData.type === 'Import' ? trans.bl || 'BL' : trans.spk || 'SPK'} :
                     </span>
                     <span>{shipmentData.spkNumber}</span>
                 </div>
-
                 {/* HS Code Section */}
                 <div className="flex gap-1">
                     <span className="font-bold whitespace-nowrap">{trans.hs_code} :</span>
@@ -1686,11 +1718,25 @@ export default function ViewCustomerForm({
                 )}
             </div>
 
-            {/* <div className="mt-12 flex justify-end">
-                <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
-                    {trans.save_changes}
-                </Button>
-            </div> */}
+            {/* Penjaluran Buttons */}
+            {isInternalUser && (
+                <div className="mt-12 flex justify-center gap-4">
+                    <Button
+                        onClick={() => handleUpdatePenjaluran('merah')}
+                        disabled={isUpdatingPenjaluran}
+                        className="h-12 rounded-md bg-red-600 px-12 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                        Jalur Merah
+                    </Button>
+                    <Button
+                        onClick={() => handleUpdatePenjaluran('biru')}
+                        disabled={isUpdatingPenjaluran}
+                        className="h-12 rounded-md bg-blue-600 px-12 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        Jalur Biru
+                    </Button>
+                </div>
+            )}
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">

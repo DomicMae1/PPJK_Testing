@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('shipping/{id}/assign-staff', [ShippingController::class, 'assignStaff'])->name('shipping.assignStaff');
     Route::get('shipping/available-documents', [ShippingController::class, 'getAvailableDocuments'])->name('shipping.availableDocuments');
     Route::post('shipping/add-documents-to-section', [ShippingController::class, 'addDocumentsToSection'])->name('shipping.addDocumentsToSection');
+    Route::post('shipping/update-penjaluran', [ShippingController::class, 'updatePenjaluran'])->name('shipping.updatePenjaluran');
     
     // Resource route AFTER specific routes
     Route::resource('shipping', ShippingController::class);

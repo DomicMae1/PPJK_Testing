@@ -1819,6 +1819,7 @@ class ShippingController extends Controller
             'shipmentType' => $spk->shipment_type,
             'type'      => $spk->shipment_type,
             'spkNumber'  => $spk->spk_code, // Mapping spk_code ke siNumber
+            'penjaluran' => $spk->penjaluran,
             'internal_can_upload' => $spk->internal_can_upload,
             'hsCodes'   => [],
             'is_created_by_internal' => $spk->is_created_by_internal,
@@ -3032,7 +3033,52 @@ class ShippingController extends Controller
         }
     }
 
+    /**
+     * Update penjaluran (jalur merah/biru) for SPK
+     */
+    public function updatePenjaluran(Request $request)
+    {
+        $user = auth('web')->user();
+
+        // Initialize tenant context FIRST
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) {
+            return response()->json(['success' => false, 'message' => 'Tenant not found'], 404);
+        }
+
+        tenancy()->initialize($tenant);
+        
+        $validated = $request->validate([
+            'id_spk' => 'required|integer|exists:spk,id',
+            'penjaluran' => 'required|string|in:merah,biru',
+        ]);
+
+        try {
+            $spk = Spk::findOrFail($validated['id_spk']);
+            $spk->update(['penjaluran' => $validated['penjaluran']]);
+
+            Log::info('Penjaluran updated', ['spk_id' => $spk->id, 'penjaluran' => $validated['penjaluran']]);
+
+            try {
+                ShippingDataUpdated::dispatch($spk->id, 'penjaluran_update');
+            } catch (\Exception $e) {
+                Log::error('Realtime update failed: ' . $e->getMessage());
+            }
+
+            return response()->json(['success' => true, 'message' => 'Penjaluran updated', 'penjaluran' => $validated['penjaluran']]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to update penjaluran: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to update penjaluran'], 500);
+        }
+    }
+
 }
-
-
-
