@@ -2813,5 +2813,226 @@ class ShippingController extends Controller
         }
     }
 
+    /**
+     * Get available documents from master_documents_trans where id_section is null or 0
+     * These are documents that haven't been assigned to any section yet
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAvailableDocuments(Request $request)
+    {
+        $user = auth('web')->user();
+
+        // Initialize tenant context FIRST
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tenant not found'
+            ], 404);
+        }
+
+        tenancy()->initialize($tenant);
+        
+        // Validate AFTER tenant is initialized
+        $request->validate([
+            'id_spk' => 'required|integer|exists:spk,id',
+        ]);
+
+        try {
+            // Get documents where id_section is null or 0 (unassigned documents)
+            $availableDocuments = MasterDocumentTrans::whereNull('id_section')
+                ->orWhere('id_section', 0)
+                ->select([
+                    'id_dokumen',
+                    'nama_file',
+                    'description_file',
+                    'is_internal',
+                    'is_verification',
+                    'attribute',
+                    'link_path_example_file',
+                    'link_path_template_file',
+                    'link_url_video_file'
+                ])
+                ->orderBy('nama_file', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'documents' => $availableDocuments
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch available documents', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id_user,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch documents: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add selected documents to a specific section
+     * Creates new document_trans entries for the selected documents
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function addDocumentsToSection(Request $request)
+    {
+        $user = auth('web')->user();
+        $userId = $user->id_user;
+        $userName = $user->name;
+
+        // Initialize tenant context
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tenant not found'
+            ], 404);
+        }
+
+        tenancy()->initialize($tenant);
+        
+        // Validate AFTER tenant is initialized
+        $validated = $request->validate([
+            'id_spk' => 'required|integer|exists:spk,id',
+            'id_section' => 'required|integer',
+            'document_ids' => 'required|array|min:1',
+            'document_ids.*' => 'required|integer|exists:master_documents_trans,id_dokumen',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $spk = Spk::findOrFail($validated['id_spk']);
+            $sectionId = $validated['id_section'];
+            
+            // Verify section exists for this SPK
+            $section = SectionTrans::where('id_spk', $spk->id)
+                ->where('id', $sectionId)
+                ->first();
+            $sectionIdDoc = $section->id_section;
+
+            if (!$section) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Section not found for this SPK'
+                ], 404);
+            }
+
+            $addedCount = 0;
+
+            foreach ($validated['document_ids'] as $docId) {
+                // Get master document data
+                $masterDoc = MasterDocumentTrans::find($docId);
+                
+                if (!$masterDoc) {
+                    Log::warning("Master document not found: {$docId}");
+                    continue;
+                }
+
+                // Check if document already exists in this section for this SPK
+                $exists = DocumentTrans::where('id_spk', $spk->id)
+                    ->where('id_section', $sectionId)
+                    ->where('id_dokumen', $docId)
+                    ->exists();
+
+                if ($exists) {
+                    Log::info("Document already exists in section, skipping: {$docId}");
+                    continue;
+                }
+
+                // Create log message
+                $logMessage = "Document {$masterDoc->nama_file} added to {$section->section_name} " . now()->format('d-m-Y H:i') . " WIB by {$userName}";
+
+                // Create new document_trans entry
+                $newDocTrans = DocumentTrans::create([
+                    'id_spk' => $spk->id,
+                    'id_dokumen' => $masterDoc->id_dokumen,
+                    'id_section' => $sectionIdDoc,
+                    'nama_file' => $masterDoc->nama_file,
+                    'is_internal' => $masterDoc->is_internal ?? false,
+                    'is_verification' => $masterDoc->is_verification ?? true,
+                    'url_path_file' => null,
+                    'verify' => false,
+                    'correction_attachment' => false,
+                    'kuota_revisi' => 3,
+                    'updated_by' => $userId,
+                    'logs' => $logMessage,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                // Create initial status
+                DocumentStatus::create([
+                    'id_dokumen_trans' => $newDocTrans->id,
+                    'status' => $logMessage,
+                    'by' => $userId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $addedCount++;
+            }
+
+            DB::commit();
+
+            // REALTIME UPDATE
+            try {
+                ShippingDataUpdated::dispatch($spk->id, 'documents_added');
+            } catch (\Exception $e) {
+                Log::error('Realtime update failed: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$addedCount} document(s) added successfully",
+                'added_count' => $addedCount
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            
+            Log::error('Failed to add documents to section', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $userId,
+                'request' => $validated,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add documents: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 }
+
+
 

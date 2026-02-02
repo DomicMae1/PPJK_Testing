@@ -139,6 +139,13 @@ export default function ViewCustomerForm({
     const [searchQuery, setSearchQuery] = useState(''); // State untuk search bar
     const [deadlineDate, setDeadlineDate] = useState(''); // State untuk tanggal deadline (additional docs)
 
+    // NEW: Add Documents Modal States
+    const [availableDocuments, setAvailableDocuments] = useState<any[]>([]);
+    const [selectedDocuments, setSelectedDocuments] = useState<number[]>([]);
+    const [currentSectionId, setCurrentSectionId] = useState<number | null>(null);
+    const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+    const [isSavingDocs, setIsSavingDocs] = useState(false);
+
     // NEW: Deadline Date Feature States
     const [useUnifiedDeadline, setUseUnifiedDeadline] = useState(true); // Checkbox: apply same deadline to all
     const [globalDeadlineDate, setGlobalDeadlineDate] = useState(''); // Global deadline (garis kuning)
@@ -329,11 +336,6 @@ export default function ViewCustomerForm({
                 },
             },
         );
-    };
-
-    const handleOpenModal = () => {
-        setSearchQuery(''); // Reset search saat dibuka
-        setIsModalOpen(true);
     };
 
     // Verification Handlers
@@ -626,6 +628,80 @@ export default function ViewCustomerForm({
     const toggleHistory = (id: number) => {
         setOpenHistoryIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
     };
+
+    // --- ADD DOCUMENTS MODAL HANDLERS ---
+    const handleOpenModal = async (sectionId: number) => {
+        setCurrentSectionId(sectionId);
+        setSelectedDocuments([]);
+        setSearchQuery('');
+        setIsModalOpen(true);
+        setIsLoadingDocs(true);
+
+        try {
+            const response = await axios.get('/shipping/available-documents', {
+                params: { id_spk: shipmentData.id_spk }
+            });
+
+            if (response.data.success) {
+                setAvailableDocuments(response.data.documents || []);
+            } else {
+                toast.error('Failed to load available documents');
+            }
+        } catch (error: any) {
+            console.error('Error fetching available documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to load documents');
+        } finally {
+            setIsLoadingDocs(false);
+        }
+    };
+
+    const handleDocumentCheckboxChange = (docId: number, checked: boolean) => {
+        if (checked) {
+            setSelectedDocuments(prev => [...prev, docId]);
+        } else {
+            setSelectedDocuments(prev => prev.filter(id => id !== docId));
+        }
+    };
+
+    const handleSaveSelectedDocuments = async () => {
+        if (selectedDocuments.length === 0) {
+            toast.error('Please select at least one document');
+            return;
+        }
+
+        if (!currentSectionId) {
+            toast.error('Section not found');
+            return;
+        }
+
+        setIsSavingDocs(true);
+
+        try {
+            const response = await axios.post('/shipping/add-documents-to-section', {
+                id_spk: shipmentData.id_spk,
+                id_section: currentSectionId,
+                document_ids: selectedDocuments
+            });
+
+            if (response.data.success) {
+                toast.success(response.data.message || 'Documents added successfully');
+                setIsModalOpen(false);
+                setSelectedDocuments([]);
+                setCurrentSectionId(null);
+
+                // No need to reload manually - Echo listener will handle realtime update
+                // router.reload({ only: ['sectionsTransProp'] });
+            } else {
+                toast.error(response.data.message || 'Failed to add documents');
+            }
+        } catch (error: any) {
+            console.error('Error adding documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to add documents');
+        } finally {
+            setIsSavingDocs(false);
+        }
+    };
+
 
     // --- REUSABLE DOCUMENT ROW RENDERER ---
     const renderDocumentRow = (doc: DocumentTrans, idx: number, sectionId: number, hasHistory: boolean, historyDocs: DocumentTrans[]) => {
@@ -1576,16 +1652,18 @@ export default function ViewCustomerForm({
                                                 )}
                                             </div>
 
-                                            <div className="mt-8 flex items-center justify-between">
-                                                <button
-                                                    onClick={handleOpenModal}
-                                                    className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
-                                                >
-                                                    <div className="rounded border border-black p-0.5">
-                                                        <Plus className="h-4 w-4" />
-                                                    </div>
-                                                    {trans.add_document}
-                                                </button>
+                                            <div className={`mt-8 flex items-center ${isInternalUser ? 'justify-between' : 'justify-end'}`}>
+                                                {isInternalUser && (
+                                                    <button
+                                                        onClick={() => handleOpenModal(section.id)}
+                                                        className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
+                                                    >
+                                                        <div className="rounded border border-black p-0.5">
+                                                            <Plus className="h-4 w-4" />
+                                                        </div>
+                                                        {trans.add_document}
+                                                    </button>
+                                                )}
 
                                                 <Button
                                                     onClick={() => handleSaveSection(section.id)}
@@ -1607,71 +1685,6 @@ export default function ViewCustomerForm({
                     </div>
                 )}
             </div>
-
-            {additionalSection && (
-                <div className="mt-6 mb-4">
-                    <div className="mb-4 flex items-center space-x-3 pl-1">
-                        <Checkbox
-                            id="req_additional"
-                            className="h-5 w-5 rounded border-2 border-black"
-                            checked={isAdditionalSectionVisible}
-                            onCheckedChange={(c) => setIsAdditionalSectionVisible(c === true)}
-                        />
-                        <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
-                            {trans.req_additional_doc}
-                        </label>
-                    </div>
-
-                    {isAdditionalSectionVisible && (
-                        <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                            <div
-                                className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                                onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
-                            >
-                                <span className="text-sm font-bold uppercase">{additionalSection.section_name}</span>
-                                {isAdditionalDocsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </div>
-
-                            {isAdditionalDocsOpen && (
-                                <div className="px-3 pt-0 pb-4">
-                                    {isInternalUser && (
-                                        <div className="mb-6 space-y-2">
-                                            <label className="text-sm font-bold text-black">{trans.set_deadline}</label>
-                                            <Input
-                                                type="date"
-                                                value={deadlineDate}
-                                                onChange={(e) => setDeadlineDate(e.target.value)}
-                                                className="h-10 w-full"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* RENDER DYNAMIC DOCUMENTS FROM DB */}
-                                    <div className="space-y-4">
-                                        {additionalSection.documents && additionalSection.documents.length > 0 ? (
-                                            processDocumentsForRender(additionalSection.documents).map((item, idx) =>
-                                                renderDocumentRow(item.current, idx, additionalSection.id, item.history.length > 0, item.history),
-                                            )
-                                        ) : (
-                                            <div className="py-4 text-center text-xs text-gray-400 italic">Belum ada dokumen tambahan.</div>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-8 flex items-center justify-end">
-                                        <Button
-                                            onClick={() => handleSaveSection(additionalSection.id)}
-                                            disabled={processingSectionId === additionalSection.id}
-                                            className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800"
-                                        >
-                                            {processingSectionId === additionalSection.id ? trans.saving : trans.save}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
@@ -1701,33 +1714,47 @@ export default function ViewCustomerForm({
 
                     {/* List Pilihan Checkbox */}
                     <div className="max-h-75 overflow-y-auto px-4 py-2">
-                        <div className="space-y-4">
-                            {filteredDocs.map((doc) => (
-                                <div key={doc.id} className="flex items-center space-x-3">
-                                    {/* Checkbox agak besar (h-5 w-5) dan border lebih tebal (border-2) untuk mirip desain */}
-                                    <Checkbox
-                                        id={doc.id}
-                                        className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
-                                    />
-                                    <label
-                                        htmlFor={doc.id}
-                                        className="text-base leading-none font-normal peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                    >
-                                        {doc.label}
-                                    </label>
-                                </div>
-                            ))}
-                        </div>
+                        {isLoadingDocs ? (
+                            <div className="py-8 text-center text-sm text-gray-500">Loading documents...</div>
+                        ) : availableDocuments.length === 0 ? (
+                            <div className="py-8 text-center text-sm text-gray-500">No available documents</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {availableDocuments
+                                    .filter((doc) => doc.nama_file.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map((doc) => (
+                                        <div key={doc.id_dokumen} className="flex items-center space-x-3">
+                                            <Checkbox
+                                                id={`doc-${doc.id_dokumen}`}
+                                                checked={selectedDocuments.includes(doc.id_dokumen)}
+                                                onCheckedChange={(checked) => handleDocumentCheckboxChange(doc.id_dokumen, checked as boolean)}
+                                                className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
+                                            />
+                                            <label
+                                                htmlFor={`doc-${doc.id_dokumen}`}
+                                                className="text-base leading-none font-normal cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            >
+                                                {doc.nama_file}
+                                            </label>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Modal */}
                     <div className="flex flex-col items-center gap-3 border-t p-4 pt-2">
-                        <button className="text-sm text-gray-500 hover:text-black hover:underline">{trans.see_all}</button>
+                        {selectedDocuments.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                                {selectedDocuments.length} document(s) selected
+                            </div>
+                        )}
                         <Button
-                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800"
-                            onClick={() => setIsModalOpen(false)}
+                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                            onClick={handleSaveSelectedDocuments}
+                            disabled={isSavingDocs || selectedDocuments.length === 0}
                         >
-                            {trans.save_changes}
+                            {isSavingDocs ? 'Saving...' : trans.save_changes}
                         </Button>
                     </div>
                 </DialogContent>
