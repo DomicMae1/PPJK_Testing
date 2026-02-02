@@ -331,4 +331,32 @@ class NotificationService
             ]
         ]);
     }
+    /**
+     * Send batch rejection notification
+     */
+    public static function sendBatchRejectionNotification(array $params): ?Notification
+    {
+        // Default titles by type
+        $title = $params['title'] ?? 'Dokumen Ditolak';
+        
+        $count = $params['count'] ?? 1;
+        $docString = $count > 1 ? "{$count} dokumen" : "Dokumen";
+        
+        // Build notification data
+        return self::send([
+            'send_to' => $params['send_to'],
+            'created_by' => $params['created_by'] ?? null,
+            'role' => $params['role'] ?? null,
+            'id_section' => $params['id_section'] ?? null,
+            'id_spk' => $params['id_spk'] ?? null,
+            'data' => [
+                'type' => 'document_rejected',
+                'title' => $title,
+                'message' => "{$docString} pada section {$params['section_name']} ditolak. Alasan: {$params['reason']}.",
+                'url' => $params['url'] ?? ($params['id_spk'] ? "/shipping/{$params['id_spk']}" : null),
+                'spk_code' => $params['spk_code'] ?? null,
+                'documents' => $params['documents'] ?? [],
+            ]
+        ]);
+    }
 }

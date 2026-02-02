@@ -62,6 +62,7 @@ interface DocumentTrans {
     correction_description?: string;
     correction_attachment_file?: string;
     is_internal?: boolean; // Added
+    is_verification?: boolean; // Added
 }
 
 // Interface untuk Section Transaksional (dari DB Tenant)
@@ -137,6 +138,13 @@ export default function ViewCustomerForm({
     const [isModalOpen, setIsModalOpen] = useState(false); // State untuk buka/tutup modal
     const [searchQuery, setSearchQuery] = useState(''); // State untuk search bar
     const [deadlineDate, setDeadlineDate] = useState(''); // State untuk tanggal deadline (additional docs)
+
+    // NEW: Add Documents Modal States
+    const [availableDocuments, setAvailableDocuments] = useState<any[]>([]);
+    const [selectedDocuments, setSelectedDocuments] = useState<number[]>([]);
+    const [currentSectionId, setCurrentSectionId] = useState<number | null>(null);
+    const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+    const [isSavingDocs, setIsSavingDocs] = useState(false);
 
     // NEW: Deadline Date Feature States
     const [useUnifiedDeadline, setUseUnifiedDeadline] = useState(true); // Checkbox: apply same deadline to all
@@ -330,11 +338,6 @@ export default function ViewCustomerForm({
         );
     };
 
-    const handleOpenModal = () => {
-        setSearchQuery(''); // Reset search saat dibuka
-        setIsModalOpen(true);
-    };
-
     // Verification Handlers
     const handleVerify = (documentId: number) => {
         // Toggle pending verification logic
@@ -514,19 +517,25 @@ export default function ViewCustomerForm({
                 .filter((r): r is PendingRejection => r !== undefined);
 
             if (rejectionsToProcess.length > 0) {
-                await Promise.all(
-                    rejectionsToProcess.map(async (rejection) => {
-                        const formData = new FormData();
-                        formData.append('correction_description', rejection.note);
-                        if (rejection.file) {
-                            formData.append('correction_file', rejection.file);
-                        }
+                // BATCH REJECT CALL
+                const rejectionsPayload = rejectionsToProcess.map(r => ({
+                    doc_id: r.docId,
+                    note: r.note,
+                    file: r.file
+                }));
 
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    }),
-                );
+                const formData = new FormData();
+                rejectionsPayload.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.doc_id));
+                    formData.append(`rejections[${index}][note]`, r.note);
+                    if (r.file) {
+                        formData.append(`rejections[${index}][file]`, r.file);
+                    }
+                });
+
+                await axios.post('/shipping/batch-reject', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
 
                 // Hapus yang sudah diproses
                 const processedIds = rejectionsToProcess.map((r) => r.docId);
@@ -620,6 +629,80 @@ export default function ViewCustomerForm({
         setOpenHistoryIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
     };
 
+    // --- ADD DOCUMENTS MODAL HANDLERS ---
+    const handleOpenModal = async (sectionId: number) => {
+        setCurrentSectionId(sectionId);
+        setSelectedDocuments([]);
+        setSearchQuery('');
+        setIsModalOpen(true);
+        setIsLoadingDocs(true);
+
+        try {
+            const response = await axios.get('/shipping/available-documents', {
+                params: { id_spk: shipmentData.id_spk }
+            });
+
+            if (response.data.success) {
+                setAvailableDocuments(response.data.documents || []);
+            } else {
+                toast.error('Failed to load available documents');
+            }
+        } catch (error: any) {
+            console.error('Error fetching available documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to load documents');
+        } finally {
+            setIsLoadingDocs(false);
+        }
+    };
+
+    const handleDocumentCheckboxChange = (docId: number, checked: boolean) => {
+        if (checked) {
+            setSelectedDocuments(prev => [...prev, docId]);
+        } else {
+            setSelectedDocuments(prev => prev.filter(id => id !== docId));
+        }
+    };
+
+    const handleSaveSelectedDocuments = async () => {
+        if (selectedDocuments.length === 0) {
+            toast.error('Please select at least one document');
+            return;
+        }
+
+        if (!currentSectionId) {
+            toast.error('Section not found');
+            return;
+        }
+
+        setIsSavingDocs(true);
+
+        try {
+            const response = await axios.post('/shipping/add-documents-to-section', {
+                id_spk: shipmentData.id_spk,
+                id_section: currentSectionId,
+                document_ids: selectedDocuments
+            });
+
+            if (response.data.success) {
+                toast.success(response.data.message || 'Documents added successfully');
+                setIsModalOpen(false);
+                setSelectedDocuments([]);
+                setCurrentSectionId(null);
+
+                // No need to reload manually - Echo listener will handle realtime update
+                // router.reload({ only: ['sectionsTransProp'] });
+            } else {
+                toast.error(response.data.message || 'Failed to add documents');
+            }
+        } catch (error: any) {
+            console.error('Error adding documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to add documents');
+        } finally {
+            setIsSavingDocs(false);
+        }
+    };
+
+
     // --- REUSABLE DOCUMENT ROW RENDERER ---
     const renderDocumentRow = (doc: DocumentTrans, idx: number, sectionId: number, hasHistory: boolean, historyDocs: DocumentTrans[]) => {
         const isSpkInternalUpload = shipmentData.internal_can_upload ?? false;
@@ -631,7 +714,7 @@ export default function ViewCustomerForm({
             canVerify = false;
         } else {
             canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+            canVerify = ((isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal)) && (doc.is_verification !== false); // Hide Verify if auto-verfied
         }
 
         const isVerified = doc.verify === true;
@@ -882,24 +965,19 @@ export default function ViewCustomerForm({
 
             // 3. BATCH REJECTION (NEW - GLOBAL)
             if (pendingRejections.length > 0) {
-                const rejectionPromises = pendingRejections.map(async (rejection) => {
-                    const formData = new FormData();
-                    formData.append('correction_description', rejection.note);
-                    if (rejection.file) {
-                        formData.append('correction_file', rejection.file);
-                    }
-
-                    try {
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    } catch (err) {
-                        console.error(`Failed to reject doc ${rejection.docId}`, err);
-                        throw err; // Re-throw to be caught by outer catch
+                // BATCH REJECT CALL (GLOBAL)
+                const formData = new FormData();
+                pendingRejections.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.docId));
+                    formData.append(`rejections[${index}][note]`, r.note);
+                    if (r.file) {
+                        formData.append(`rejections[${index}][file]`, r.file);
                     }
                 });
 
-                await Promise.all(rejectionPromises);
+                await axios.post('/shipping/batch-reject', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
 
                 // Clear pending rejections
                 setPendingRejections([]);
@@ -1198,16 +1276,23 @@ export default function ViewCustomerForm({
                             const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                             // --- Status Logic ---
+                            // --- Status Logic ---
                             const docs = section.documents || [];
-                            const validDocs = docs.filter((d: any) => d.verify === true); // Verified
+
+                            // FIX: Use latest documents only for status calculation
+                            // This prevents 'Rejected' status from persisting if a new version exists (which is Pending or Verified)
+                            const latestDocsGroups = processDocumentsForRender(docs);
+                            const latestDocs = latestDocsGroups.map(g => g.current);
+
+                            const validDocs = latestDocs.filter((d: any) => d.verify === true); // Verified (Latest only)
 
                             // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
-                            const hasRejection = docs.some((d: any) => d.correction_attachment);
+                            const hasRejection = latestDocs.some((d: any) => d.correction_attachment);
 
-                            const allVerified = docs.length > 0 && docs.every((d: any) => d.verify === true);
+                            const allVerified = latestDocs.length > 0 && latestDocs.every((d: any) => d.verify === true);
 
                             // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
-                            const hasPending = docs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+                            const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
                             // --- Styling Variables ---
                             let containerClass = 'rounded-lg border transition-all ';
@@ -1218,32 +1303,32 @@ export default function ViewCustomerForm({
 
                             if (hasRejection) {
                                 // RED (Rejected) - High Priority - Opacity 50%
-                                containerClass += 'bg-red-600/80';
-                                titleClass += 'text-white';
-                                chevronClass += 'text-white';
-                                deadlineIconClass += 'text-white';
-                                deadlineTextClass += 'text-white';
+                                containerClass += "bg-red-600/80";
+                                titleClass += "text-white";
+                                chevronClass += "text-white";
+                                deadlineIconClass += "text-white";
+                                deadlineTextClass += "text-white";
                             } else if (allVerified) {
                                 // GREEN (Verified) - Opacity 50%
-                                containerClass += 'bg-green-600/80';
-                                titleClass += 'text-white';
-                                chevronClass += 'text-white';
-                                deadlineIconClass += 'text-white';
-                                deadlineTextClass += 'text-white';
+                                containerClass += "bg-green-600/80";
+                                titleClass += "text-white";
+                                chevronClass += "text-white";
+                                deadlineIconClass += "text-red-700";
+                                deadlineTextClass += "text-red-700";
                             } else if (hasPending) {
                                 // YELLOW (Pending Grading) - Opacity 50%
-                                containerClass += 'bg-yellow-400/80';
-                                titleClass += 'text-black';
-                                chevronClass += 'text-black';
-                                deadlineIconClass += 'text-red-600';
-                                deadlineTextClass += 'text-red-600';
+                                containerClass += "bg-yellow-400/80";
+                                titleClass += "text-black";
+                                chevronClass += "text-black";
+                                deadlineIconClass += "text-red-600";
+                                deadlineTextClass += "text-red-600";
                             } else {
                                 // DEFAULT (Idle/None)
-                                containerClass += 'bg-white ';
-                                titleClass += 'text-gray-900';
-                                chevronClass += 'text-gray-500';
-                                deadlineIconClass += 'text-red-500';
-                                deadlineTextClass += 'text-red-500';
+                                containerClass += "bg-white ";
+                                titleClass += "text-gray-900";
+                                chevronClass += "text-gray-500";
+                                deadlineIconClass += "text-red-500";
+                                deadlineTextClass += "text-red-500";
                             }
 
                             return (
@@ -1332,7 +1417,7 @@ export default function ViewCustomerForm({
                                                             // doc.is_internal = true (1) -> Internal Uploads, External Verifies
                                                             // doc.is_internal = false (0) -> External Uploads, Internal Verifies
                                                             canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-                                                            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+                                                            canVerify = ((isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal)) && (doc.is_verification !== false);
                                                         }
 
                                                         return (
@@ -1476,11 +1561,11 @@ export default function ViewCustomerForm({
                                                                                     existingFile={
                                                                                         tempFiles[doc.id]
                                                                                             ? {
-                                                                                                  nama_file:
-                                                                                                      doc.master_document?.nama_dokumen ||
-                                                                                                      doc.nama_file,
-                                                                                                  path: tempFiles[doc.id],
-                                                                                              }
+                                                                                                nama_file:
+                                                                                                    doc.master_document?.nama_dokumen ||
+                                                                                                    doc.nama_file,
+                                                                                                path: tempFiles[doc.id],
+                                                                                            }
                                                                                             : undefined
                                                                                     }
                                                                                     uploadConfig={{
@@ -1559,135 +1644,6 @@ export default function ViewCustomerForm({
                                                                         </div>
                                                                     )}
                                                                 </div>
-
-                                                                {/* Verifier Actions: Accept / Reject */}
-                                                                {canVerify && doc.url_path_file && (
-                                                                    <div className="flex items-center gap-4">
-                                                                        {/* Accept */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.accept || 'Accept'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isVerified || isPendingVerification}
-                                                                                onCheckedChange={() => handleVerify(doc.id)}
-                                                                                className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-
-                                                                        {/* Reject */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.reject || 'Reject'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isRejected || isPendingRejection}
-                                                                                onCheckedChange={(checked) => {
-                                                                                    if (checked) handleOpenReject(doc.id);
-                                                                                }}
-                                                                                className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
-                                                                {canUpload && (
-                                                                    <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
-                                                                        {/* Upload Zone */}
-                                                                        {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
-                                                                            <ResettableDropzone
-                                                                                label=""
-                                                                                isRequired={false}
-                                                                                existingFile={
-                                                                                    tempFiles[doc.id]
-                                                                                        ? {
-                                                                                            nama_file:
-                                                                                                doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                            path: tempFiles[doc.id],
-                                                                                        }
-                                                                                        : undefined
-                                                                                }
-                                                                                uploadConfig={{
-                                                                                    url: '/shipping/upload-temp',
-                                                                                    payload: {
-                                                                                        type: doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                        spk_code: shipmentData.spkNumber,
-                                                                                    },
-                                                                                }}
-                                                                                onFileChange={(file, response) => {
-                                                                                    if (
-                                                                                        response &&
-                                                                                        (response.status === 'success' || response.path)
-                                                                                    ) {
-                                                                                        setTempFiles((prev) => ({
-                                                                                            ...prev,
-                                                                                            [doc.id]: response.path,
-                                                                                        }));
-                                                                                    } else if (file === null) {
-                                                                                        setTempFiles((prev) => {
-                                                                                            const newState = { ...prev };
-                                                                                            delete newState[doc.id];
-                                                                                            return newState;
-                                                                                        });
-                                                                                    }
-                                                                                }}
-                                                                                disabled={verifyingDocId === doc.id}
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="text-right text-xs text-gray-400 italic">
-                                                                                {isPending
-                                                                                    ? trans.on_checking || 'On Checking'
-                                                                                    : trans.quota_exceeded || 'Quota Exceeded'}
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Quota & Rejection Info (Moved Here) */}
-                                                                        {doc.url_path_file && (
-                                                                            <div className="flex flex-col items-end text-right text-xs">
-                                                                                {/* Rejection Note */}
-                                                                                {isRejected && (
-                                                                                    <div className="mb-1">
-                                                                                        <div className="flex items-center justify-end gap-1 font-bold text-red-600">
-                                                                                            {trans.rejection_note || 'Rejection Note'}{' '}
-                                                                                            <AlertTriangle className="h-3 w-3" />
-                                                                                        </div>
-                                                                                        <p className="text-gray-700 italic">
-                                                                                            "{doc.correction_description}"
-                                                                                        </p>
-                                                                                        {doc.correction_attachment_file && (
-                                                                                            <a
-                                                                                                href={`/file/view/${doc.correction_attachment_file}`}
-                                                                                                target="_blank"
-                                                                                                className="mt-0.5 block text-blue-500 underline"
-                                                                                            >
-                                                                                                {trans.view_rejection_file || 'View Rejection File'}
-                                                                                            </a>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-
-                                                                                {/* Quota Info */}
-                                                                                <div className="mt-1 text-gray-600">
-                                                                                    {trans.revision_quota || 'Revision Quota'}:{' '}
-                                                                                    <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
-                                                                                    {trans.remaining || 'remaining'}
-                                                                                </div>
-                                                                                {quotaExceeded && (
-                                                                                    <div className="mt-0.5 font-bold text-red-600">
-                                                                                        {trans.quota_exceeded || 'Quota Exceeded'}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         );
                                                     })
@@ -1696,16 +1652,18 @@ export default function ViewCustomerForm({
                                                 )}
                                             </div>
 
-                                            <div className="mt-8 flex items-center justify-between">
-                                                <button
-                                                    onClick={handleOpenModal}
-                                                    className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
-                                                >
-                                                    <div className="rounded border border-black p-0.5">
-                                                        <Plus className="h-4 w-4" />
-                                                    </div>
-                                                    {trans.add_document}
-                                                </button>
+                                            <div className={`mt-8 flex items-center ${isInternalUser ? 'justify-between' : 'justify-end'}`}>
+                                                {isInternalUser && (
+                                                    <button
+                                                        onClick={() => handleOpenModal(section.id)}
+                                                        className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
+                                                    >
+                                                        <div className="rounded border border-black p-0.5">
+                                                            <Plus className="h-4 w-4" />
+                                                        </div>
+                                                        {trans.add_document}
+                                                    </button>
+                                                )}
 
                                                 <Button
                                                     onClick={() => handleSaveSection(section.id)}
@@ -1727,71 +1685,6 @@ export default function ViewCustomerForm({
                     </div>
                 )}
             </div>
-
-            {additionalSection && (
-                <div className="mt-6 mb-4">
-                    <div className="mb-4 flex items-center space-x-3 pl-1">
-                        <Checkbox
-                            id="req_additional"
-                            className="h-5 w-5 rounded border-2 border-black"
-                            checked={isAdditionalSectionVisible}
-                            onCheckedChange={(c) => setIsAdditionalSectionVisible(c === true)}
-                        />
-                        <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
-                            {trans.req_additional_doc}
-                        </label>
-                    </div>
-
-                    {isAdditionalSectionVisible && (
-                        <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                            <div
-                                className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                                onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
-                            >
-                                <span className="text-sm font-bold uppercase">{additionalSection.section_name}</span>
-                                {isAdditionalDocsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </div>
-
-                            {isAdditionalDocsOpen && (
-                                <div className="px-3 pt-0 pb-4">
-                                    {isInternalUser && (
-                                        <div className="mb-6 space-y-2">
-                                            <label className="text-sm font-bold text-black">{trans.set_deadline}</label>
-                                            <Input
-                                                type="date"
-                                                value={deadlineDate}
-                                                onChange={(e) => setDeadlineDate(e.target.value)}
-                                                className="h-10 w-full"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* RENDER DYNAMIC DOCUMENTS FROM DB */}
-                                    <div className="space-y-4">
-                                        {additionalSection.documents && additionalSection.documents.length > 0 ? (
-                                            processDocumentsForRender(additionalSection.documents).map((item, idx) =>
-                                                renderDocumentRow(item.current, idx, additionalSection.id, item.history.length > 0, item.history),
-                                            )
-                                        ) : (
-                                            <div className="py-4 text-center text-xs text-gray-400 italic">Belum ada dokumen tambahan.</div>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-8 flex items-center justify-end">
-                                        <Button
-                                            onClick={() => handleSaveSection(additionalSection.id)}
-                                            disabled={processingSectionId === additionalSection.id}
-                                            className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800"
-                                        >
-                                            {processingSectionId === additionalSection.id ? trans.saving : trans.save}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* <div className="mt-12 flex justify-end">
                 <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
@@ -1821,33 +1714,47 @@ export default function ViewCustomerForm({
 
                     {/* List Pilihan Checkbox */}
                     <div className="max-h-75 overflow-y-auto px-4 py-2">
-                        <div className="space-y-4">
-                            {filteredDocs.map((doc) => (
-                                <div key={doc.id} className="flex items-center space-x-3">
-                                    {/* Checkbox agak besar (h-5 w-5) dan border lebih tebal (border-2) untuk mirip desain */}
-                                    <Checkbox
-                                        id={doc.id}
-                                        className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
-                                    />
-                                    <label
-                                        htmlFor={doc.id}
-                                        className="text-base leading-none font-normal peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                    >
-                                        {doc.label}
-                                    </label>
-                                </div>
-                            ))}
-                        </div>
+                        {isLoadingDocs ? (
+                            <div className="py-8 text-center text-sm text-gray-500">Loading documents...</div>
+                        ) : availableDocuments.length === 0 ? (
+                            <div className="py-8 text-center text-sm text-gray-500">No available documents</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {availableDocuments
+                                    .filter((doc) => doc.nama_file.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map((doc) => (
+                                        <div key={doc.id_dokumen} className="flex items-center space-x-3">
+                                            <Checkbox
+                                                id={`doc-${doc.id_dokumen}`}
+                                                checked={selectedDocuments.includes(doc.id_dokumen)}
+                                                onCheckedChange={(checked) => handleDocumentCheckboxChange(doc.id_dokumen, checked as boolean)}
+                                                className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
+                                            />
+                                            <label
+                                                htmlFor={`doc-${doc.id_dokumen}`}
+                                                className="text-base leading-none font-normal cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            >
+                                                {doc.nama_file}
+                                            </label>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Modal */}
                     <div className="flex flex-col items-center gap-3 border-t p-4 pt-2">
-                        <button className="text-sm text-gray-500 hover:text-black hover:underline">{trans.see_all}</button>
+                        {selectedDocuments.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                                {selectedDocuments.length} document(s) selected
+                            </div>
+                        )}
                         <Button
-                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800"
-                            onClick={() => setIsModalOpen(false)}
+                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                            onClick={handleSaveSelectedDocuments}
+                            disabled={isSavingDocs || selectedDocuments.length === 0}
                         >
-                            {trans.save_changes}
+                            {isSavingDocs ? 'Saving...' : trans.save_changes}
                         </Button>
                     </div>
                 </DialogContent>
