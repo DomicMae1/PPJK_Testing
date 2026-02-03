@@ -105,7 +105,7 @@ return [
 
     'failed' => [
         'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),
-        'database' => env('DB_CONNECTION', 'sqlite'),
+        'database' => env('DB_QUEUE_CONNECTION', 'tako-user'),
         'table' => 'failed_jobs',
     ],
 

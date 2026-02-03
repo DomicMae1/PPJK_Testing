@@ -207,6 +207,7 @@ export default function ViewCustomerForm({
     // NEW: Debounced Reload & Listener persistence
     const reloadTimeoutRef = useRef<any>(null);
     const isReloadingRef = useRef(false);
+    const isSavingRef = useRef(false);
 
     useEffect(() => {
         if (!shipmentDataProp?.id_spk) return;
@@ -218,6 +219,10 @@ export default function ViewCustomerForm({
         const channel = echo.private(channelName);
 
         channel.listen('ShippingDataUpdated', (e: any) => {
+            // Suppress real-time reloads if we are currently manually saving
+            // This prevents the "duplicate reload" effect when a save also triggers an event
+            if (isSavingRef.current) return;
+
             // Debounce the reload to handle rapid successive events (Event Storm)
             if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
 
@@ -454,7 +459,10 @@ export default function ViewCustomerForm({
     };
 
     const handleSaveSection = async (sectionId: number) => {
+        if (isSavingRef.current || processingSectionId !== null) return;
+
         // 1. Set loading
+        isSavingRef.current = true;
         setProcessingSectionId(sectionId);
 
         // 2. Ambil data section saat ini
@@ -552,45 +560,43 @@ export default function ViewCustomerForm({
                 formData.append('deadline', deadlineValue);
             }
 
-            // 5. SEND UNIFIED REQUEST
-            await axios.post('/shipping/unified-save', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+            // 5. SEND UNIFIED REQUEST VIA INERTIA
+            router.post('/shipping/unified-save', formData, {
+                onSuccess: () => {
+                    // CLEANUP STATE
+                    if (filesToProcess.length > 0) {
+                        const newTempFiles = { ...tempFiles };
+                        filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
+                        setTempFiles(newTempFiles);
+                    }
+                    if (docsToVerify.length > 0) {
+                        setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
+                    }
+                    if (rejectionsToProcess.length > 0) {
+                        const processedIds = rejectionsToProcess.map((r) => r.docId);
+                        setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
+                    }
+
+                    toast.success('Section saved successfully');
+                    setActiveSection(null);
+                },
+                onError: (errors) => {
+                    console.error('Save errors:', errors);
+                    toast.error('Gagal menyimpan section.');
+                },
+                onFinish: () => {
+                    setProcessingSectionId(null);
+                    isSavingRef.current = false;
+                },
+                preserveState: true,
+                preserveScroll: true,
+                only: ['sectionsTransProp', 'shipmentDataProp'],
             });
-
-            // 6. CLEANUP STATE
-            // Clear temp files
-            if (filesToProcess.length > 0) {
-                const newTempFiles = { ...tempFiles };
-                filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
-                setTempFiles(newTempFiles);
-            }
-
-            // Clear pending verifications
-            if (docsToVerify.length > 0) {
-                setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
-            }
-
-            // Clear pending rejections
-            if (rejectionsToProcess.length > 0) {
-                const processedIds = rejectionsToProcess.map((r) => r.docId);
-                setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
-            }
-
-            toast.success('Section saved successfully');
-            console.log('Section saved. Waiting for debounced Echo reload...');
-
-            // Close accordion after success
-            setActiveSection(null);
         } catch (error: any) {
             console.error('Error saving section:', error);
-
-            if (error.response && error.response.data) {
-                toast.error(`Gagal: ${error.response.data.message || JSON.stringify(error.response.data)}`);
-            } else {
-                toast.error('Terjadi kesalahan saat menyimpan.');
-            }
-        } finally {
+            toast.error('Terjadi kesalahan saat menyimpan.');
             setProcessingSectionId(null);
+            isSavingRef.current = false;
         }
     };
 
@@ -803,7 +809,7 @@ export default function ViewCustomerForm({
                                 {/* History Dropdown */}
                                 {openHistoryIds.includes(doc.id) && (
                                     <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
-                                        {[doc, ...historyDocs]
+                                        {historyDocs
                                             .filter((v) => v.url_path_file)
                                             .map((v, vIdx, arr) => (
                                                 <div key={v.id} className="flex items-center gap-2 text-xs">
@@ -920,128 +926,6 @@ export default function ViewCustomerForm({
         );
     };
 
-    const handleFinalSave = async () => {
-        try {
-            // --- VALIDATION: Check for unassessed documents across ALL sections ---
-            const allUnassessedDocs: DocumentTrans[] = [];
-
-            // SKIP validation if internal_can_upload is set (Auto-verified)
-            if (!shipmentData.internal_can_upload) {
-                sectionsTransProp.forEach((section: SectionTrans) => {
-                    if (section.documents) {
-                        const uploadedDocs = section.documents.filter((doc) => doc.url_path_file);
-                        uploadedDocs.forEach((doc) => {
-                            const isAlreadyAssessed = doc.verify !== null;
-                            const isPendingAccept = pendingVerifications.includes(doc.id);
-                            const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
-
-                            if (!isAlreadyAssessed && !isPendingAccept && !isPendingReject) {
-                                allUnassessedDocs.push(doc);
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (allUnassessedDocs.length > 0) {
-                toast.error(
-                    `Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`,
-                );
-                return;
-            }
-
-            // 1. Process all documents from all sections that have temp files
-            const allDocsToProcess: { doc: any; sectionId: number }[] = [];
-
-            sectionsTransProp.forEach((section: SectionTrans) => {
-                if (section.documents) {
-                    section.documents.forEach((doc) => {
-                        if (tempFiles[doc.id]) {
-                            allDocsToProcess.push({ doc, sectionId: section.id });
-                        }
-                    });
-                }
-            });
-
-            // Process all documents (Batch Optimized)
-            if (allDocsToProcess.length > 0) {
-                // Determine Last Section Name
-                const lastProcessed = allDocsToProcess[allDocsToProcess.length - 1];
-                const lastSection = sectionsTransProp.find((s: SectionTrans) => s.id === lastProcessed.sectionId);
-                const sectionName = lastSection ? lastSection.section_name : 'Document';
-
-                const attachmentsPayload = allDocsToProcess.map(({ doc }) => ({
-                    path: tempFiles[doc.id],
-                    document_id: doc.id,
-                    type: doc.nama_file,
-                }));
-
-                const response = await axios.post('/shipping/batch-process-attachments', {
-                    spk_id: shipmentData.id_spk,
-                    section_name: sectionName,
-                    attachments: attachmentsPayload,
-                });
-
-                // Clear temp files
-                setTempFiles({});
-            }
-
-            // 2. BATCH VERIFICATION (NEW - GLOBAL)
-            if (pendingVerifications.length > 0) {
-                await axios.post('/shipping/batch-verify', {
-                    spk_id: shipmentData.id_spk,
-                    section_id: null, // Global save, maybe generic or null
-                    verified_ids: pendingVerifications,
-                });
-
-                // Clear pending verifications
-                setPendingVerifications([]);
-            }
-
-            // 3. BATCH REJECTION (NEW - GLOBAL)
-            if (pendingRejections.length > 0) {
-                // BATCH REJECT CALL (GLOBAL)
-                const formData = new FormData();
-                pendingRejections.forEach((r, index) => {
-                    formData.append(`rejections[${index}][doc_id]`, String(r.docId));
-                    formData.append(`rejections[${index}][note]`, r.note);
-                    if (r.file) {
-                        formData.append(`rejections[${index}][file]`, r.file);
-                    }
-                });
-
-                await axios.post('/shipping/batch-reject', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-
-                // Clear pending rejections
-                setPendingRejections([]);
-            }
-
-            // 4. Save all deadlines
-            await axios.post('/shipping/update-deadline', {
-                spk_id: shipmentData.id_spk,
-                unified: useUnifiedDeadline,
-                global_deadline: useUnifiedDeadline ? globalDeadlineDate : null,
-                section_deadlines: !useUnifiedDeadline ? sectionDeadlines : {},
-            });
-
-            // 5. Success message
-            const parts = [];
-            if (allDocsToProcess.length > 0) parts.push(`${allDocsToProcess.length} dokumen diproses`);
-            if (pendingVerifications.length > 0) parts.push(`${pendingVerifications.length} dokumen diverifikasi`);
-            if (pendingRejections.length > 0) parts.push(`${pendingRejections.length} dokumen ditolak`);
-            if (globalDeadlineDate || Object.keys(sectionDeadlines).length > 0) parts.push('deadline');
-
-            // window.alert(`Berhasil menyimpan: ${parts.length > 0 ? parts.join(', ') : 'Data tersimpan'} `); // Removed as per request
-
-            // Navigate back
-            router.visit(`/shipping/${shipmentData.id_spk}`, { replace: true, preserveState: false });
-        } catch (error: any) {
-            console.error('Error in final save:', error);
-            toast.error('Gagal menyimpan: ' + (error.response?.data?.message || error.message));
-        }
-    };
 
     const handleSaveGlobalDeadline = async () => {
         try {
