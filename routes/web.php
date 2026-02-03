@@ -31,16 +31,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('customer', CustomerController::class);
     
     // Shipping-specific routes MUST be before resource route to avoid conflicts
-    Route::post('shipping/process-attachment', [ShippingController::class, 'processAttachment'])->name('customer.process-attachment');
+    Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
     Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
         ->name('shipping.update-hs-codes');
-    Route::post('shipping/batch-process-attachments', [ShippingController::class, 'batchProcessAttachments'])->name('shipping.batchProcessAttachments');
-    Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
-    Route::post('shipping/update-deadline', [ShippingController::class, 'updateSectionDeadline'])->name('shipping.updateDeadline');
-    Route::post('shipping/{id}/verify', [ShippingController::class, 'verifyDocument'])->name('shipping.verify');
-    Route::post('shipping/{id}/reject', [ShippingController::class, 'rejectDocument'])->name('shipping.reject');
-    Route::post('shipping/batch-reject', [ShippingController::class, 'batchRejectDocuments'])->name('shipping.batchReject');
-    Route::post('shipping/batch-verify', [ShippingController::class, 'batchVerifyDocuments'])->name('shipping.batchVerify');
     Route::post('shipping/{id}/assign-staff', [ShippingController::class, 'assignStaff'])->name('shipping.assignStaff');
     Route::get('shipping/available-documents', [ShippingController::class, 'getAvailableDocuments'])->name('shipping.availableDocuments');
     Route::post('shipping/add-documents-to-section', [ShippingController::class, 'addDocumentsToSection'])->name('shipping.addDocumentsToSection');
