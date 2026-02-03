@@ -15,22 +15,55 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+interface HsCodeItem {
+    id: number;
+    code: string;
+    link: string | null;
+    file?: File | null;
+}
+
 interface ShipmentData {
     id_spk: number;
+    spkNumber: string;
+    shipmentType: string;
+    is_internal: boolean;
+    internal_can_upload?: boolean;
+    validated_by?: number;
     spkDate: string;
     type: string;
     siNumber: string;
-    hsCodes: any[];
+    status: string;
+    penjaluran: string | null;
+    hsCodes: HsCodeItem[];
 }
 
 interface DocumentTrans {
     id: number;
+    id_dokumen: number;
+    id_spk: number;
+    id_section: number;
     upload_by: string;
     nama_file: string;
     url_path_file?: string;
     logs: string;
     link_url_video_file?: string;
     attribute: boolean;
+    created_at: string;
+    master_document?: {
+        id_dokumen: number;
+        nama_dokumen: string;
+        description_file?: string;
+        link_path_example_file?: string;
+        link_path_template_file?: string;
+        link_url_video_file?: string;
+    };
+    verify?: boolean | null;
+    kuota_revisi?: number;
+    correction_attachment?: boolean;
+    correction_description?: string;
+    correction_attachment_file?: string;
+    is_internal?: boolean;
+    is_verification?: boolean;
 }
 
 interface MasterDocument {
@@ -52,11 +85,13 @@ interface MasterSection {
 
 interface SectionTrans {
     id: number;
+    id_section: number;
     section_name: string;
     section_order: number;
-    documents_trans: DocumentTrans[];
-    deadline: string;
-    sla: string;
+    deadline: boolean;
+    deadline_date?: string | null;
+    sla?: string | null;
+    documents: DocumentTrans[];
 }
 
 interface PageProps {
@@ -66,7 +101,7 @@ interface PageProps {
     sectionsTransProp: SectionTrans[];
     masterDocProp: MasterDocument[];
     docsTransProp: DocumentTrans[];
-    internalStaff?: any[]; // Added
+    internalStaff?: any[];
     auth: {
         user: {
             role?: string;
@@ -89,7 +124,6 @@ export default function PaymentsEdit() {
                     masterSecProp={masterSecProp}
                     sectionsTransProp={sectionsTransProp}
                     masterDocProp={masterDocProp}
-                    docsTransProp={docsTransProp}
                     userRole={auth?.user?.role}
                     internalStaff={internalStaff} // Pass to Child Component
                 />
