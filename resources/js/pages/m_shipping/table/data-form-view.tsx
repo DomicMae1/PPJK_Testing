@@ -1067,11 +1067,11 @@ export default function ViewCustomerForm({
     };
 
     return (
-        <div className="w-full max-w-md bg-white p-4 font-sans text-sm text-gray-900">
+        <div className="w-full max-w-md bg-slate-50 p-3 sm:p-4 font-sans text-sm text-slate-900 overflow-x-hidden">
             {/* --- SPK Created Card --- */}
-            <div className="mb-5 rounded-lg border border-gray-200 p-3 shadow-sm">
-                <div className="font-bold text-black">{shipmentData.status ? shipmentData.status.toUpperCase() : 'STATUS UNKNOWN'}</div>
-                <div className="text-gray-600">{shipmentData.spkDate}</div>
+            <div className="mb-5 sm:mb-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
+                <div className="font-bold text-slate-900">{shipmentData.status ? shipmentData.status.toUpperCase() : 'STATUS UNKNOWN'}</div>
+                <div className="text-slate-600">{shipmentData.spkDate}</div>
 
                 {/* SUPERVISOR: Assign Staff */}
                 {isSupervisor && (
@@ -1106,31 +1106,31 @@ export default function ViewCustomerForm({
                 )}
             </div>
             {/* --- Shipment Details --- */}
-            <div className="mb-6 space-y-1 pl-1">
-                <div className="flex gap-1">
+            <div className="mb-4 sm:mb-6 space-y-1.5 sm:space-y-1 pl-0 sm:pl-1">
+                <div className="flex flex-wrap gap-1 items-start">
                     <span className="font-bold">{trans.shipment_type} :</span>
                     <span>{shipmentData.type}</span>
                 </div>
                 {shipmentData.penjaluran && (
-                    <div className="flex gap-1 items-center">
-                        <span className="font-bold">Penjaluran : </span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${shipmentData.penjaluran === 'merah'
-                                ? 'bg-red-100 text-red-700 border border-red-300'
-                                : 'bg-blue-100 text-blue-700 border border-blue-300'
+                    <div className="flex flex-wrap gap-1 items-center">
+                        <span className="font-semibold text-slate-700">Penjaluran : </span>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${shipmentData.penjaluran === 'merah'
+                            ? 'bg-rose-50 text-rose-700 ring-rose-600/20'
+                            : 'bg-blue-50 text-blue-700 ring-blue-600/20'
                             }`}>
                             {shipmentData.penjaluran.charAt(0).toUpperCase() + shipmentData.penjaluran.slice(1)}
                         </span>
                     </div>
                 )}
-                <div className="flex gap-1">
-                    <span className="font-bold">
+                <div className="flex flex-wrap gap-1 items-start">
+                    <span className="font-semibold text-slate-700">
                         {shipmentData.type === 'Export' ? trans.si || 'SI' : shipmentData.type === 'Import' ? trans.bl || 'BL' : trans.spk || 'SPK'} :
                     </span>
-                    <span>{shipmentData.spkNumber}</span>
+                    <span className="break-all text-slate-900">{shipmentData.spkNumber}</span>
                 </div>
                 {/* HS Code Section */}
                 <div className="flex gap-1">
-                    <span className="font-bold whitespace-nowrap">{trans.hs_code} :</span>
+                    <span className="font-semibold text-slate-700 whitespace-nowrap">{trans.hs_code} :</span>
                     <div className="flex w-full flex-col">
                         {isEditingHsCodes ? (
                             <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
@@ -1252,14 +1252,14 @@ export default function ViewCustomerForm({
 
             {/* NEW: Global Deadline Section - ONLY for Internal Users */}
             {isInternalUser && (
-                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-4 sm:mb-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-col gap-3">
                         {/* Garis Kuning: Global Deadline Field */}
-                        <div className="flex items-center gap-3">
-                            <label className="text-sm font-bold whitespace-nowrap text-gray-700">{trans.set_deadline}:</label>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                            <label className="text-sm font-semibold whitespace-nowrap text-slate-700">{trans.set_deadline}:</label>
                             <Input
                                 type="date"
-                                className={`h-9 flex-1 border-gray-300 ${!useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                className={`h-9 flex-1 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-lg transition-all duration-200 ${!useUnifiedDeadline ? 'cursor-not-allowed bg-slate-100 opacity-50' : 'bg-white'}`}
                                 value={globalDeadlineDate}
                                 onChange={(e) => setGlobalDeadlineDate(e.target.value)}
                                 disabled={!useUnifiedDeadline}
@@ -1327,45 +1327,50 @@ export default function ViewCustomerForm({
                             const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
                             // --- Styling Variables ---
-                            let containerClass = 'rounded-lg border transition-all ';
-                            let titleClass = 'text-sm font-bold uppercase transition-colors ';
+                            let containerClass = 'rounded-xl border transition-all duration-200 bg-white ';
+                            let headerClass = 'transition-all duration-200 ';
+                            let titleClass = 'text-sm tracking-tight transition-colors ';
                             let chevronClass = 'h-4 w-4 transition-colors ';
                             let deadlineIconClass = 'text-lg font-bold transition-colors ';
                             let deadlineTextClass = 'text-xs font-bold transition-colors ';
 
                             if (hasRejection) {
-                                // RED (Rejected) - High Priority - Opacity 50%
-                                containerClass += "bg-red-600/80";
-                                titleClass += "text-white";
-                                chevronClass += "text-white";
-                                deadlineIconClass += "text-white";
-                                deadlineTextClass += "text-white";
+                                // ROSE (Rejected) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-rose-50 border-l-4 border-rose-500 border-slate-200";
+                                headerClass += "bg-rose-100/50 hover:bg-rose-200/50";
+                                titleClass += "text-rose-900 font-bold";
+                                chevronClass += "text-rose-700";
+                                deadlineIconClass += "text-rose-700";
+                                deadlineTextClass += "text-rose-700";
                             } else if (allVerified) {
-                                // GREEN (Verified) - Opacity 50%
-                                containerClass += "bg-green-600/80";
-                                titleClass += "text-white";
-                                chevronClass += "text-white";
-                                deadlineIconClass += "text-red-700";
-                                deadlineTextClass += "text-red-700";
+                                // EMERALD (Verified) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-emerald-50 border-l-4 border-emerald-500 border-slate-200";
+                                headerClass += "bg-emerald-100/50 hover:bg-emerald-200/50";
+                                titleClass += "text-emerald-900 font-bold";
+                                chevronClass += "text-emerald-700";
+                                deadlineIconClass += "text-emerald-700";
+                                deadlineTextClass += "text-emerald-700";
                             } else if (hasPending) {
-                                // YELLOW (Pending Grading) - Opacity 50%
-                                containerClass += "bg-yellow-400/80";
-                                titleClass += "text-black";
-                                chevronClass += "text-black";
-                                deadlineIconClass += "text-red-600";
-                                deadlineTextClass += "text-red-600";
+                                // AMBER (Pending) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-amber-50 border-l-4 border-amber-500 border-slate-200";
+                                headerClass += "bg-amber-100/50 hover:bg-amber-200/50";
+                                titleClass += "text-amber-900 font-bold";
+                                chevronClass += "text-amber-700";
+                                deadlineIconClass += "text-amber-700";
+                                deadlineTextClass += "text-amber-700";
                             } else {
-                                // DEFAULT (Idle/None)
-                                containerClass += "bg-white ";
-                                titleClass += "text-gray-900";
-                                chevronClass += "text-gray-500";
-                                deadlineIconClass += "text-red-500";
-                                deadlineTextClass += "text-red-500";
+                                // DEFAULT (Idle/None) - Clean white
+                                containerClass += "border-slate-200 hover:border-slate-300 hover:shadow-sm";
+                                headerClass += "hover:bg-slate-50";
+                                titleClass += "text-slate-900 font-semibold";
+                                chevronClass += "text-slate-500";
+                                deadlineIconClass += "text-rose-500";
+                                deadlineTextClass += "text-rose-500";
                             }
 
                             return (
                                 <div key={section.id_section} className={containerClass}>
-                                    <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
+                                    <div className={`flex cursor-pointer items-center gap-2 px-2 sm:px-3 py-2.5 sm:py-3 min-h-[44px] rounded-t-xl sm:rounded-t-[0.65rem] ${headerClass}`} onClick={() => handleEditSection(section.id)}>
                                         {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
                                         <div className="flex flex-1 flex-col">
                                             <span className={titleClass}>{section.section_name}</span>
@@ -1390,13 +1395,13 @@ export default function ViewCustomerForm({
                                     </div>
 
                                     {isOpen && (
-                                        <div className="mt-1 rounded-md border-t border-gray-100 bg-white px-3 pt-2 pb-4">
+                                        <div className="mt-1 rounded-xl border-t border-slate-100 bg-white px-4 pt-3 pb-5 shadow-sm">
                                             {isInternalUser && (
                                                 <div className="mb-4 flex items-center gap-3">
-                                                    <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
+                                                    <label className="text-sm font-semibold whitespace-nowrap text-slate-700">{trans.deadline}:</label>
                                                     <Input
                                                         type="date"
-                                                        className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                                        className={`h-9 flex-1 border-slate-300 rounded-lg text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${useUnifiedDeadline ? 'cursor-not-allowed bg-slate-50 opacity-50' : 'bg-white'}`}
                                                         value={useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[section.id] || ''}
                                                         onChange={(e) => {
                                                             if (!useUnifiedDeadline) {
@@ -1455,17 +1460,17 @@ export default function ViewCustomerForm({
                                                         return (
                                                             <div
                                                                 key={doc.id}
-                                                                className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0"
+                                                                className="relative flex flex-col gap-2 border-b border-slate-100 py-4 last:border-0 hover:bg-slate-50/50 transition-colors duration-200"
                                                             >
-                                                                <div className="flex items-start justify-between">
+                                                                <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-2 sm:justify-between px-1">
                                                                     {/* LEFT COLUMN: Name & History */}
-                                                                    <div className="flex flex-1 flex-col gap-1">
-                                                                        <div className="flex items-center gap-2 text-gray-800">
-                                                                            <span className="text-sm font-medium">
+                                                                    <div className="flex flex-1 flex-col gap-1.5 sm:gap-1 w-full sm:w-auto">
+                                                                        <div className="flex flex-wrap items-center gap-2 text-slate-800">
+                                                                            <span className="text-sm font-semibold tracking-tight">
                                                                                 {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
                                                                             </span>
                                                                             <CircleHelp
-                                                                                className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
+                                                                                className="h-4 w-4 cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"
                                                                                 onClick={() => handleOpenHelp(doc)}
                                                                             />
 
@@ -1473,17 +1478,17 @@ export default function ViewCustomerForm({
                                                                             {!canVerify && doc.url_path_file && (
                                                                                 <>
                                                                                     {isVerified && (
-                                                                                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+                                                                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                                                                                             {trans.verified}
                                                                                         </span>
                                                                                     )}
                                                                                     {isRejected && (
-                                                                                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+                                                                                        <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">
                                                                                             {trans.rejected}
                                                                                         </span>
                                                                                     )}
                                                                                     {isPending && (
-                                                                                        <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">
+                                                                                        <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
                                                                                             {trans.pending}
                                                                                         </span>
                                                                                     )}
@@ -1497,20 +1502,20 @@ export default function ViewCustomerForm({
                                                                                 {/* Collapsible Trigger */}
                                                                                 <button
                                                                                     onClick={() => toggleHistory(doc.id)}
-                                                                                    className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white transition-colors hover:bg-gray-800"
+                                                                                    className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white transition-all duration-200 hover:bg-slate-900 shadow-sm hover:shadow"
                                                                                 >
-                                                                                    <FileText className="h-3 w-3" />
+                                                                                    <FileText className="h-3.5 w-3.5" />
                                                                                     {trans.latest_file || 'Latest File'}
                                                                                     {openHistoryIds.includes(doc.id) ? (
-                                                                                        <ChevronUp className="ml-1 h-3 w-3" />
+                                                                                        <ChevronUp className="ml-1 h-3.5 w-3.5" />
                                                                                     ) : (
-                                                                                        <ChevronDown className="ml-1 h-3 w-3" />
+                                                                                        <ChevronDown className="ml-1 h-3.5 w-3.5" />
                                                                                     )}
                                                                                 </button>
 
                                                                                 {/* History List */}
                                                                                 {openHistoryIds.includes(doc.id) && (
-                                                                                    <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
+                                                                                    <div className="mt-3 flex flex-col gap-2 border-l-2 border-slate-200 pl-3">
                                                                                         {validVersions.map((v, vIdx) => {
                                                                                             const versionNumber = validVersions.length - vIdx;
                                                                                             const isLatest = vIdx === 0;
@@ -1519,17 +1524,17 @@ export default function ViewCustomerForm({
                                                                                                     key={v.id}
                                                                                                     className="flex items-center gap-2 text-xs"
                                                                                                 >
-                                                                                                    <span className="font-bold text-gray-500">
+                                                                                                    <span className="font-semibold text-slate-400">
                                                                                                         v{versionNumber}
                                                                                                     </span>
                                                                                                     <a
                                                                                                         href={`/file/view/${v.url_path_file}`}
                                                                                                         target="_blank"
-                                                                                                        className={`hover:underline ${isLatest ? 'font-bold text-black' : 'text-gray-600'}`}
+                                                                                                        className={`hover:underline transition-colors ${isLatest ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
                                                                                                     >
                                                                                                         {v.nama_file || trans.document}
                                                                                                     </a>
-                                                                                                    <span className="text-[10px] text-gray-400">
+                                                                                                    <span className="text-[10px] text-slate-400">
                                                                                                         {new Date(v.created_at).toLocaleDateString()}
                                                                                                     </span>
                                                                                                 </div>
@@ -1539,7 +1544,7 @@ export default function ViewCustomerForm({
                                                                                 )}
                                                                             </div>
                                                                         ) : (
-                                                                            <span className="ml-5 text-xs text-gray-400 italic">
+                                                                            <span className="ml-5 text-xs text-slate-400 italic">
                                                                                 {trans.no_file || 'No file uploaded'}
                                                                             </span>
                                                                         )}
@@ -1547,26 +1552,26 @@ export default function ViewCustomerForm({
 
                                                                     {/* Verifier Actions: Accept / Reject */}
                                                                     {canVerify && doc.url_path_file && (
-                                                                        <div className="flex items-center gap-4">
+                                                                        <div className="flex items-center gap-4 sm:gap-6 min-h-[44px] bg-slate-50/50 rounded-lg px-3 py-1">
                                                                             {/* Accept */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className="flex flex-col items-center gap-1">
                                                                                 <span
-                                                                                    className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
+                                                                                    className={`text-[10px] font-semibold tracking-wider uppercase ${isVerified || isPendingVerification ? 'text-emerald-600' : 'text-slate-400'}`}
                                                                                 >
                                                                                     {trans.accept || 'Accept'}
                                                                                 </span>
                                                                                 <Checkbox
                                                                                     checked={isVerified || isPendingVerification}
                                                                                     onCheckedChange={() => handleVerify(doc.id)}
-                                                                                    className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
+                                                                                    className={`h-5 w-5 rounded-md transition-all duration-200 data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500`}
                                                                                     disabled={!isPending}
                                                                                 />
                                                                             </div>
 
                                                                             {/* Reject */}
-                                                                            <div className="flex flex-col items-center">
+                                                                            <div className="flex flex-col items-center gap-1">
                                                                                 <span
-                                                                                    className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
+                                                                                    className={`text-[10px] font-semibold tracking-wider uppercase ${isRejected || isPendingRejection ? 'text-rose-600' : 'text-slate-400'}`}
                                                                                 >
                                                                                     {trans.reject || 'Reject'}
                                                                                 </span>
@@ -1575,7 +1580,7 @@ export default function ViewCustomerForm({
                                                                                     onCheckedChange={(checked) => {
                                                                                         if (checked) handleOpenReject(doc.id);
                                                                                     }}
-                                                                                    className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
+                                                                                    className={`h-5 w-5 rounded-md transition-all duration-200 data-[state=checked]:border-rose-500 data-[state=checked]:bg-rose-500`}
                                                                                     disabled={!isPending}
                                                                                 />
                                                                             </div>
@@ -1584,7 +1589,7 @@ export default function ViewCustomerForm({
 
                                                                     {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
                                                                     {canUpload && (
-                                                                        <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
+                                                                        <div className="flex w-full sm:w-1/2 sm:max-w-xs flex-col items-start sm:items-end gap-2">
                                                                             {/* Upload Zone */}
                                                                             {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
                                                                                 <ResettableDropzone
@@ -1627,7 +1632,7 @@ export default function ViewCustomerForm({
                                                                                     disabled={verifyingDocId === doc.id}
                                                                                 />
                                                                             ) : (
-                                                                                <div className="text-right text-xs text-gray-400 italic">
+                                                                                <div className="text-right text-xs text-slate-400 italic font-medium">
                                                                                     {isPending
                                                                                         ? trans.on_checking || 'On Checking'
                                                                                         : trans.quota_exceeded || 'Quota Exceeded'}
@@ -1639,19 +1644,19 @@ export default function ViewCustomerForm({
                                                                                 <div className="flex flex-col items-end text-right text-xs">
                                                                                     {/* Rejection Note */}
                                                                                     {isRejected && (
-                                                                                        <div className="mb-1">
-                                                                                            <div className="flex items-center justify-end gap-1 font-bold text-red-600">
+                                                                                        <div className="mb-2 p-2 rounded-lg bg-rose-50 border border-rose-100 max-w-[240px]">
+                                                                                            <div className="flex items-center justify-end gap-1 font-semibold text-rose-600 text-[11px]">
                                                                                                 {trans.rejection_note || 'Rejection Note'}{' '}
                                                                                                 <AlertTriangle className="h-3 w-3" />
                                                                                             </div>
-                                                                                            <p className="text-gray-700 italic">
+                                                                                            <p className="text-slate-700 italic text-[11px] leading-snug">
                                                                                                 "{doc.correction_description}"
                                                                                             </p>
                                                                                             {doc.correction_attachment_file && (
                                                                                                 <a
                                                                                                     href={`/file/view/${doc.correction_attachment_file}`}
                                                                                                     target="_blank"
-                                                                                                    className="mt-0.5 block text-blue-500 underline"
+                                                                                                    className="mt-1 block text-blue-600 underline font-medium text-[10px]"
                                                                                                 >
                                                                                                     {trans.view_rejection_file ||
                                                                                                         'View Rejection File'}
@@ -1661,14 +1666,14 @@ export default function ViewCustomerForm({
                                                                                     )}
 
                                                                                     {/* Quota Info */}
-                                                                                    <div className="mt-1 text-gray-600">
+                                                                                    <div className="mt-1 text-slate-500 font-medium">
                                                                                         {trans.revision_quota || 'Revision Quota'}:{' '}
-                                                                                        <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
+                                                                                        <span className="font-bold text-slate-700">{doc.kuota_revisi ?? 0}</span>{' '}
                                                                                         {trans.remaining || 'remaining'}
                                                                                     </div>
                                                                                     {quotaExceeded && (
-                                                                                        <div className="mt-0.5 font-bold text-red-600">
-                                                                                            {trans.quota_exceeded || 'Quota Exceeded'}
+                                                                                        <div className="mt-1 font-bold text-rose-600 flex items-center gap-1">
+                                                                                            <AlertTriangle className="h-3 w-3" /> {trans.quota_exceeded}
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
@@ -1684,13 +1689,13 @@ export default function ViewCustomerForm({
                                                 )}
                                             </div>
 
-                                            <div className={`mt-8 flex items-center ${isInternalUser ? 'justify-between' : 'justify-end'}`}>
+                                            <div className={`mt-4 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-0 ${isInternalUser ? 'sm:justify-between' : 'sm:justify-end'}`}>
                                                 {isInternalUser && (
                                                     <button
                                                         onClick={() => handleOpenModal(section.id)}
-                                                        className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
+                                                        className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors duration-200"
                                                     >
-                                                        <div className="rounded border border-black p-0.5">
+                                                        <div className="rounded border-2 border-slate-400 p-0.5 hover:border-slate-600 transition-colors duration-200">
                                                             <Plus className="h-4 w-4" />
                                                         </div>
                                                         {trans.add_document}
@@ -1700,13 +1705,14 @@ export default function ViewCustomerForm({
                                                 <Button
                                                     onClick={() => handleSaveSection(section.id)}
                                                     disabled={processingSectionId === section.id}
-                                                    className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                                                    className="h-9 rounded-lg bg-blue-600 hover:bg-blue-700 px-8 text-xs font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {processingSectionId === section.id ? trans.saving || 'Saving...' : trans.save_changes}
                                                 </Button>
                                             </div>
                                         </div>
-                                    )}
+                                    )
+                                    }
                                 </div>
                             );
                         })
@@ -1719,24 +1725,26 @@ export default function ViewCustomerForm({
             </div>
 
             {/* Penjaluran Buttons */}
-            {isInternalUser && (
-                <div className="mt-12 flex justify-center gap-4">
-                    <Button
-                        onClick={() => handleUpdatePenjaluran('merah')}
-                        disabled={isUpdatingPenjaluran}
-                        className="h-12 rounded-md bg-red-600 px-12 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
-                    >
-                        Jalur Merah
-                    </Button>
-                    <Button
-                        onClick={() => handleUpdatePenjaluran('biru')}
-                        disabled={isUpdatingPenjaluran}
-                        className="h-12 rounded-md bg-blue-600 px-12 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                        Jalur Biru
-                    </Button>
-                </div>
-            )}
+            {
+                isInternalUser && (
+                    <div className="mt-6 sm:mt-12 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+                        <Button
+                            onClick={() => handleUpdatePenjaluran('merah')}
+                            disabled={isUpdatingPenjaluran}
+                            className="text-white bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 focus:ring-4 focus:outline-none focus:ring-rose-300 shadow-md hover:shadow-lg transition-all duration-300 font-medium rounded-lg text-sm px-6 py-3 text-center"
+                        >
+                            Jalur Merah
+                        </Button>
+                        <Button
+                            onClick={() => handleUpdatePenjaluran('biru')}
+                            disabled={isUpdatingPenjaluran}
+                            className="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 shadow-md hover:shadow-lg transition-all duration-300 font-medium rounded-lg text-sm px-6 py-3 text-center"
+                        >
+                            Jalur Biru
+                        </Button>
+                    </div>
+                )
+            }
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">
@@ -1959,6 +1967,6 @@ export default function ViewCustomerForm({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
