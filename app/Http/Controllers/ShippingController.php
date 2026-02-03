@@ -1665,6 +1665,55 @@ class ShippingController extends Controller
     }
 
     /**
+     * Helper to resize image (Private)
+     */
+    private function resizeImage($path, $maxWidth, $quality = 75)
+    {
+        if (!file_exists($path)) return false;
+
+        $info = @getimagesize($path);
+        if (!$info) return false;
+
+        $mime = $info['mime'];
+        $width = $info[0];
+        $height = $info[1];
+
+        if ($width <= $maxWidth) return true;
+
+        $newWidth = $maxWidth;
+        $newHeight = floor($height * ($maxWidth / $width));
+
+        $image = null;
+        if ($mime == 'image/jpeg' || $mime == 'image/jpg') {
+            $image = @imagecreatefromjpeg($path);
+        } elseif ($mime == 'image/png') {
+            $image = @imagecreatefrompng($path);
+        }
+
+        if (!$image) return false;
+
+        $newImage = imagecreatetruecolor($newWidth, $newHeight);
+
+        if ($mime == 'image/png') {
+            imagealphablending($newImage, false);
+            imagesavealpha($newImage, true);
+        }
+
+        imagecopyresampled($newImage, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+        if ($mime == 'image/jpeg' || $mime == 'image/jpg') {
+            imagejpeg($newImage, $path, $quality);
+        } elseif ($mime == 'image/png') {
+            imagepng($newImage, $path, floor($quality / 10));
+        }
+
+        imagedestroy($image);
+        imagedestroy($newImage);
+
+        return true;
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show($id)
@@ -1977,20 +2026,23 @@ class ShippingController extends Controller
 
                 // Post-Processing (Ghostscript/Resize)
                 if (strtolower($ext) === 'pdf') {
-                    // Optimized GS settings for screen
-                    // FIX: Use temp output path to avoid overwriting input file during read
-                    $tempGsOutIdx = uniqid('gs_temp_');
-                    $tempGsOutPath = str_replace('.pdf', "_$tempGsOutIdx.pdf", $absPath);
-                    $gsSuccess = $this->runGhostscript($absPath, $tempGsOutPath, 'medium');
-                    
-                    if ($gsSuccess && file_exists($tempGsOutPath) && filesize($tempGsOutPath) > 0) {
-                        // Replace original with compressed
-                        if (file_exists($absPath)) @unlink($absPath);
-                        rename($tempGsOutPath, $absPath);
+                    // PERFORMANCE OPTIMIZATION: Only run GS if file > 2MB
+                    $fileSize = file_exists($absPath) ? filesize($absPath) : 0;
+                    if ($fileSize > 2 * 1024 * 1024) { 
+                        Log::info("Running GS compression for large PDF ($fileSize bytes): $finalRelPath");
+                        $tempGsOutIdx = uniqid('gs_temp_');
+                        $tempGsOutPath = str_replace('.pdf', "_$tempGsOutIdx.pdf", $absPath);
+                        $gsSuccess = $this->runGhostscript($absPath, $tempGsOutPath, 'medium');
+                        
+                        if ($gsSuccess && file_exists($tempGsOutPath) && filesize($tempGsOutPath) > 0) {
+                            if (file_exists($absPath)) @unlink($absPath);
+                            rename($tempGsOutPath, $absPath);
+                        } else {
+                             if (file_exists($tempGsOutPath)) @unlink($tempGsOutPath);
+                             Log::warning("GS Compression skipped/failed for $finalRelPath");
+                        }
                     } else {
-                        // Cleanup failed temp
-                         if (file_exists($tempGsOutPath)) @unlink($tempGsOutPath);
-                         Log::warning("GS Compression skipped/failed for $finalRelPath");
+                        Log::info("Skipping GS compression for small PDF ($fileSize bytes): $finalRelPath");
                     }
                 } 
                 elseif (in_array(strtolower($ext), ['jpg', 'jpeg', 'png'])) {
@@ -2328,6 +2380,73 @@ class ShippingController extends Controller
                             'reason' => $reason,
                             'count' => $count,
                             'spk_code' => $spk->spk_code
+                        ]);
+                     } catch (\Exception $e) {}
+                }
+            }
+        }
+    }
+
+    /**
+     * Helper to send batch verification notifications
+     */
+    private function sendBatchVerificationNotification($spk, $sectionName, $verifier, $count)
+    {
+        // 1. Verifier is Internal -> Notify Customer
+        if ($verifier->role === 'internal') {
+            $customers = \App\Models\User::on('tako-user')
+                ->where('id_customer', $spk->id_customer)
+                ->where('role', 'eksternal')
+                ->get();
+
+            foreach ($customers as $cust) {
+                 // Email
+                 try {
+                     SectionReminderService::sendDocumentVerified($spk, $sectionName, $verifier, $cust);
+                 } catch (\Exception $e) {}
+
+                 // Notification
+                 try {
+                    NotificationService::send([
+                        'id_spk' => $spk->id,
+                        'send_to' => $cust->id_user,
+                        'created_by' => $verifier->id,
+                        'role'   => 'eksternal', 
+                        'data'   => [
+                            'type'    => 'document_verified',
+                            'title'   => 'Dokumen Diverifikasi',
+                            'message' => "{$count} dokumen pada section {$sectionName} telah diverifikasi oleh {$verifier->name}.",
+                            'url'     => "/shipping/{$spk->id}",
+                            'spk_code'=> $spk->spk_code,
+                        ]
+                    ]);
+                 } catch (\Exception $e) {}
+            }
+        } 
+        // 2. Verifier is External -> Notify Staff
+        else {
+            if ($spk->validated_by) {
+                $staff = \App\Models\User::on('tako-user')->find($spk->validated_by);
+                if ($staff) {
+                    // Email
+                    try {
+                        SectionReminderService::sendDocumentVerified($spk, $sectionName, $verifier, $staff);
+                    } catch (\Exception $e) {}
+                    
+                    // Notification
+                    try {
+                        NotificationService::send([
+                            'id_spk' => $spk->id,
+                            'send_to' => $staff->id_user,
+                            'created_by' => $verifier->id,
+                            'role'   => 'internal', 
+                            'data'   => [
+                                'type'    => 'document_verified',
+                                'title'   => 'Dokumen Diverifikasi',
+                                'message' => "{$count} dokumen pada section {$sectionName} telah diverifikasi oleh Customer {$verifier->name}.",
+                                'url'     => "/shipping/{$spk->id}",
+                                'spk_code'=> $spk->spk_code,
+                            ]
                         ]);
                      } catch (\Exception $e) {}
                 }
@@ -3030,6 +3149,185 @@ class ShippingController extends Controller
                 'success' => false,
                 'message' => 'Failed to add documents: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Unified Batch Save: Upload, Verify, Reject, and Deadline in one request.
+     */
+    public function unifiedBatchSave(Request $request)
+    {
+        $user = auth('web')->user();
+        $userId = $user->id_user ?? $user->id;
+
+        $request->validate([
+            'spk_id' => 'required',
+            'section_id' => 'required',
+            'section_name' => 'nullable|string',
+            'attachments' => 'nullable|array',
+            'verified_ids' => 'nullable|array',
+            'rejections' => 'nullable|array',
+            'deadline' => 'nullable|string',
+        ]);
+
+        $spkId = $request->spk_id;
+        $sectionId = $request->section_id;
+        $sectionName = $request->section_name ?? 'Document';
+
+        // 1. Initialize Tenancy
+        $tenant = null;
+        if ($user->id_perusahaan) {
+            $tenant = Tenant::where('perusahaan_id', $user->id_perusahaan)->first();
+        } elseif ($user->id_customer) {
+            $customer = \App\Models\Customer::find($user->id_customer);
+            if ($customer && $customer->ownership) {
+                $tenant = Tenant::where('perusahaan_id', $customer->ownership)->first();
+            }
+        }
+        if (!$tenant) return response()->json(['success' => false, 'message' => 'Tenant not found'], 404);
+        tenancy()->initialize($tenant);
+        $tenantConnection = 'tenant';
+
+        $spk = Spk::findOrFail($spkId);
+        $metrics = ['uploads' => 0, 'verifications' => 0, 'rejections' => 0, 'deadline' => false];
+
+        DB::beginTransaction();
+        try {
+            // --- A. PROCESS ATTACHMENTS ---
+            if ($request->has('attachments') && is_array($request->attachments)) {
+                $uniqueSections = [];
+                $hasAnyReupload = false;
+                
+                foreach ($request->attachments as $att) {
+                    $tempPath = $att['path'];
+                    if (!Storage::disk('customers_external')->exists($tempPath)) {
+                        $tempPath = ltrim($tempPath, '/');
+                        if (!Storage::disk('customers_external')->exists($tempPath)) continue;
+                    }
+
+                    $targetDoc = DocumentTrans::on($tenantConnection)->with('sectionTrans')->find($att['document_id']);
+                    if (!$targetDoc) continue;
+
+                    if ($targetDoc->sectionTrans) {
+                        $uniqueSections[$targetDoc->sectionTrans->id] = $targetDoc->sectionTrans->section_name;
+                    }
+
+                    $isReupload = ($targetDoc->correction_attachment || !empty($targetDoc->url_path_file));
+                    if ($isReupload) $hasAnyReupload = true;
+
+                    // Processing
+                    $fileContent = Storage::disk('customers_external')->get($tempPath);
+                    $ext = strtolower(pathinfo($tempPath, PATHINFO_EXTENSION));
+                    $shippingFolder = "shipping/" . date('Y/m') . "/{$spk->spk_code}";
+                    
+                    if (!Storage::disk('customers_external')->exists($shippingFolder)) Storage::disk('customers_external')->makeDirectory($shippingFolder);
+
+                    $cleanFileName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $att['type']);
+                    $finalRelPath = "{$shippingFolder}/{$cleanFileName}.{$ext}";
+                    $absPath = Storage::disk('customers_external')->path($finalRelPath);
+
+                    Storage::disk('customers_external')->put($finalRelPath, $fileContent);
+
+                    // Optimized GS
+                    if ($ext === 'pdf' && filesize($absPath) > 2 * 1024 * 1024) {
+                        $tempOut = str_replace('.pdf', "_" . uniqid() . ".pdf", $absPath);
+                        if ($this->runGhostscript($absPath, $tempOut, 'medium')) {
+                            @unlink($absPath);
+                            rename($tempOut, $absPath);
+                        } else {
+                            @unlink($tempOut);
+                        }
+                    } elseif (in_array($ext, ['jpg', 'jpeg', 'png'])) {
+                        $this->resizeImage($absPath, 800, 75);
+                    }
+
+                    Storage::disk('customers_external')->delete($tempPath);
+
+                    if ($isReupload) {
+                        $newDoc = $targetDoc->replicate();
+                        $newDoc->url_path_file = $finalRelPath;
+                        $newDoc->verify = ($spk->internal_can_upload || ($targetDoc->is_verification === false)) ? true : null;
+                        $newDoc->correction_attachment = false;
+                        $newDoc->kuota_revisi = max(0, $targetDoc->kuota_revisi - 1);
+                        $newDoc->save();
+                        $logId = $newDoc->id;
+                    } else {
+                        $targetDoc->update([
+                            'url_path_file' => $finalRelPath,
+                            'verify' => ($spk->internal_can_upload || ($targetDoc->is_verification === false)) ? true : null,
+                            'correction_attachment' => false,
+                            'kuota_revisi' => max(0, $targetDoc->kuota_revisi - 1),
+                        ]);
+                        $logId = $targetDoc->id;
+                    }
+
+                    DocumentStatus::on($tenantConnection)->create(['id_dokumen_trans' => $logId, 'status' => 'Uploaded', 'by' => $user->name]);
+                    $metrics['uploads']++;
+                }
+
+                if ($metrics['uploads'] > 0) {
+                    $notifSec = count($uniqueSections) > 0 ? implode(' dan ', $uniqueSections) : $sectionName;
+                    $this->sendBatchUploadNotification($spk, $notifSec, $user, $metrics['uploads']);
+                    
+                    // Update Status
+                    $statusId = $hasAnyReupload ? 3 : 1;
+                    $statusTxt = "{$notifSec} " . ($hasAnyReupload ? 'Reuploaded' : 'Uploaded');
+                    SpkStatus::create(['id_spk' => $spk->id, 'id_status' => $statusId, 'status' => $statusTxt]);
+                }
+            }
+
+            // --- B. VERIFICATIONS ---
+            if ($request->has('verified_ids') && is_array($request->verified_ids)) {
+                $ids = $request->verified_ids;
+                DocumentTrans::on($tenantConnection)->whereIn('id', $ids)->update(['verify' => true, 'correction_attachment' => false, 'updated_at' => now()]);
+                foreach ($ids as $id) {
+                    DocumentStatus::on($tenantConnection)->create(['id_dokumen_trans' => $id, 'status' => 'Verified', 'by' => $user->name]);
+                }
+                SpkStatus::create(['id_spk' => $spk->id, 'id_status' => 2, 'status' => "{$sectionName} Verified"]);
+                $this->sendBatchVerificationNotification($spk, $sectionName, $user, count($ids));
+                $metrics['verifications'] = count($ids);
+            }
+
+            // --- C. REJECTIONS ---
+            if ($request->has('rejections') && is_array($request->rejections)) {
+                $rejSecs = [];
+                foreach ($request->rejections as $index => $rej) {
+                    $doc = DocumentTrans::on($tenantConnection)->with('sectionTrans')->findOrFail($rej['doc_id']);
+                    if ($doc->sectionTrans) $rejSecs[$doc->sectionTrans->id] = $doc->sectionTrans->section_name;
+                    
+                    $rejPath = $doc->correction_attachment_file;
+                    $file = $request->file("rejections.$index.file");
+                    if ($file) $rejPath = $file->store('corrections', 'customers_external');
+
+                    $doc->update(['verify' => false, 'correction_attachment' => true, 'correction_description' => $rej['note'], 'correction_attachment_file' => $rejPath]);
+                    DocumentStatus::on($tenantConnection)->create(['id_dokumen_trans' => $doc->id, 'status' => 'Rejected', 'by' => $user->name]);
+                    $metrics['rejections']++;
+                }
+                if ($metrics['rejections'] > 0) {
+                    $rejSecName = implode(' dan ', $rejSecs);
+                    SpkStatus::create(['id_spk' => $spk->id, 'id_status' => 4, 'status' => "{$rejSecName} Rejected"]);
+                    $this->sendBatchRejectionNotification($spk, $rejSecName, $user, $metrics['rejections'], $request->rejections[0]['note']);
+                }
+            }
+
+            // --- D. DEADLINE ---
+            if ($request->deadline) {
+                $st = SectionTrans::on($tenantConnection)->where(['id_spk' => $spk->id, 'id_section' => $sectionId])->first();
+                if ($st) {
+                    $st->update(['deadline' => $request->deadline]);
+                    $metrics['deadline'] = true;
+                }
+            }
+
+            DB::commit();
+            ShippingDataUpdated::dispatch($spk->id, 'unified_save');
+
+            return response()->json(['success' => true, 'metrics' => $metrics]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Unified Save Fail: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 

@@ -507,100 +507,77 @@ export default function ViewCustomerForm({
         });
 
         try {
-            // 4. Process documents (Batch Optimized)
+            // 4. PREPARE UNIFIED PAYLOAD (FormData for file support)
+            const formData = new FormData();
+            formData.append('spk_id', String(shipmentData.id_spk));
+            formData.append('section_id', String(sectionId));
+            formData.append('section_name', currentSection.section_name);
+
+            // A. Attachments
             if (filesToProcess.length > 0) {
-                const attachmentsPayload = filesToProcess.map((doc) => ({
-                    path: tempFiles[doc.id],
-                    document_id: doc.id,
-                    type: doc.nama_file, // Filename/Type
-                }));
-
-                const response = await axios.post('/shipping/batch-process-attachments', {
-                    spk_id: shipmentData.id_spk,
-                    section_name: currentSection.section_name,
-                    attachments: attachmentsPayload,
+                filesToProcess.forEach((doc, index) => {
+                    formData.append(`attachments[${index}][path]`, tempFiles[doc.id]);
+                    formData.append(`attachments[${index}][document_id]`, String(doc.id));
+                    formData.append(`attachments[${index}][type]`, doc.nama_file);
                 });
-
-                // Bersihkan state tempFiles
-                const newTempFiles = { ...tempFiles };
-                filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
-                setTempFiles(newTempFiles);
             }
 
-            // 5. BATCH VERIFICATION (NEW)
-            // Cari dokumen di section ini yang masuk daftar pendingVerifications
+            // B. Verifications
             const docsToVerify = currentSection.documents.filter((doc) => pendingVerifications.includes(doc.id)).map((doc) => doc.id);
-
             if (docsToVerify.length > 0) {
-                await axios.post('/shipping/batch-verify', {
-                    spk_id: shipmentData.id_spk,
-                    section_id: sectionId, // Untuk konteks notifikasi
-                    verified_ids: docsToVerify,
+                docsToVerify.forEach((id, index) => {
+                    formData.append(`verified_ids[${index}]`, String(id));
                 });
-
-                // Hapus ID yang sudah diverifikasi dari pendingVerifications
-                setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
             }
 
-            // 6. PROCESS PENDING REJECTIONS (NEW)
-            // Cari dokumen di section ini yang ada di pendingRejections
+            // C. Rejections
             const rejectionsToProcess = currentSection.documents
                 .filter((doc) => pendingRejections.some((r) => r.docId === doc.id))
-                .map((doc) => {
-                    return pendingRejections.find((r) => r.docId === doc.id);
-                })
+                .map((doc) => pendingRejections.find((r) => r.docId === doc.id))
                 .filter((r): r is PendingRejection => r !== undefined);
 
             if (rejectionsToProcess.length > 0) {
-                // BATCH REJECT CALL
-                const rejectionsPayload = rejectionsToProcess.map(r => ({
-                    doc_id: r.docId,
-                    note: r.note,
-                    file: r.file
-                }));
-
-                const formData = new FormData();
-                rejectionsPayload.forEach((r, index) => {
-                    formData.append(`rejections[${index}][doc_id]`, String(r.doc_id));
+                rejectionsToProcess.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.docId));
                     formData.append(`rejections[${index}][note]`, r.note);
                     if (r.file) {
                         formData.append(`rejections[${index}][file]`, r.file);
                     }
                 });
+            }
 
-                await axios.post('/shipping/batch-reject', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
+            // D. Deadline
+            const deadlineValue = useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[sectionId] || null;
+            if (deadlineValue) {
+                formData.append('deadline', deadlineValue);
+            }
 
-                // Hapus yang sudah diproses
+            // 5. SEND UNIFIED REQUEST
+            await axios.post('/shipping/unified-save', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+
+            // 6. CLEANUP STATE
+            // Clear temp files
+            if (filesToProcess.length > 0) {
+                const newTempFiles = { ...tempFiles };
+                filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
+                setTempFiles(newTempFiles);
+            }
+
+            // Clear pending verifications
+            if (docsToVerify.length > 0) {
+                setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
+            }
+
+            // Clear pending rejections
+            if (rejectionsToProcess.length > 0) {
                 const processedIds = rejectionsToProcess.map((r) => r.docId);
                 setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
             }
 
-            // 7. Save deadline untuk section ini
-            const deadlineValue = useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[sectionId] || null;
-
-            if (deadlineValue) {
-                await axios.post('/shipping/update-deadline', {
-                    spk_id: shipmentData.id_spk,
-                    unified: false, // Individual mode - hanya section ini
-                    section_deadlines: { [sectionId]: deadlineValue },
-                });
-            }
-
-            // 8. Success message & Reload
-            const parts = [];
-            if (filesToProcess.length > 0) parts.push(`${filesToProcess.length} dokumen diproses`);
-            if (docsToVerify.length > 0) parts.push(`${docsToVerify.length} dokumen diverifikasi`);
-            if (rejectionsToProcess.length > 0) parts.push(`${rejectionsToProcess.length} dokumen ditolak`);
-            if (deadlineValue) parts.push('deadline tersimpan');
-
-            if (parts.length > 0) {
-                // manual reload removed, Echo will handle it via debounced listener
-                console.log('Section saved. Waiting for debounced Echo reload...');
-            } else {
-                // alert('Tidak ada perubahan untuk disimpan.');
-            }
+            toast.success('Section saved successfully');
+            console.log('Section saved. Waiting for debounced Echo reload...');
 
             // Close accordion after success
             setActiveSection(null);
