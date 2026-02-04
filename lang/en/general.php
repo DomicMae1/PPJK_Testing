@@ -23,6 +23,7 @@ return [
     // Status Cell Text
     'by' => 'by',
     'at' => 'at',
+    'progress' => 'Progress',
 
     // Actions
     'view_customer' => 'View Customer',

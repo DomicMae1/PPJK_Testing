@@ -95,10 +95,13 @@ class ShippingController extends Controller
                     $q->orderBy('section_order', 'asc');
                     
                     // 2. Pilih kolom spesifik (Opsional, tapi bagus untuk performa)
-                    // Pastikan 'id' dan 'id_spk' terpilih agar relasi tetap jalan
-                    $q->select('id', 'id_spk', 'section_name', 'section_order', 'deadline', 'deadline_date');
+                    // PENTING: Sertakan 'id_section' agar relasi 'documents' bisa jalan (local key)
+                    $q->select('id', 'id_spk', 'id_section', 'section_name', 'section_order', 'deadline', 'deadline_date');
                     
-                    // 3. Relasi 'documents' DIHILANGKAN sesuai permintaan
+                    // 3. Relasi 'documents' untuk hitung progress
+                    $q->with(['documents' => function($docQ) {
+                        $docQ->select('id', 'id_spk', 'id_section', 'id_dokumen', 'verify');
+                    }]);
                 }
             ]);
 
@@ -110,15 +113,41 @@ class ShippingController extends Controller
             // Mapping data agar sesuai dengan kolom Frontend
             $spkData = $query->latest()->get()->map(function ($item) {
                 $maxDeadline = $item->sections->pluck('deadline_date')->filter()->max();
+                
+                // --- PROGRESS CALCULATION ---
+                $totalDocs = 0;
+                $verifiedDocs = 0;
+                
+                // Ambil semua dokumen dari semua section yang benar-benar milik SPK ini
+                // Meskipun relasi model menggunakan id_section, kita filter manual di sini agar aman
+                $allDocs = $item->sections->flatMap(function($section) use ($item) {
+                    return $section->documents->where('id_spk', $item->id);
+                });
+                
+                if ($allDocs->count() > 0) {
+                    // Group by id_dokumen (Kategori Dokumen)
+                    // Cari yang paling baru (ID terbesar) dari setiap grup
+                    $latestDocs = $allDocs->groupBy('id_dokumen')->map(function ($group) {
+                        return $group->sortByDesc('id')->first();
+                    });
+                    
+                    $totalDocs = $latestDocs->count();
+                    $verifiedDocs = $latestDocs->where('verify', true)->count();
+                }
+                
+                $progress = $totalDocs === 0 ? 0 : (int) round(($verifiedDocs / $totalDocs) * 100);
+
                 return [
                     'id'              => $item->id,
                     'spk_code'        => $item->spk_code, // Sesuai permintaan
                     'nama_customer'   => $item->customer->nama_perusahaan ?? '-', // Sesuai permintaan
+                    'nama_cust'       => $item->customer->nama_perusahaan ?? '-', // Alias for compatibility
                     'tanggal_status'  => $item->created_at, // Sesuai permintaan
                     'status_label'    => $item->latestStatus->status ?? 'Draft/Pending',
                     'nama_user'       => $item->creator->name ?? 'System',
-                    'jalur'           => $item->penjaluran, // Sesuai permintaan (Dummy dulu)
+                    'jalur'           => $item->penjaluran, // Ambil dari field penjaluran
                     'deadline_date'   => $maxDeadline,
+                    'progress'        => $progress, // Add progress
                 ];
             });
         }
