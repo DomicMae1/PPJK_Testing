@@ -14,14 +14,22 @@ return new class extends Migration
         Schema::connection('tako-user')->create('customers', function (Blueprint $table) {
             $table->id('id_customer');
 
-            $table->string('nama_perusahaan');
+            // UID (Unique Identifier) - Baru
+            $table->uuid('uid')->nullable();
+
+            // Data Utama
+            $table->string('nama_perusahaan')->nullable();
             $table->enum('type', ['internal', 'external']);
 
-            $table->string('nama');
-            $table->string('email');
+            // Data Personal / Kontak
+            $table->string('nama')->nullable();
+            $table->string('email')->nullable();
 
             $table->unsignedBigInteger('ownership')->nullable();
             $table->unsignedBigInteger('created_by')->nullable()->after('ownership');
+
+            $table->string('no_npwp', 50)->nullable();
+            $table->string('no_npwp_16', 50)->nullable();
 
             $table->timestamps();
             $table->softDeletes();

@@ -5,9 +5,11 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Models\Customer;
 use App\Models\Perusahaan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Str;
 
 class UserSeeder extends Seeder
 {
@@ -88,12 +90,12 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($externalUsers as $data) {
-            // STEP A: Buat atau Update Data Customer
             $custData = $data['customer_data'];
             
             $customer = Customer::updateOrCreate(
                 ['id_customer' => $custData['id_customer']],
                 [
+                    'uid' => Str::uuid(), // Ensure UID is generated if creating new
                     'nama_perusahaan' => $custData['nama_perusahaan'],
                     'type' => $custData['type'],
                     'nama' => $custData['nama'],
@@ -102,17 +104,12 @@ class UserSeeder extends Seeder
                 ]
             );
 
-            // STEP B: Buat User External
             $user = User::updateOrCreate(
                 ['email' => $data['user_email']],
                 [
                     'name' => $data['user_name'],
                     'password' => Hash::make($data['password']),
-                    
-                    // PERBAIKAN DISINI: 
-                    // Mengisi id_perusahaan user dengan ownership dari customer
                     'id_perusahaan' => $custData['ownership'], 
-                    
                     'id_customer' => $customer->id_customer,
                     'role' => 'eksternal',
                     'role_internal' => null,
@@ -120,6 +117,10 @@ class UserSeeder extends Seeder
             );
 
             $user->syncRoles(['customer']);
+        }
+
+        if (DB::connection('tako-user')->getDriverName() === 'pgsql') {
+            DB::connection('tako-user')->statement("SELECT setval(pg_get_serial_sequence('customers', 'id_customer'), coalesce(max(id_customer),0) + 1, false) FROM customers;");
         }
     }
 }
