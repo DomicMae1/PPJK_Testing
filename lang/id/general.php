@@ -22,6 +22,7 @@ return [
     // Teks dalam Cell Status
     'by' => 'oleh',
     'at' => 'pada',
+    'progress' => 'Progres',
     
     // Actions
     'view_customer' => 'Lihat Customer',

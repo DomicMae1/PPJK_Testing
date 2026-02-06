@@ -6,7 +6,7 @@ import { MasterCustomer, type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { columns } from './table/columns';
+import { columns, type Shipping } from './table/columns';
 import { DataTable } from './table/data-table';
 
 export default function MasterCustomerPage() {
@@ -15,7 +15,7 @@ export default function MasterCustomerPage() {
         flash,
         trans_general, // <--- INI PROPS TERJEMAHANNYA
     } = usePage().props as unknown as {
-        customers: MasterCustomer[];
+        customers: Shipping[];
         flash: { success?: string; error?: string };
         trans_general: Record<string, string>; // Definisikan tipe datanya
     };

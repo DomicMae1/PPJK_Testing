@@ -29,24 +29,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::resource('customer', CustomerController::class);
+    
+    // Shipping-specific routes MUST be before resource route to avoid conflicts
+    Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
+    Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
+        ->name('shipping.update-hs-codes');
+    Route::post('shipping/{id}/assign-staff', [ShippingController::class, 'assignStaff'])->name('shipping.assignStaff');
+    Route::get('shipping/available-documents', [ShippingController::class, 'getAvailableDocuments'])->name('shipping.availableDocuments');
+    Route::post('shipping/add-documents-to-section', [ShippingController::class, 'addDocumentsToSection'])->name('shipping.addDocumentsToSection');
+    Route::post('shipping/update-penjaluran', [ShippingController::class, 'updatePenjaluran'])->name('shipping.updatePenjaluran');
+    
+    Route::post('shipping/unified-save', [ShippingController::class, 'unifiedBatchSave'])->name('shipping.unifiedSave');
+    
+    // Resource route AFTER specific routes
     Route::resource('shipping', ShippingController::class);
     Route::resource('users', UserController::class);
     Route::resource('role-manager', RoleController::class);
     Route::resource('perusahaan', PerusahaanController::class);
     Route::resource('document', DocumentController::class);
 
-    Route::post('shipping/process-attachment', [ShippingController::class, 'processAttachment'])->name('customer.process-attachment');
-    Route::post('shipping/{id}/update-hs-codes', [ShippingController::class, 'updateHsCodes'])
-        ->name('shipping.update-hs-codes');
-    Route::post('shipping/batch-process-attachments', [ShippingController::class, 'batchProcessAttachments'])->name('shipping.batchProcessAttachments');
-    Route::post('shipping/upload-temp', [ShippingController::class, 'upload'])->name('shipping.upload');
-    Route::post('shipping/update-deadline', [ShippingController::class, 'updateSectionDeadline'])->name('shipping.updateDeadline');
-    Route::post('shipping/{id}/verify', [ShippingController::class, 'verifyDocument'])->name('shipping.verify');
-    Route::post('shipping/{id}/reject', [ShippingController::class, 'rejectDocument'])->name('shipping.reject');
-    Route::post('shipping/{id}/reject', [ShippingController::class, 'rejectDocument'])->name('shipping.reject');
-    Route::post('shipping/batch-verify', [ShippingController::class, 'batchVerifyDocuments'])->name('shipping.batchVerify');
-    Route::post('shipping/{id}/assign-staff', [ShippingController::class, 'assignStaff'])->name('shipping.assignStaff');
-    
     // Notification routes
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unreadCount');

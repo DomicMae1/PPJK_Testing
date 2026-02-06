@@ -6,14 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { AlertTriangle, ChevronDown, ChevronUp, CircleHelp, FileText, Play, Plus, Save, Search, Trash2, Undo2, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface HsCodeItem {
@@ -28,12 +29,14 @@ interface ShipmentData {
     spkNumber: string;
     shipmentType: string;
     is_internal: boolean;
-    internal_can_upload?: boolean; // Added
-    validated_by?: number; // Added for initial value
+    internal_can_upload?: boolean;
+    validated_by?: number;
     spkDate: string;
     type: string;
     siNumber: string;
-    hsCodes: any[];
+    status: string;
+    penjaluran: string | null;
+    hsCodes: HsCodeItem[];
 }
 
 interface DocumentTrans {
@@ -62,6 +65,7 @@ interface DocumentTrans {
     correction_description?: string;
     correction_attachment_file?: string;
     is_internal?: boolean; // Added
+    is_verification?: boolean; // Added
 }
 
 // Interface untuk Section Transaksional (dari DB Tenant)
@@ -86,11 +90,21 @@ interface MasterDocument {
     attribute: boolean;
 }
 
+interface MasterSection {
+    id_section: number;
+    section_name: string;
+    section_order: number;
+    master_documents: MasterDocument[];
+}
+
 interface Props {
     customer: any;
     shipmentDataProp: ShipmentData;
     sectionsTransProp: SectionTrans[];
     masterDocProp?: MasterDocument[];
+    masterSecProp?: MasterSection[];
+    userRole?: string;
+    internalStaff?: any[];
 }
 
 //helper untuk video link youtube
@@ -108,7 +122,7 @@ export default function ViewCustomerForm({
     masterDocProp, // Data Master Document (opsional, untuk fallback help)
     userRole, // NEW: User role for role-based visibility
     internalStaff = [], // NEW: Internal Staff list for supervisor
-}: any) {
+}: Props) {
     const { props } = usePage();
     const trans = props.trans_general as Record<string, string>;
     const currentLocale = props.locale as string;
@@ -137,6 +151,13 @@ export default function ViewCustomerForm({
     const [isModalOpen, setIsModalOpen] = useState(false); // State untuk buka/tutup modal
     const [searchQuery, setSearchQuery] = useState(''); // State untuk search bar
     const [deadlineDate, setDeadlineDate] = useState(''); // State untuk tanggal deadline (additional docs)
+
+    // NEW: Add Documents Modal States
+    const [availableDocuments, setAvailableDocuments] = useState<any[]>([]);
+    const [selectedDocuments, setSelectedDocuments] = useState<number[]>([]);
+    const [currentSectionId, setCurrentSectionId] = useState<number | null>(null);
+    const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+    const [isSavingDocs, setIsSavingDocs] = useState(false);
 
     // NEW: Deadline Date Feature States
     const [useUnifiedDeadline, setUseUnifiedDeadline] = useState(true); // Checkbox: apply same deadline to all
@@ -183,23 +204,47 @@ export default function ViewCustomerForm({
         }
     }, [helpModalOpen, selectedHelpData]);
 
-    // NEW: Realtime Updates Listener
+    // NEW: Debounced Reload & Listener persistence
+    const reloadTimeoutRef = useRef<any>(null);
+    const isReloadingRef = useRef(false);
+    const isSavingRef = useRef(false);
+
     useEffect(() => {
-        if (shipmentDataProp?.spkNumber) {
-            if ((window as any).Echo && shipmentDataProp.id_spk) {
-                (window as any).Echo.private(`shipping.${shipmentDataProp.id_spk}`).listen('ShippingDataUpdated', (e: any) => {
-                    // Reload only the necessary data props
-                    router.reload({ only: ['sectionsTransProp', 'shipmentDataProp'] });
+        if (!shipmentDataProp?.id_spk) return;
+
+        const echo = (window as any).Echo;
+        if (!echo) return;
+
+        const channelName = `shipping.${shipmentDataProp.id_spk}`;
+        const channel = echo.private(channelName);
+
+        channel.listen('ShippingDataUpdated', (e: any) => {
+            // Suppress real-time reloads if we are currently manually saving
+            // This prevents the "duplicate reload" effect when a save also triggers an event
+            if (isSavingRef.current) return;
+
+            // Debounce the reload to handle rapid successive events (Event Storm)
+            if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
+
+            reloadTimeoutRef.current = setTimeout(() => {
+                if (isReloadingRef.current) return;
+
+                isReloadingRef.current = true;
+
+                router.reload({
+                    only: ['sectionsTransProp', 'shipmentDataProp'],
+                    onFinish: () => {
+                        isReloadingRef.current = false;
+                    },
                 });
-            }
-        }
+            }, 800); // 800ms debounce
+        });
 
         return () => {
-            if ((window as any).Echo && shipmentDataProp.id_spk) {
-                (window as any).Echo.leave(`shipping.${shipmentDataProp.id_spk}`);
-            }
+            echo.leave(channelName);
+            if (reloadTimeoutRef.current) clearTimeout(reloadTimeoutRef.current);
         };
-    }, [shipmentDataProp]);
+    }, [shipmentDataProp.id_spk]); // Only depend on the ID to prevent re-subscribing on data change
 
     // Initialize deadline states from database data
     useEffect(() => {
@@ -330,11 +375,6 @@ export default function ViewCustomerForm({
         );
     };
 
-    const handleOpenModal = () => {
-        setSearchQuery(''); // Reset search saat dibuka
-        setIsModalOpen(true);
-    };
-
     // Verification Handlers
     const handleVerify = (documentId: number) => {
         // Toggle pending verification logic
@@ -400,14 +440,17 @@ export default function ViewCustomerForm({
 
         if (!helpData) {
             helpData = {
+                id_dokumen: docTrans.id_dokumen,
                 nama_file: docTrans.nama_file,
-                link_path_example_file: null,
-                link_path_template_file: null,
-                link_url_video_file: null,
+                description_file: undefined,
+                link_path_example_file: undefined,
+                link_path_template_file: undefined,
+                link_url_video_file: undefined,
+                attribute: false,
             };
         }
 
-        setSelectedHelpData(helpData);
+        setSelectedHelpData(helpData as MasterDocument);
         setHelpModalOpen(true);
     };
 
@@ -416,7 +459,10 @@ export default function ViewCustomerForm({
     };
 
     const handleSaveSection = async (sectionId: number) => {
+        if (isSavingRef.current || processingSectionId !== null) return;
+
         // 1. Set loading
+        isSavingRef.current = true;
         setProcessingSectionId(sectionId);
 
         // 2. Ambil data section saat ini
@@ -469,107 +515,88 @@ export default function ViewCustomerForm({
         });
 
         try {
-            // 4. Process documents (Batch Optimized)
+            // 4. PREPARE UNIFIED PAYLOAD (FormData for file support)
+            const formData = new FormData();
+            formData.append('spk_id', String(shipmentData.id_spk));
+            formData.append('section_id', String(sectionId));
+            formData.append('section_name', currentSection.section_name);
+
+            // A. Attachments
             if (filesToProcess.length > 0) {
-                const attachmentsPayload = filesToProcess.map((doc) => ({
-                    path: tempFiles[doc.id],
-                    document_id: doc.id,
-                    type: doc.nama_file, // Filename/Type
-                }));
-
-                const response = await axios.post('/shipping/batch-process-attachments', {
-                    spk_id: shipmentData.id_spk,
-                    section_name: currentSection.section_name,
-                    attachments: attachmentsPayload,
+                filesToProcess.forEach((doc, index) => {
+                    formData.append(`attachments[${index}][path]`, tempFiles[doc.id]);
+                    formData.append(`attachments[${index}][document_id]`, String(doc.id));
+                    formData.append(`attachments[${index}][type]`, doc.nama_file);
                 });
-
-                // Bersihkan state tempFiles
-                const newTempFiles = { ...tempFiles };
-                filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
-                setTempFiles(newTempFiles);
             }
 
-            // 5. BATCH VERIFICATION (NEW)
-            // Cari dokumen di section ini yang masuk daftar pendingVerifications
+            // B. Verifications
             const docsToVerify = currentSection.documents.filter((doc) => pendingVerifications.includes(doc.id)).map((doc) => doc.id);
-
             if (docsToVerify.length > 0) {
-                await axios.post('/shipping/batch-verify', {
-                    spk_id: shipmentData.id_spk,
-                    section_id: sectionId, // Untuk konteks notifikasi
-                    verified_ids: docsToVerify,
+                docsToVerify.forEach((id, index) => {
+                    formData.append(`verified_ids[${index}]`, String(id));
                 });
-
-                // Hapus ID yang sudah diverifikasi dari pendingVerifications
-                setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
             }
 
-            // 6. PROCESS PENDING REJECTIONS (NEW)
-            // Cari dokumen di section ini yang ada di pendingRejections
+            // C. Rejections
             const rejectionsToProcess = currentSection.documents
                 .filter((doc) => pendingRejections.some((r) => r.docId === doc.id))
-                .map((doc) => {
-                    return pendingRejections.find((r) => r.docId === doc.id);
-                })
+                .map((doc) => pendingRejections.find((r) => r.docId === doc.id))
                 .filter((r): r is PendingRejection => r !== undefined);
 
             if (rejectionsToProcess.length > 0) {
-                await Promise.all(
-                    rejectionsToProcess.map(async (rejection) => {
-                        const formData = new FormData();
-                        formData.append('correction_description', rejection.note);
-                        if (rejection.file) {
-                            formData.append('correction_file', rejection.file);
-                        }
-
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    }),
-                );
-
-                // Hapus yang sudah diproses
-                const processedIds = rejectionsToProcess.map((r) => r.docId);
-                setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
-            }
-
-            // 7. Save deadline untuk section ini
-            const deadlineValue = useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[sectionId] || null;
-
-            if (deadlineValue) {
-                await axios.post('/shipping/update-deadline', {
-                    spk_id: shipmentData.id_spk,
-                    unified: false, // Individual mode - hanya section ini
-                    section_deadlines: { [sectionId]: deadlineValue },
+                rejectionsToProcess.forEach((r, index) => {
+                    formData.append(`rejections[${index}][doc_id]`, String(r.docId));
+                    formData.append(`rejections[${index}][note]`, r.note);
+                    if (r.file) {
+                        formData.append(`rejections[${index}][file]`, r.file);
+                    }
                 });
             }
 
-            // 8. Success message & Reload
-            const parts = [];
-            if (filesToProcess.length > 0) parts.push(`${filesToProcess.length} dokumen diproses`);
-            if (docsToVerify.length > 0) parts.push(`${docsToVerify.length} dokumen diverifikasi`);
-            if (rejectionsToProcess.length > 0) parts.push(`${rejectionsToProcess.length} dokumen ditolak`);
-            if (deadlineValue) parts.push('deadline tersimpan');
-
-            if (parts.length > 0) {
-                // alert(`Berhasil: ${parts.join(', ')}`); // Removed as per request
-                router.reload({ only: ['sectionsTransProp'] }); // Reload data
-            } else {
-                // alert('Tidak ada perubahan untuk disimpan.');
+            // D. Deadline
+            const deadlineValue = useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[sectionId] || null;
+            if (deadlineValue) {
+                formData.append('deadline', deadlineValue);
             }
 
-            // Close accordion after success
-            setActiveSection(null);
+            // 5. SEND UNIFIED REQUEST VIA INERTIA
+            router.post('/shipping/unified-save', formData, {
+                onSuccess: () => {
+                    // CLEANUP STATE
+                    if (filesToProcess.length > 0) {
+                        const newTempFiles = { ...tempFiles };
+                        filesToProcess.forEach((doc) => delete newTempFiles[doc.id]);
+                        setTempFiles(newTempFiles);
+                    }
+                    if (docsToVerify.length > 0) {
+                        setPendingVerifications((prev) => prev.filter((id) => !docsToVerify.includes(id)));
+                    }
+                    if (rejectionsToProcess.length > 0) {
+                        const processedIds = rejectionsToProcess.map((r) => r.docId);
+                        setPendingRejections((prev) => prev.filter((r) => !processedIds.includes(r.docId)));
+                    }
+
+                    toast.success('Section saved successfully');
+                    setActiveSection(null);
+                },
+                onError: (errors) => {
+                    console.error('Save errors:', errors);
+                    toast.error('Gagal menyimpan section.');
+                },
+                onFinish: () => {
+                    setProcessingSectionId(null);
+                    isSavingRef.current = false;
+                },
+                preserveState: true,
+                preserveScroll: true,
+                only: ['sectionsTransProp', 'shipmentDataProp'],
+            });
         } catch (error: any) {
             console.error('Error saving section:', error);
-
-            if (error.response && error.response.data) {
-                toast.error(`Gagal: ${error.response.data.message || JSON.stringify(error.response.data)}`);
-            } else {
-                toast.error('Terjadi kesalahan saat menyimpan.');
-            }
-        } finally {
+            toast.error('Terjadi kesalahan saat menyimpan.');
             setProcessingSectionId(null);
+            isSavingRef.current = false;
         }
     };
 
@@ -620,6 +647,103 @@ export default function ViewCustomerForm({
         setOpenHistoryIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
     };
 
+    // --- ADD DOCUMENTS MODAL HANDLERS ---
+    const handleOpenModal = async (sectionId: number) => {
+        setCurrentSectionId(sectionId);
+        setSelectedDocuments([]);
+        setSearchQuery('');
+        setIsModalOpen(true);
+        setIsLoadingDocs(true);
+
+        try {
+            const response = await axios.get('/shipping/available-documents', {
+                params: { id_spk: shipmentData.id_spk }
+            });
+
+            if (response.data.success) {
+                setAvailableDocuments(response.data.documents || []);
+            } else {
+                toast.error('Failed to load available documents');
+            }
+        } catch (error: any) {
+            console.error('Error fetching available documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to load documents');
+        } finally {
+            setIsLoadingDocs(false);
+        }
+    };
+
+    const handleDocumentCheckboxChange = (docId: number, checked: boolean) => {
+        if (checked) {
+            setSelectedDocuments(prev => [...prev, docId]);
+        } else {
+            setSelectedDocuments(prev => prev.filter(id => id !== docId));
+        }
+    };
+
+    const handleSaveSelectedDocuments = async () => {
+        if (selectedDocuments.length === 0) {
+            toast.error('Please select at least one document');
+            return;
+        }
+
+        if (!currentSectionId) {
+            toast.error('Section not found');
+            return;
+        }
+
+        setIsSavingDocs(true);
+
+        try {
+            const response = await axios.post('/shipping/add-documents-to-section', {
+                id_spk: shipmentData.id_spk,
+                id_section: currentSectionId,
+                document_ids: selectedDocuments
+            });
+
+            if (response.data.success) {
+                toast.success(response.data.message || 'Documents added successfully');
+                setIsModalOpen(false);
+                setSelectedDocuments([]);
+                setCurrentSectionId(null);
+
+                // No need to reload manually - Echo listener will handle realtime update
+                // router.reload({ only: ['sectionsTransProp'] });
+            } else {
+                toast.error(response.data.message || 'Failed to add documents');
+            }
+        } catch (error: any) {
+            console.error('Error adding documents:', error);
+            toast.error(error.response?.data?.message || 'Failed to add documents');
+        } finally {
+            setIsSavingDocs(false);
+        }
+    };
+
+    // Penjaluran Handler
+    const [isUpdatingPenjaluran, setIsUpdatingPenjaluran] = useState(false);
+
+    const handleUpdatePenjaluran = async (jalur: 'merah' | 'biru') => {
+        setIsUpdatingPenjaluran(true);
+        try {
+            const response = await axios.post('/shipping/update-penjaluran', {
+                id_spk: shipmentData.id_spk,
+                penjaluran: jalur
+            });
+
+            if (response.data.success) {
+                toast.success(`Penjaluran updated to ${jalur}`);
+            } else {
+                toast.error(response.data.message || 'Failed to update penjaluran');
+            }
+        } catch (error: any) {
+            console.error('Error updating penjaluran:', error);
+            toast.error(error.response?.data?.message || 'Failed to update penjaluran');
+        } finally {
+            setIsUpdatingPenjaluran(false);
+        }
+    };
+
     // --- REUSABLE DOCUMENT ROW RENDERER ---
     const renderDocumentRow = (doc: DocumentTrans, idx: number, sectionId: number, hasHistory: boolean, historyDocs: DocumentTrans[]) => {
         const isSpkInternalUpload = shipmentData.internal_can_upload ?? false;
@@ -630,8 +754,8 @@ export default function ViewCustomerForm({
             canUpload = isInternalUser;
             canVerify = false;
         } else {
-            canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
+            canUpload = (isInternalUser && !!doc.is_internal) || (!isInternalUser && !doc.is_internal);
+            canVerify = ((isInternalUser && !doc.is_internal) || (!isInternalUser && !!doc.is_internal)) && (doc.is_verification !== false); // Hide Verify if auto-verfied
         }
 
         const isVerified = doc.verify === true;
@@ -639,7 +763,7 @@ export default function ViewCustomerForm({
         const isPending = doc.verify === null;
         const isPendingVerification = pendingVerifications.includes(doc.id);
         const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
-        const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
+        const quotaExceeded = doc.kuota_revisi !== undefined && (doc.kuota_revisi ?? 0) <= 0;
 
         return (
             <div key={doc.id} className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0">
@@ -685,7 +809,7 @@ export default function ViewCustomerForm({
                                 {/* History Dropdown */}
                                 {openHistoryIds.includes(doc.id) && (
                                     <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
-                                        {[doc, ...historyDocs]
+                                        {historyDocs
                                             .filter((v) => v.url_path_file)
                                             .map((v, vIdx, arr) => (
                                                 <div key={v.id} className="flex items-center gap-2 text-xs">
@@ -802,133 +926,6 @@ export default function ViewCustomerForm({
         );
     };
 
-    const handleFinalSave = async () => {
-        try {
-            // --- VALIDATION: Check for unassessed documents across ALL sections ---
-            const allUnassessedDocs: DocumentTrans[] = [];
-
-            // SKIP validation if internal_can_upload is set (Auto-verified)
-            if (!shipmentData.internal_can_upload) {
-                sectionsTransProp.forEach((section: SectionTrans) => {
-                    if (section.documents) {
-                        const uploadedDocs = section.documents.filter((doc) => doc.url_path_file);
-                        uploadedDocs.forEach((doc) => {
-                            const isAlreadyAssessed = doc.verify !== null;
-                            const isPendingAccept = pendingVerifications.includes(doc.id);
-                            const isPendingReject = pendingRejections.some((r: PendingRejection) => r.docId === doc.id);
-
-                            if (!isAlreadyAssessed && !isPendingAccept && !isPendingReject) {
-                                allUnassessedDocs.push(doc);
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (allUnassessedDocs.length > 0) {
-                toast.error(
-                    `Terdapat ${allUnassessedDocs.length} dokumen yang belum dinilai (Accept/Reject). Harap verifikasi semua dokumen yang telah diupload sebelum menyimpan.`,
-                );
-                return;
-            }
-
-            // 1. Process all documents from all sections that have temp files
-            const allDocsToProcess: { doc: any; sectionId: number }[] = [];
-
-            sectionsTransProp.forEach((section: SectionTrans) => {
-                if (section.documents) {
-                    section.documents.forEach((doc) => {
-                        if (tempFiles[doc.id]) {
-                            allDocsToProcess.push({ doc, sectionId: section.id });
-                        }
-                    });
-                }
-            });
-
-            // Process all documents (Batch Optimized)
-            if (allDocsToProcess.length > 0) {
-                // Determine Last Section Name
-                const lastProcessed = allDocsToProcess[allDocsToProcess.length - 1];
-                const lastSection = sectionsTransProp.find((s) => s.id === lastProcessed.sectionId);
-                const sectionName = lastSection ? lastSection.section_name : 'Document';
-
-                const attachmentsPayload = allDocsToProcess.map(({ doc }) => ({
-                    path: tempFiles[doc.id],
-                    document_id: doc.id,
-                    type: doc.nama_file,
-                }));
-
-                const response = await axios.post('/shipping/batch-process-attachments', {
-                    spk_id: shipmentData.id_spk,
-                    section_name: sectionName,
-                    attachments: attachmentsPayload,
-                });
-
-                // Clear temp files
-                setTempFiles({});
-            }
-
-            // 2. BATCH VERIFICATION (NEW - GLOBAL)
-            if (pendingVerifications.length > 0) {
-                await axios.post('/shipping/batch-verify', {
-                    spk_id: shipmentData.id_spk,
-                    section_id: null, // Global save, maybe generic or null
-                    verified_ids: pendingVerifications,
-                });
-
-                // Clear pending verifications
-                setPendingVerifications([]);
-            }
-
-            // 3. BATCH REJECTION (NEW - GLOBAL)
-            if (pendingRejections.length > 0) {
-                const rejectionPromises = pendingRejections.map(async (rejection) => {
-                    const formData = new FormData();
-                    formData.append('correction_description', rejection.note);
-                    if (rejection.file) {
-                        formData.append('correction_file', rejection.file);
-                    }
-
-                    try {
-                        await axios.post(`/shipping/${rejection.docId}/reject`, formData, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                    } catch (err) {
-                        console.error(`Failed to reject doc ${rejection.docId}`, err);
-                        throw err; // Re-throw to be caught by outer catch
-                    }
-                });
-
-                await Promise.all(rejectionPromises);
-
-                // Clear pending rejections
-                setPendingRejections([]);
-            }
-
-            // 4. Save all deadlines
-            await axios.post('/shipping/update-deadline', {
-                spk_id: shipmentData.id_spk,
-                unified: useUnifiedDeadline,
-                global_deadline: useUnifiedDeadline ? globalDeadlineDate : null,
-                section_deadlines: !useUnifiedDeadline ? sectionDeadlines : {},
-            });
-
-            // 5. Success message
-            const parts = [];
-            if (allDocsToProcess.length > 0) parts.push(`${allDocsToProcess.length} dokumen diproses`);
-            if (pendingVerifications.length > 0) parts.push(`${pendingVerifications.length} dokumen diverifikasi`);
-            if (pendingRejections.length > 0) parts.push(`${pendingRejections.length} dokumen ditolak`);
-            if (globalDeadlineDate || Object.keys(sectionDeadlines).length > 0) parts.push('deadline');
-
-            // window.alert(`Berhasil menyimpan: ${parts.length > 0 ? parts.join(', ') : 'Data tersimpan'} `); // Removed as per request
-
-            // Navigate back
-            router.visit(`/shipping/${shipmentData.id_spk}`, { replace: true, preserveState: false });
-        } catch (error: any) {
-            console.error('Error in final save:', error);
-            toast.error('Gagal menyimpan: ' + (error.response?.data?.message || error.message));
-        }
-    };
 
     const handleSaveGlobalDeadline = async () => {
         try {
@@ -965,191 +962,255 @@ export default function ViewCustomerForm({
         });
     };
 
+    // Calculate overall progress across all sections
+    const calculateProgress = () => {
+        let totalDocs = 0;
+        let verifiedDocs = 0;
+
+        sectionsTransProp?.forEach((section: SectionTrans) => {
+            const docs = section.documents || [];
+            const latestDocsGroups = processDocumentsForRender(docs);
+            totalDocs += latestDocsGroups.length;
+            verifiedDocs += latestDocsGroups.filter(g => g.current.verify === true).length;
+        });
+
+        return totalDocs === 0 ? 0 : Math.round((verifiedDocs / totalDocs) * 100);
+    };
+
+    const progressPercentage = calculateProgress();
+
     return (
-        <div className="w-full max-w-md bg-white p-4 font-sans text-sm text-gray-900">
-            {/* --- SPK Created Card --- */}
-            <div className="mb-5 rounded-lg border border-gray-200 p-3 shadow-sm">
-                <div className="font-bold text-black">{shipmentData.status ? shipmentData.status.toUpperCase() : 'STATUS UNKNOWN'}</div>
-                <div className="text-gray-600">{shipmentData.spkDate}</div>
+        <div className="w-full max-w-md bg-slate-50 p-3 sm:p-4 font-sans text-sm text-slate-900 overflow-x-hidden animate-in fade-in duration-500">
+            {/* --- SPK Header Card --- */}
+            <div className="mb-5 sm:mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{trans.status || 'Shipment Status'}</div>
+                        <div className="text-xl font-extrabold tracking-tight text-slate-900">
+                            {shipmentData.status ? shipmentData.status.toUpperCase() : 'UNKNOWN'}
+                        </div>
+                    </div>
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${progressPercentage === 100 ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+                        <span className="text-lg font-bold">{progressPercentage}%</span>
+                    </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-4 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                        <span>{trans.document_completion || 'Document Progress'}</span>
+                        <span>{progressPercentage}%</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                            className={`h-full transition-all duration-1000 ease-out ${progressPercentage === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                            style={{ width: `${progressPercentage}%` }}
+                        />
+                    </div>
+                </div>
+
+                <div className="text-xs font-medium text-slate-500 italic flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                    {trans.last_updated || 'Last updated'}: {shipmentData.spkDate}
+                </div>
 
                 {/* SUPERVISOR: Assign Staff */}
                 {isSupervisor && (
-                    <div className="mt-4 border-t pt-3">
-                        <Label className="mb-2 block text-xs font-bold text-gray-700">{trans.assign_staff || 'Assign Staff'}</Label>
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                        <Label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">{trans.assign_staff || 'Assign Staff'}</Label>
                         <div className="flex items-center gap-2">
                             <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-                                <SelectTrigger className="h-8 flex-1 text-xs">
+                                <SelectTrigger className="h-9 flex-1 text-xs border-slate-200 rounded-lg focus:ring-blue-500/20">
                                     <SelectValue placeholder={trans.select_staff_placeholder || 'Select Staff'} />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="rounded-xl shadow-xl border-slate-200">
                                     {internalStaff.length > 0 ? (
                                         internalStaff.map((staff: any) => (
-                                            <SelectItem key={staff.id_user} value={String(staff.id_user)} className="text-xs">
+                                            <SelectItem key={staff.id_user} value={String(staff.id_user)} className="text-xs focus:bg-blue-50">
                                                 {staff.name}
                                             </SelectItem>
                                         ))
                                     ) : (
-                                        <div className="p-2 text-center text-xs text-gray-500">{trans.data_not_found || 'No staff found'}</div>
+                                        <div className="p-2 text-center text-xs text-slate-500">{trans.data_not_found || 'No staff found'}</div>
                                     )}
                                 </SelectContent>
                             </Select>
                             <Button
                                 onClick={handleAssignStaff}
-                                className="h-8 rounded bg-black px-3 text-xs font-bold text-white hover:bg-gray-800"
+                                className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-sm"
                                 title={trans.assign || 'Assign'}
                             >
-                                <Save className="h-3 w-3" />
+                                <Save className="h-3.5 w-3.5" />
                             </Button>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* --- Shipment Details --- */}
-            <div className="mb-6 space-y-1 pl-1">
-                <div className="flex gap-1">
-                    <span className="font-bold">{trans.shipment_type} :</span>
-                    <span>{shipmentData.type}</span>
+            {/* --- Shipment Details: 2-Column Property Grid --- */}
+            <div className="mb-6 rounded-xl bg-slate-100/50 border border-slate-200/60 p-4 shadow-inner-sm">
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+                    {/* Shipment Type */}
+                    <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{trans.shipment_type}</div>
+                        <div className="text-sm font-semibold text-slate-700">{shipmentData.type}</div>
+                    </div>
+
+                    {/* Penjaluran */}
+                    {shipmentData.penjaluran && (
+                        <div className="space-y-1 text-right sm:text-left">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Penjaluran</div>
+                            <div>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight ring-1 ring-inset ${shipmentData.penjaluran === 'merah'
+                                    ? 'bg-rose-50 text-rose-700 ring-rose-600/20'
+                                    : 'bg-blue-50 text-blue-700 ring-blue-600/20'
+                                    }`}>
+                                    {shipmentData.penjaluran}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Document Number */}
+                    <div className="col-span-2 space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            {shipmentData.type === 'Export' ? trans.si || 'SI' : shipmentData.type === 'Import' ? trans.bl || 'BL' : trans.spk || 'SPK'} Number
+                        </div>
+                        <div className="text-sm font-bold tracking-tight text-slate-900 break-all">{shipmentData.spkNumber}</div>
+                    </div>
                 </div>
-                <div className="flex gap-1">
-                    <span className="font-bold">
-                        {shipmentData.type === 'Export' ? trans.si || 'SI' : shipmentData.type === 'Import' ? trans.bl || 'BL' : trans.spk || 'SPK'} :
-                    </span>
-                    <span>{shipmentData.spkNumber}</span>
-                </div>
+            </div>
+            {/* HS Code Section */}
+            <div className="flex gap-1">
+                <span className="font-semibold text-slate-700 whitespace-nowrap">{trans.hs_code} :</span>
+                <div className="flex w-full flex-col">
+                    {isEditingHsCodes ? (
+                        <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
+                            <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
+                                {/* Header Modal */}
+                                <div className="flex items-center justify-between border-b px-6 py-4">
+                                    <h2 className="text-lg font-bold text-gray-900">{trans.edit_hs_data}</h2>
+                                    <button onClick={cancelEditMode} className="text-gray-500 hover:text-gray-700">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
 
-                {/* HS Code Section */}
-                <div className="flex gap-1">
-                    <span className="font-bold whitespace-nowrap">{trans.hs_code} :</span>
-                    <div className="flex w-full flex-col">
-                        {isEditingHsCodes ? (
-                            <div className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-200">
-                                <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
-                                    {/* Header Modal */}
-                                    <div className="flex items-center justify-between border-b px-6 py-4">
-                                        <h2 className="text-lg font-bold text-gray-900">{trans.edit_hs_data}</h2>
-                                        <button onClick={cancelEditMode} className="text-gray-500 hover:text-gray-700">
-                                            <X className="h-5 w-5" />
-                                        </button>
-                                    </div>
+                                {/* Body Modal (Scrollable) */}
+                                <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                                    <div className="flex flex-col gap-4">
+                                        {hsCodes.map((item, index) => (
+                                            <div key={item.id} className="relative rounded-lg border bg-white p-4 shadow-sm">
+                                                {/* TOMBOL DELETE ITEM */}
+                                                {hsCodes.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeHsCodeField(item.id)}
+                                                        className="absolute top-3 right-3 text-red-500 transition-colors hover:text-red-700"
+                                                        title={trans.delete_hs || 'Hapus HS Code'}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                )}
 
-                                    {/* Body Modal (Scrollable) */}
-                                    <div className="flex-1 space-y-4 overflow-y-auto p-6">
-                                        <div className="flex flex-col gap-4">
-                                            {hsCodes.map((item, index) => (
-                                                <div key={item.id} className="relative rounded-lg border bg-white p-4 shadow-sm">
-                                                    {/* TOMBOL DELETE ITEM */}
-                                                    {hsCodes.length > 1 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeHsCodeField(item.id)}
-                                                            className="absolute top-3 right-3 text-red-500 transition-colors hover:text-red-700"
-                                                            title={trans.delete_hs || 'Hapus HS Code'}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    )}
+                                                <div className="grid gap-3 pt-1">
+                                                    {/* Input HS Code */}
+                                                    <div className="space-y-1">
+                                                        <Label className="text-sm">{trans.input_hs_code}</Label>
+                                                        <Input
+                                                            placeholder={trans.input_hs_code}
+                                                            value={item.code}
+                                                            onChange={(e) => updateHsCode(item.id, 'code', e.target.value)}
+                                                        />
+                                                    </div>
 
-                                                    <div className="grid gap-3 pt-1">
-                                                        {/* Input HS Code */}
-                                                        <div className="space-y-1">
-                                                            <Label className="text-sm">{trans.input_hs_code}</Label>
-                                                            <Input
-                                                                placeholder={trans.input_hs_code}
-                                                                value={item.code}
-                                                                onChange={(e) => updateHsCode(item.id, 'code', e.target.value)}
-                                                            />
-                                                        </div>
-
-                                                        {/* File Upload */}
-                                                        <div className="space-y-2">
-                                                            <ResettableDropzoneImage
-                                                                label={trans.insw_link_ref}
-                                                                isRequired={false}
-                                                                existingFile={
-                                                                    !item.file && item.link
-                                                                        ? {
-                                                                            nama_file: item.link,
-                                                                            path: `/file/view/${item.link}`,
-                                                                        }
-                                                                        : undefined
-                                                                }
-                                                                onFileChange={(file) => {
-                                                                    updateHsCode(item.id, 'file', file);
-                                                                }}
-                                                            />
-                                                        </div>
+                                                    {/* File Upload */}
+                                                    <div className="space-y-2">
+                                                        <ResettableDropzoneImage
+                                                            label={trans.insw_link_ref}
+                                                            isRequired={false}
+                                                            existingFile={
+                                                                !item.file && item.link
+                                                                    ? {
+                                                                        nama_file: item.link,
+                                                                        path: `/file/view/${item.link}`,
+                                                                    }
+                                                                    : undefined
+                                                            }
+                                                            onFileChange={(file) => {
+                                                                updateHsCode(item.id, 'file', file);
+                                                            }}
+                                                        />
                                                     </div>
                                                 </div>
-                                            ))}
+                                            </div>
+                                        ))}
 
-                                            {/* Tombol Tambah Item Baru */}
-                                            <Button variant="outline" onClick={addHsCodeField} className="w-full border-dashed">
-                                                + {trans.add_another_hs}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {/* Footer Modal (Actions) */}
-                                    <div className="flex gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
-                                        <Button onClick={handleSaveEdit} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
-                                            <Save className="h-4 w-4" /> {trans.save_changes}
-                                        </Button>
-                                        <Button onClick={cancelEditMode} variant="destructive" className="flex-1 gap-2 text-white">
-                                            <Undo2 className="h-4 w-4" /> {trans.cancel}
+                                        {/* Tombol Tambah Item Baru */}
+                                        <Button variant="outline" onClick={addHsCodeField} className="w-full border-dashed">
+                                            + {trans.add_another_hs}
                                         </Button>
                                     </div>
                                 </div>
+
+                                {/* Footer Modal (Actions) */}
+                                <div className="flex gap-2 rounded-b-lg border-t bg-gray-50 px-6 py-4">
+                                    <Button onClick={handleSaveEdit} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
+                                        <Save className="h-4 w-4" /> {trans.save_changes}
+                                    </Button>
+                                    <Button onClick={cancelEditMode} variant="destructive" className="flex-1 gap-2 text-white">
+                                        <Undo2 className="h-4 w-4" /> {trans.cancel}
+                                    </Button>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="flex flex-col">
-                                {shipmentData.hsCodes.length > 0 ? (
-                                    shipmentData.hsCodes.map((item: any, index: number) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <span>{item.code}</span>
-                                            {item.link ? (
-                                                <a
-                                                    href={`/file/view/${item.link}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="font-bold text-blue-600 hover:underline"
-                                                >
-                                                    [INSW]
-                                                </a>
-                                            ) : (
-                                                <button type="button" className="cursor-not-allowed font-bold text-gray-400">
-                                                    [INSW]
-                                                </button>
-                                            )}
-                                            <button onClick={enableEditMode} className="text-gray-500 hover:text-black hover:underline">
-                                                {trans.edit || '[edit]'}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col">
+                            {shipmentData.hsCodes.length > 0 ? (
+                                shipmentData.hsCodes.map((item: any, index: number) => (
+                                    <div key={index} className="flex items-center gap-2">
+                                        <span>{item.code}</span>
+                                        {item.link ? (
+                                            <a
+                                                href={`/file/view/${item.link}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="font-bold text-blue-600 hover:underline"
+                                            >
+                                                [INSW]
+                                            </a>
+                                        ) : (
+                                            <button type="button" className="cursor-not-allowed font-bold text-gray-400">
+                                                [INSW]
                                             </button>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 italic">-</span>
-                                        <button onClick={enableEditMode} className="text-xs text-blue-500 hover:underline">
-                                            + {trans.add_another_hs}
+                                        )}
+                                        <button onClick={enableEditMode} className="text-gray-500 hover:text-black hover:underline">
+                                            {trans.edit || '[edit]'}
                                         </button>
                                     </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                                ))
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-gray-400 italic">-</span>
+                                    <button onClick={enableEditMode} className="text-xs text-blue-500 hover:underline">
+                                        + {trans.add_another_hs}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* NEW: Global Deadline Section - ONLY for Internal Users */}
             {isInternalUser && (
-                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-4 sm:mb-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-col gap-3">
                         {/* Garis Kuning: Global Deadline Field */}
-                        <div className="flex items-center gap-3">
-                            <label className="text-sm font-bold whitespace-nowrap text-gray-700">{trans.set_deadline}:</label>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                            <label className="text-sm font-semibold whitespace-nowrap text-slate-700">{trans.set_deadline}:</label>
                             <Input
                                 type="date"
-                                className={`h-9 flex-1 border-gray-300 ${!useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                className={`h-9 flex-1 border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-lg transition-all duration-200 ${!useUnifiedDeadline ? 'cursor-not-allowed bg-slate-100 opacity-50' : 'bg-white'}`}
                                 value={globalDeadlineDate}
                                 onChange={(e) => setGlobalDeadlineDate(e.target.value)}
                                 disabled={!useUnifiedDeadline}
@@ -1181,7 +1242,8 @@ export default function ViewCustomerForm({
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             <div className="w-full space-y-3">
                 {sectionsTransProp && sectionsTransProp.length > 0 ? (
@@ -1198,57 +1260,69 @@ export default function ViewCustomerForm({
                             const isOpen = activeSection === section.id; // Gunakan ID transaksi
 
                             // --- Status Logic ---
+                            // --- Status Logic ---
                             const docs = section.documents || [];
-                            const validDocs = docs.filter((d: any) => d.verify === true); // Verified
+
+                            // FIX: Use latest documents only for status calculation
+                            // This prevents 'Rejected' status from persisting if a new version exists (which is Pending or Verified)
+                            const latestDocsGroups = processDocumentsForRender(docs);
+                            const latestDocs = latestDocsGroups.map(g => g.current);
+
+                            const validDocs = latestDocs.filter((d: any) => d.verify === true); // Verified (Latest only)
 
                             // Fix: verify defaults to false, so ONLY check correction_attachment for Rejection
-                            const hasRejection = docs.some((d: any) => d.correction_attachment);
+                            const hasRejection = latestDocs.some((d: any) => d.correction_attachment);
 
-                            const allVerified = docs.length > 0 && docs.every((d: any) => d.verify === true);
+                            const allVerified = latestDocs.length > 0 && latestDocs.every((d: any) => d.verify === true);
 
                             // Pending: Uploaded (url_path_file exists) but not Verified (verified IS NOT TRUE) AND not Rejected
-                            const hasPending = docs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
+                            const hasPending = latestDocs.some((d: any) => d.url_path_file && d.verify !== true && !d.correction_attachment);
 
                             // --- Styling Variables ---
-                            let containerClass = 'rounded-lg border transition-all ';
-                            let titleClass = 'text-sm font-bold uppercase transition-colors ';
+                            let containerClass = 'rounded-xl border transition-all duration-200 bg-white ';
+                            let headerClass = 'transition-all duration-200 ';
+                            let titleClass = 'text-sm tracking-tight transition-colors ';
                             let chevronClass = 'h-4 w-4 transition-colors ';
                             let deadlineIconClass = 'text-lg font-bold transition-colors ';
                             let deadlineTextClass = 'text-xs font-bold transition-colors ';
 
                             if (hasRejection) {
-                                // RED (Rejected) - High Priority - Opacity 50%
-                                containerClass += 'bg-red-600/80';
-                                titleClass += 'text-white';
-                                chevronClass += 'text-white';
-                                deadlineIconClass += 'text-white';
-                                deadlineTextClass += 'text-white';
+                                // ROSE (Rejected) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-rose-50 border-l-4 border-rose-500 border-slate-200";
+                                headerClass += "bg-rose-100/50 hover:bg-rose-200/50";
+                                titleClass += "text-rose-900 font-bold";
+                                chevronClass += "text-rose-700";
+                                deadlineIconClass += "text-rose-700";
+                                deadlineTextClass += "text-rose-700";
                             } else if (allVerified) {
-                                // GREEN (Verified) - Opacity 50%
-                                containerClass += 'bg-green-600/80';
-                                titleClass += 'text-white';
-                                chevronClass += 'text-white';
-                                deadlineIconClass += 'text-white';
-                                deadlineTextClass += 'text-white';
+                                // EMERALD (Verified) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-emerald-50 border-l-4 border-emerald-500 border-slate-200";
+                                headerClass += "bg-emerald-100/50 hover:bg-emerald-200/50";
+                                titleClass += "text-emerald-900 font-bold";
+                                chevronClass += "text-emerald-700";
+                                deadlineIconClass += "text-emerald-700";
+                                deadlineTextClass += "text-emerald-700";
                             } else if (hasPending) {
-                                // YELLOW (Pending Grading) - Opacity 50%
-                                containerClass += 'bg-yellow-400/80';
-                                titleClass += 'text-black';
-                                chevronClass += 'text-black';
-                                deadlineIconClass += 'text-red-600';
-                                deadlineTextClass += 'text-red-600';
+                                // AMBER (Pending) - Soft left-border accent + Header Highlight
+                                containerClass += "bg-amber-50 border-l-4 border-amber-500 border-slate-200";
+                                headerClass += "bg-amber-100/50 hover:bg-amber-200/50";
+                                titleClass += "text-amber-900 font-bold";
+                                chevronClass += "text-amber-700";
+                                deadlineIconClass += "text-amber-700";
+                                deadlineTextClass += "text-amber-700";
                             } else {
-                                // DEFAULT (Idle/None)
-                                containerClass += 'bg-white ';
-                                titleClass += 'text-gray-900';
-                                chevronClass += 'text-gray-500';
-                                deadlineIconClass += 'text-red-500';
-                                deadlineTextClass += 'text-red-500';
+                                // DEFAULT (Idle/None) - Clean white
+                                containerClass += "border-slate-200 hover:border-slate-300 hover:shadow-sm";
+                                headerClass += "hover:bg-slate-50";
+                                titleClass += "text-slate-900 font-semibold";
+                                chevronClass += "text-slate-500";
+                                deadlineIconClass += "text-rose-500";
+                                deadlineTextClass += "text-rose-500";
                             }
 
                             return (
                                 <div key={section.id_section} className={containerClass}>
-                                    <div className="flex cursor-pointer items-center gap-2 px-3 py-3" onClick={() => handleEditSection(section.id)}>
+                                    <div className={`flex cursor-pointer items-center gap-2 px-2 sm:px-3 py-2.5 sm:py-3 min-h-[44px] rounded-t-xl sm:rounded-t-[0.65rem] ${headerClass}`} onClick={() => handleEditSection(section.id)}>
                                         {isOpen ? <ChevronUp className={chevronClass} /> : <ChevronDown className={chevronClass} />}
                                         <div className="flex flex-1 flex-col">
                                             <span className={titleClass}>{section.section_name}</span>
@@ -1273,13 +1347,13 @@ export default function ViewCustomerForm({
                                     </div>
 
                                     {isOpen && (
-                                        <div className="mt-1 rounded-md border-t border-gray-100 bg-white px-3 pt-2 pb-4">
+                                        <div className="mt-1 rounded-xl border-t border-slate-100 bg-white px-4 pt-3 pb-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                                             {isInternalUser && (
                                                 <div className="mb-4 flex items-center gap-3">
-                                                    <label className="text-sm font-medium whitespace-nowrap text-gray-600">{trans.deadline}:</label>
+                                                    <label className="text-sm font-semibold whitespace-nowrap text-slate-700">{trans.deadline}:</label>
                                                     <Input
                                                         type="date"
-                                                        className={`h-8 flex-1 border-gray-200 text-sm ${useUnifiedDeadline ? 'cursor-not-allowed bg-gray-100 opacity-50' : 'bg-white'}`}
+                                                        className={`h-9 flex-1 border-slate-300 rounded-lg text-sm transition-all duration-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${useUnifiedDeadline ? 'cursor-not-allowed bg-slate-50 opacity-50' : 'bg-white'}`}
                                                         value={useUnifiedDeadline ? globalDeadlineDate : sectionDeadlines[section.id] || ''}
                                                         onChange={(e) => {
                                                             if (!useUnifiedDeadline) {
@@ -1299,425 +1373,38 @@ export default function ViewCustomerForm({
                                                     processDocumentsForRender(section.documents).map((item, idx: number) => {
                                                         const doc = item.current;
                                                         const allVersions = [doc, ...item.history];
-                                                        const validVersions = allVersions.filter((v) => v.url_path_file);
-                                                        const hasHistory = validVersions.length > 1;
-
-                                                        const isVerified = doc.verify === true;
-                                                        const isRejected = doc.verify === false;
-                                                        const isPending = doc.verify === null;
-                                                        const isPendingVerification = pendingVerifications.includes(doc.id);
-                                                        const isPendingRejection = pendingRejections.some((r) => r.docId === doc.id);
-                                                        const quotaExceeded = doc.kuota_revisi !== undefined && doc.kuota_revisi <= 0;
-
-                                                        const toggleHistory = (id: number) => {
-                                                            setOpenHistoryIds((prev) =>
-                                                                prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-                                                            );
-                                                        };
-
-                                                        // Logic Determinations
-                                                        // 1. Check SPK level flag
-                                                        const isSpkInternalUpload = shipmentData.internal_can_upload ?? false; // Fallback to false
-
-                                                        // 2. Define permissions
-                                                        let canUpload = false;
-                                                        let canVerify = false;
-
-                                                        if (isSpkInternalUpload) {
-                                                            // Mode: Internal handles EVERYTHING, Auto-verified
-                                                            canUpload = isInternalUser; // Internal ALWAYS shoots
-                                                            canVerify = false; // No manual verification needed (auto-verified)
-                                                        } else {
-                                                            // Mode: Normal (Bidirectional)
-                                                            // doc.is_internal = true (1) -> Internal Uploads, External Verifies
-                                                            // doc.is_internal = false (0) -> External Uploads, Internal Verifies
-                                                            canUpload = (isInternalUser && doc.is_internal) || (!isInternalUser && !doc.is_internal);
-                                                            canVerify = (isInternalUser && !doc.is_internal) || (!isInternalUser && doc.is_internal);
-                                                        }
-
-                                                        return (
-                                                            <div
-                                                                key={doc.id}
-                                                                className="relative flex flex-col gap-2 border-b border-gray-100 py-3 last:border-0"
-                                                            >
-                                                                <div className="flex items-start justify-between">
-                                                                    {/* LEFT COLUMN: Name & History */}
-                                                                    <div className="flex flex-1 flex-col gap-1">
-                                                                        <div className="flex items-center gap-2 text-gray-800">
-                                                                            <span className="text-sm font-medium">
-                                                                                {idx + 1}. {doc.master_document?.nama_dokumen || doc.nama_file}
-                                                                            </span>
-                                                                            <CircleHelp
-                                                                                className="h-4 w-4 cursor-pointer text-gray-500 hover:text-gray-700"
-                                                                                onClick={() => handleOpenHelp(doc)}
-                                                                            />
-
-                                                                            {/* Status Badge - Visible if I cannot verify (so I am uploader or viewer) */}
-                                                                            {!canVerify && doc.url_path_file && (
-                                                                                <>
-                                                                                    {isVerified && (
-                                                                                        <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
-                                                                                            {trans.verified}
-                                                                                        </span>
-                                                                                    )}
-                                                                                    {isRejected && (
-                                                                                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                                                                                            {trans.rejected}
-                                                                                        </span>
-                                                                                    )}
-                                                                                    {isPending && (
-                                                                                        <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700">
-                                                                                            {trans.pending}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {/* File & History UI */}
-                                                                        {doc.url_path_file ? (
-                                                                            <div className="ml-5">
-                                                                                {/* Collapsible Trigger */}
-                                                                                <button
-                                                                                    onClick={() => toggleHistory(doc.id)}
-                                                                                    className="flex items-center gap-1 rounded bg-black px-2 py-1 text-xs text-white transition-colors hover:bg-gray-800"
-                                                                                >
-                                                                                    <FileText className="h-3 w-3" />
-                                                                                    {trans.latest_file || 'Latest File'}
-                                                                                    {openHistoryIds.includes(doc.id) ? (
-                                                                                        <ChevronUp className="ml-1 h-3 w-3" />
-                                                                                    ) : (
-                                                                                        <ChevronDown className="ml-1 h-3 w-3" />
-                                                                                    )}
-                                                                                </button>
-
-                                                                                {/* History List */}
-                                                                                {openHistoryIds.includes(doc.id) && (
-                                                                                    <div className="mt-2 flex flex-col gap-1 border-l-2 border-gray-200 pl-2">
-                                                                                        {validVersions.map((v, vIdx) => {
-                                                                                            const versionNumber = validVersions.length - vIdx;
-                                                                                            const isLatest = vIdx === 0;
-                                                                                            return (
-                                                                                                <div
-                                                                                                    key={v.id}
-                                                                                                    className="flex items-center gap-2 text-xs"
-                                                                                                >
-                                                                                                    <span className="font-bold text-gray-500">
-                                                                                                        v{versionNumber}
-                                                                                                    </span>
-                                                                                                    <a
-                                                                                                        href={`/file/view/${v.url_path_file}`}
-                                                                                                        target="_blank"
-                                                                                                        className={`hover:underline ${isLatest ? 'font-bold text-black' : 'text-gray-600'}`}
-                                                                                                    >
-                                                                                                        {v.nama_file || trans.document}
-                                                                                                    </a>
-                                                                                                    <span className="text-[10px] text-gray-400">
-                                                                                                        {new Date(v.created_at).toLocaleDateString()}
-                                                                                                    </span>
-                                                                                                </div>
-                                                                                            );
-                                                                                        })}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="ml-5 text-xs text-gray-400 italic">
-                                                                                {trans.no_file || 'No file uploaded'}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Verifier Actions: Accept / Reject */}
-                                                                    {canVerify && doc.url_path_file && (
-                                                                        <div className="flex items-center gap-4">
-                                                                            {/* Accept */}
-                                                                            <div className="flex flex-col items-center">
-                                                                                <span
-                                                                                    className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
-                                                                                >
-                                                                                    {trans.accept || 'Accept'}
-                                                                                </span>
-                                                                                <Checkbox
-                                                                                    checked={isVerified || isPendingVerification}
-                                                                                    onCheckedChange={() => handleVerify(doc.id)}
-                                                                                    className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
-                                                                                    disabled={!isPending}
-                                                                                />
-                                                                            </div>
-
-                                                                            {/* Reject */}
-                                                                            <div className="flex flex-col items-center">
-                                                                                <span
-                                                                                    className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
-                                                                                >
-                                                                                    {trans.reject || 'Reject'}
-                                                                                </span>
-                                                                                <Checkbox
-                                                                                    checked={isRejected || isPendingRejection}
-                                                                                    onCheckedChange={(checked) => {
-                                                                                        if (checked) handleOpenReject(doc.id);
-                                                                                    }}
-                                                                                    className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
-                                                                                    disabled={!isPending}
-                                                                                />
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
-                                                                    {canUpload && (
-                                                                        <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
-                                                                            {/* Upload Zone */}
-                                                                            {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
-                                                                                <ResettableDropzone
-                                                                                    label=""
-                                                                                    isRequired={false}
-                                                                                    existingFile={
-                                                                                        tempFiles[doc.id]
-                                                                                            ? {
-                                                                                                  nama_file:
-                                                                                                      doc.master_document?.nama_dokumen ||
-                                                                                                      doc.nama_file,
-                                                                                                  path: tempFiles[doc.id],
-                                                                                              }
-                                                                                            : undefined
-                                                                                    }
-                                                                                    uploadConfig={{
-                                                                                        url: '/shipping/upload-temp',
-                                                                                        payload: {
-                                                                                            type: doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                            spk_code: shipmentData.spkNumber,
-                                                                                        },
-                                                                                    }}
-                                                                                    onFileChange={(file, response) => {
-                                                                                        if (
-                                                                                            response &&
-                                                                                            (response.status === 'success' || response.path)
-                                                                                        ) {
-                                                                                            setTempFiles((prev) => ({
-                                                                                                ...prev,
-                                                                                                [doc.id]: response.path,
-                                                                                            }));
-                                                                                        } else if (file === null) {
-                                                                                            setTempFiles((prev) => {
-                                                                                                const newState = { ...prev };
-                                                                                                delete newState[doc.id];
-                                                                                                return newState;
-                                                                                            });
-                                                                                        }
-                                                                                    }}
-                                                                                    disabled={verifyingDocId === doc.id}
-                                                                                />
-                                                                            ) : (
-                                                                                <div className="text-right text-xs text-gray-400 italic">
-                                                                                    {isPending
-                                                                                        ? trans.on_checking || 'On Checking'
-                                                                                        : trans.quota_exceeded || 'Quota Exceeded'}
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Quota & Rejection Info (Moved Here) */}
-                                                                            {doc.url_path_file && (
-                                                                                <div className="flex flex-col items-end text-right text-xs">
-                                                                                    {/* Rejection Note */}
-                                                                                    {isRejected && (
-                                                                                        <div className="mb-1">
-                                                                                            <div className="flex items-center justify-end gap-1 font-bold text-red-600">
-                                                                                                {trans.rejection_note || 'Rejection Note'}{' '}
-                                                                                                <AlertTriangle className="h-3 w-3" />
-                                                                                            </div>
-                                                                                            <p className="text-gray-700 italic">
-                                                                                                "{doc.correction_description}"
-                                                                                            </p>
-                                                                                            {doc.correction_attachment_file && (
-                                                                                                <a
-                                                                                                    href={`/file/view/${doc.correction_attachment_file}`}
-                                                                                                    target="_blank"
-                                                                                                    className="mt-0.5 block text-blue-500 underline"
-                                                                                                >
-                                                                                                    {trans.view_rejection_file ||
-                                                                                                        'View Rejection File'}
-                                                                                                </a>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {/* Quota Info */}
-                                                                                    <div className="mt-1 text-gray-600">
-                                                                                        {trans.revision_quota || 'Revision Quota'}:{' '}
-                                                                                        <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
-                                                                                        {trans.remaining || 'remaining'}
-                                                                                    </div>
-                                                                                    {quotaExceeded && (
-                                                                                        <div className="mt-0.5 font-bold text-red-600">
-                                                                                            {trans.quota_exceeded || 'Quota Exceeded'}
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {/* Verifier Actions: Accept / Reject */}
-                                                                {canVerify && doc.url_path_file && (
-                                                                    <div className="flex items-center gap-4">
-                                                                        {/* Accept */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isVerified || isPendingVerification ? 'text-green-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.accept || 'Accept'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isVerified || isPendingVerification}
-                                                                                onCheckedChange={() => handleVerify(doc.id)}
-                                                                                className={`data-[state=checked]:border-green-600 data-[state=checked]:bg-green-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-
-                                                                        {/* Reject */}
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span
-                                                                                className={`text-[10px] font-bold ${isRejected || isPendingRejection ? 'text-red-600' : 'text-gray-400'}`}
-                                                                            >
-                                                                                {trans.reject || 'Reject'}
-                                                                            </span>
-                                                                            <Checkbox
-                                                                                checked={isRejected || isPendingRejection}
-                                                                                onCheckedChange={(checked) => {
-                                                                                    if (checked) handleOpenReject(doc.id);
-                                                                                }}
-                                                                                className={`data-[state=checked]:border-red-600 data-[state=checked]:bg-red-600`}
-                                                                                disabled={!isPending}
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Uploader UI: Upload & Info Column -> RIGHT SIDE */}
-                                                                {canUpload && (
-                                                                    <div className="flex w-1/2 max-w-xs flex-col items-end gap-2">
-                                                                        {/* Upload Zone */}
-                                                                        {!doc.url_path_file || (!isPending && !quotaExceeded) ? (
-                                                                            <ResettableDropzone
-                                                                                label=""
-                                                                                isRequired={false}
-                                                                                existingFile={
-                                                                                    tempFiles[doc.id]
-                                                                                        ? {
-                                                                                            nama_file:
-                                                                                                doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                            path: tempFiles[doc.id],
-                                                                                        }
-                                                                                        : undefined
-                                                                                }
-                                                                                uploadConfig={{
-                                                                                    url: '/shipping/upload-temp',
-                                                                                    payload: {
-                                                                                        type: doc.master_document?.nama_dokumen || doc.nama_file,
-                                                                                        spk_code: shipmentData.spkNumber,
-                                                                                    },
-                                                                                }}
-                                                                                onFileChange={(file, response) => {
-                                                                                    if (
-                                                                                        response &&
-                                                                                        (response.status === 'success' || response.path)
-                                                                                    ) {
-                                                                                        setTempFiles((prev) => ({
-                                                                                            ...prev,
-                                                                                            [doc.id]: response.path,
-                                                                                        }));
-                                                                                    } else if (file === null) {
-                                                                                        setTempFiles((prev) => {
-                                                                                            const newState = { ...prev };
-                                                                                            delete newState[doc.id];
-                                                                                            return newState;
-                                                                                        });
-                                                                                    }
-                                                                                }}
-                                                                                disabled={verifyingDocId === doc.id}
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="text-right text-xs text-gray-400 italic">
-                                                                                {isPending
-                                                                                    ? trans.on_checking || 'On Checking'
-                                                                                    : trans.quota_exceeded || 'Quota Exceeded'}
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Quota & Rejection Info (Moved Here) */}
-                                                                        {doc.url_path_file && (
-                                                                            <div className="flex flex-col items-end text-right text-xs">
-                                                                                {/* Rejection Note */}
-                                                                                {isRejected && (
-                                                                                    <div className="mb-1">
-                                                                                        <div className="flex items-center justify-end gap-1 font-bold text-red-600">
-                                                                                            {trans.rejection_note || 'Rejection Note'}{' '}
-                                                                                            <AlertTriangle className="h-3 w-3" />
-                                                                                        </div>
-                                                                                        <p className="text-gray-700 italic">
-                                                                                            "{doc.correction_description}"
-                                                                                        </p>
-                                                                                        {doc.correction_attachment_file && (
-                                                                                            <a
-                                                                                                href={`/file/view/${doc.correction_attachment_file}`}
-                                                                                                target="_blank"
-                                                                                                className="mt-0.5 block text-blue-500 underline"
-                                                                                            >
-                                                                                                {trans.view_rejection_file || 'View Rejection File'}
-                                                                                            </a>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-
-                                                                                {/* Quota Info */}
-                                                                                <div className="mt-1 text-gray-600">
-                                                                                    {trans.revision_quota || 'Revision Quota'}:{' '}
-                                                                                    <span className="font-bold">{doc.kuota_revisi ?? 0}</span>{' '}
-                                                                                    {trans.remaining || 'remaining'}
-                                                                                </div>
-                                                                                {quotaExceeded && (
-                                                                                    <div className="mt-0.5 font-bold text-red-600">
-                                                                                        {trans.quota_exceeded || 'Quota Exceeded'}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        );
+                                                        return renderDocumentRow(doc, idx, section.id, allVersions.filter(v => !!v.url_path_file).length > 1, allVersions);
                                                     })
                                                 ) : (
                                                     <div className="py-4 text-center text-xs text-gray-400 italic">{trans.section_empty}</div>
                                                 )}
                                             </div>
 
-                                            <div className="mt-8 flex items-center justify-between">
-                                                <button
-                                                    onClick={handleOpenModal}
-                                                    className="flex items-center gap-2 text-sm font-bold text-gray-800 hover:text-black"
-                                                >
-                                                    <div className="rounded border border-black p-0.5">
-                                                        <Plus className="h-4 w-4" />
-                                                    </div>
-                                                    {trans.add_document}
-                                                </button>
+                                            <div className={`mt-4 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-0 ${isInternalUser ? 'sm:justify-between' : 'sm:justify-end'}`}>
+                                                {isInternalUser && (
+                                                    <button
+                                                        onClick={() => handleOpenModal(section.id)}
+                                                        className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors duration-200"
+                                                    >
+                                                        <div className="rounded border-2 border-slate-400 p-0.5 hover:border-slate-600 transition-colors duration-200">
+                                                            <Plus className="h-4 w-4" />
+                                                        </div>
+                                                        {trans.add_document}
+                                                    </button>
+                                                )}
 
                                                 <Button
                                                     onClick={() => handleSaveSection(section.id)}
                                                     disabled={processingSectionId === section.id}
-                                                    className="h-8 rounded bg-black px-8 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                                                    className="h-9 rounded-lg bg-blue-600 hover:bg-blue-700 px-8 text-xs font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {processingSectionId === section.id ? trans.saving || 'Saving...' : trans.save_changes}
                                                 </Button>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        </div >
+                                    )
+                                    }
+                                </div >
                             );
                         })
                 ) : (
@@ -1726,78 +1413,29 @@ export default function ViewCustomerForm({
                         <p className="text-xs text-gray-400">{trans.ensure_spk}</p>
                     </div>
                 )}
-            </div>
+            </div >
 
-            {additionalSection && (
-                <div className="mt-6 mb-4">
-                    <div className="mb-4 flex items-center space-x-3 pl-1">
-                        <Checkbox
-                            id="req_additional"
-                            className="h-5 w-5 rounded border-2 border-black"
-                            checked={isAdditionalSectionVisible}
-                            onCheckedChange={(c) => setIsAdditionalSectionVisible(c === true)}
-                        />
-                        <label htmlFor="req_additional" className="cursor-pointer text-sm leading-none font-bold uppercase">
-                            {trans.req_additional_doc}
-                        </label>
+            {/* Penjaluran Buttons */}
+            {
+                isInternalUser && (
+                    <div className="mt-6 sm:mt-12 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+                        <Button
+                            onClick={() => handleUpdatePenjaluran('merah')}
+                            disabled={isUpdatingPenjaluran}
+                            className="text-white bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 focus:ring-4 focus:outline-none focus:ring-rose-300 shadow-md hover:shadow-lg transition-all duration-300 font-medium rounded-lg text-sm px-6 py-3 text-center"
+                        >
+                            Jalur Merah
+                        </Button>
+                        <Button
+                            onClick={() => handleUpdatePenjaluran('biru')}
+                            disabled={isUpdatingPenjaluran}
+                            className="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 shadow-md hover:shadow-lg transition-all duration-300 font-medium rounded-lg text-sm px-6 py-3 text-center"
+                        >
+                            Jalur Biru
+                        </Button>
                     </div>
-
-                    {isAdditionalSectionVisible && (
-                        <div className="mb-8 rounded-lg border border-gray-200 px-1 shadow-sm">
-                            <div
-                                className="flex w-full cursor-pointer items-center justify-between px-3 py-3"
-                                onClick={() => setIsAdditionalDocsOpen(!isAdditionalDocsOpen)}
-                            >
-                                <span className="text-sm font-bold uppercase">{additionalSection.section_name}</span>
-                                {isAdditionalDocsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </div>
-
-                            {isAdditionalDocsOpen && (
-                                <div className="px-3 pt-0 pb-4">
-                                    {isInternalUser && (
-                                        <div className="mb-6 space-y-2">
-                                            <label className="text-sm font-bold text-black">{trans.set_deadline}</label>
-                                            <Input
-                                                type="date"
-                                                value={deadlineDate}
-                                                onChange={(e) => setDeadlineDate(e.target.value)}
-                                                className="h-10 w-full"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* RENDER DYNAMIC DOCUMENTS FROM DB */}
-                                    <div className="space-y-4">
-                                        {additionalSection.documents && additionalSection.documents.length > 0 ? (
-                                            processDocumentsForRender(additionalSection.documents).map((item, idx) =>
-                                                renderDocumentRow(item.current, idx, additionalSection.id, item.history.length > 0, item.history),
-                                            )
-                                        ) : (
-                                            <div className="py-4 text-center text-xs text-gray-400 italic">Belum ada dokumen tambahan.</div>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-8 flex items-center justify-end">
-                                        <Button
-                                            onClick={() => handleSaveSection(additionalSection.id)}
-                                            disabled={processingSectionId === additionalSection.id}
-                                            className="h-9 w-24 rounded bg-black text-xs font-bold text-white hover:bg-gray-800"
-                                        >
-                                            {processingSectionId === additionalSection.id ? trans.saving : trans.save}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* <div className="mt-12 flex justify-end">
-                <Button onClick={handleFinalSave} className="h-10 rounded-md bg-black px-8 text-sm font-bold text-white hover:bg-gray-800">
-                    {trans.save_changes}
-                </Button>
-            </div> */}
+                )
+            }
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-85 rounded-xl p-0 sm:max-w-100">
@@ -1821,33 +1459,47 @@ export default function ViewCustomerForm({
 
                     {/* List Pilihan Checkbox */}
                     <div className="max-h-75 overflow-y-auto px-4 py-2">
-                        <div className="space-y-4">
-                            {filteredDocs.map((doc) => (
-                                <div key={doc.id} className="flex items-center space-x-3">
-                                    {/* Checkbox agak besar (h-5 w-5) dan border lebih tebal (border-2) untuk mirip desain */}
-                                    <Checkbox
-                                        id={doc.id}
-                                        className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
-                                    />
-                                    <label
-                                        htmlFor={doc.id}
-                                        className="text-base leading-none font-normal peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                    >
-                                        {doc.label}
-                                    </label>
-                                </div>
-                            ))}
-                        </div>
+                        {isLoadingDocs ? (
+                            <div className="py-8 text-center text-sm text-gray-500">Loading documents...</div>
+                        ) : availableDocuments.length === 0 ? (
+                            <div className="py-8 text-center text-sm text-gray-500">No available documents</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {availableDocuments
+                                    .filter((doc) => doc.nama_file.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map((doc) => (
+                                        <div key={doc.id_dokumen} className="flex items-center space-x-3">
+                                            <Checkbox
+                                                id={`doc-${doc.id_dokumen}`}
+                                                checked={selectedDocuments.includes(doc.id_dokumen)}
+                                                onCheckedChange={(checked) => handleDocumentCheckboxChange(doc.id_dokumen, checked as boolean)}
+                                                className="h-5 w-5 rounded border-2 border-black data-[state=checked]:bg-transparent data-[state=checked]:text-black"
+                                            />
+                                            <label
+                                                htmlFor={`doc-${doc.id_dokumen}`}
+                                                className="text-base leading-none font-normal cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            >
+                                                {doc.nama_file}
+                                            </label>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Modal */}
                     <div className="flex flex-col items-center gap-3 border-t p-4 pt-2">
-                        <button className="text-sm text-gray-500 hover:text-black hover:underline">{trans.see_all}</button>
+                        {selectedDocuments.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                                {selectedDocuments.length} document(s) selected
+                            </div>
+                        )}
                         <Button
-                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800"
-                            onClick={() => setIsModalOpen(false)}
+                            className="h-10 w-full rounded-md bg-black text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                            onClick={handleSaveSelectedDocuments}
+                            disabled={isSavingDocs || selectedDocuments.length === 0}
                         >
-                            {trans.save_changes}
+                            {isSavingDocs ? 'Saving...' : trans.save_changes}
                         </Button>
                     </div>
                 </DialogContent>
@@ -1870,7 +1522,7 @@ export default function ViewCustomerForm({
                             <a href={selectedHelpData.link_path_example_file} target="_blank" rel="noreferrer" className="block w-full">
                                 <Button
                                     variant="outline"
-                                    className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                    className="w-full justify-center rounded-xl border-slate-200 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-all shadow-sm"
                                 >
                                     {trans.download_example} {selectedHelpData.nama_file}
                                 </Button>
@@ -1884,7 +1536,7 @@ export default function ViewCustomerForm({
                             <a href={selectedHelpData.link_path_template_file} target="_blank" rel="noreferrer" className="block w-full">
                                 <Button
                                     variant="outline"
-                                    className="w-full justify-center rounded-lg border-gray-300 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                    className="w-full justify-center rounded-xl border-slate-200 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-all shadow-sm"
                                 >
                                     {trans.download_template} {selectedHelpData.nama_file}
                                 </Button>
@@ -1913,7 +1565,7 @@ export default function ViewCustomerForm({
                                     >
                                         {thumbnailUrl && (
                                             <img
-                                                src={thumbnailUrl}
+                                                src={thumbnailUrl || undefined}
                                                 alt="Video thumbnail"
                                                 className="absolute inset-0 h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
                                             />
@@ -2006,6 +1658,6 @@ export default function ViewCustomerForm({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
-}
+};

@@ -31,10 +31,12 @@ class DocumentTrans extends Model
         'mapping_insw',
         'sla_document',
         'is_internal',
+        'is_verification', // Added
     ];
 
     protected $casts = [
         'verify' => 'boolean', // Nullable boolean
+        'is_verification' => 'boolean', // Added
         'correction_attachment' => 'boolean',
         'kuota_revisi' => 'integer',
         'count_revisi' => 'integer',

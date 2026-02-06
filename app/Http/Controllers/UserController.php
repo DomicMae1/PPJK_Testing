@@ -44,7 +44,7 @@ class UserController extends Controller
         $roles = Role::all(['id', 'name']);
         $perusahaan = $companyQuery->get();
         
-        $customers = Customer::select(['id_customer as id', 'nama_perusahaan'])->get();
+        $customers = Customer::select(['id_customer as id', 'nama_perusahaan'])->where('ownership', $user->id_perusahaan)->get();
 
         return Inertia::render('auth/page', [
             'users' => $users,
@@ -77,21 +77,37 @@ class UserController extends Controller
             'id_customer' => 'nullable|exists:customers,id_customer',
         ]);
 
-        $roleName = $request->role;
+        // 1. Normalisasi 'role' (User Type)
+        $userType = $request->user_type;
+        if ($userType === 'external') {
+            $userType = 'eksternal'; // Ubah ke Bahasa Indonesia sesuai Constraint Database
+        }
+
+        // 2. Tentukan Logic role_internal
+        $roleInternal = null;
+        if ($userType === 'internal') {
+            $roleInternal = $request->role; 
+        }
+        // Jika eksternal, $roleInternal tetap null (sesuai aturan database)
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->user_type, // 'internal' atau 'eksternal'
-            'role_internal' => $request->role, // 'staff', 'manager', atau null
+            
+            // --- PERBAIKAN DISINI ---
+            // Gunanakan variabel yang sudah diolah ($userType), JANGAN $request->user_type
+            'role' => $userType, 
+            
+            // Gunakan variabel yang sudah diolah ($roleInternal), JANGAN $request->role
+            'role_internal' => $roleInternal, 
+            
             'id_perusahaan' => $request->id_perusahaan,
-            'id_customer' => $request->id_customer, // Simpan ID Customer jika ada
+            'id_customer' => $request->id_customer,
         ]);
 
-        // 4. Assign Role Spatie (Menggunakan Nama Role)
-        // Karena $request->role berisi string nama (misal: "manager"), kita bisa langsung assign
-        $user->assignRole($roleName);
+        // 4. Assign Role Spatie
+        $user->assignRole($request->role);
 
         return redirect()->route('users.index')->with('message', 'User created successfully.');
     }

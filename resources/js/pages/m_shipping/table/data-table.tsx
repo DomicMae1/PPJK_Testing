@@ -119,7 +119,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         setHsCodes([...hsCodes, { id: nanoid(), code: '', link: '', file: null }]);
     };
 
-    const removeHsCodeField = (id: number) => {
+    const removeHsCodeField = (id: string) => {
         setHsCodes(hsCodes.filter((item) => item.id !== id));
     };
 
@@ -556,17 +556,17 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                         const dateObj = original.tanggal_status ? new Date(original.tanggal_status) : null;
                         const dateStr = dateObj
                             ? dateObj.toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: '2-digit',
-                              })
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: '2-digit',
+                            })
                             : '-';
                         const timeStr = dateObj
                             ? dateObj.toLocaleTimeString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false,
-                              })
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                            })
                             : '';
 
                         // Logic Warna Jalur
@@ -617,6 +617,26 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                         </div>
                                     </div>
 
+                                    {/* PROGRESS BAR MOBILE */}
+                                    <div className="pt-1">
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                {trans.progress}
+                                            </span>
+                                            <span className="text-[11px] font-extrabold text-slate-700">{original.progress || 0}%</span>
+                                        </div>
+                                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 shadow-inner">
+                                            <div
+                                                className={`h-full transition-all duration-1000 ease-out ${original.progress === 100 ? 'bg-emerald-500' :
+                                                    (original.progress || 0) >= 80 ? 'bg-indigo-500' :
+                                                        (original.progress || 0) >= 40 ? 'bg-blue-500' :
+                                                            (original.progress || 0) > 0 ? 'bg-sky-400' : 'bg-slate-200'
+                                                    }`}
+                                                style={{ width: `${original.progress || 0}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
                                     {isUserExternal && original.deadline_date && (
                                         <div className="mt-1 flex items-center gap-1">
                                             <span className="text-lg font-bold text-red-500">ⓘ</span>
@@ -654,8 +674,8 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                                     (header.column.getIsSorted() === 'asc'
                                                         ? '⬆️'
                                                         : header.column.getIsSorted() === 'desc'
-                                                          ? '⬇️'
-                                                          : '')}
+                                                            ? '⬇️'
+                                                            : '')}
                                             </button>
                                         ) : (
                                             flexRender(header.column.columnDef.header, header.getContext())

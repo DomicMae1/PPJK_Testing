@@ -90,4 +90,21 @@ class SectionReminderService
             \Illuminate\Support\Facades\Log::error("Failed to queue DocumentRejectedMail: " . $e->getMessage());
         }
     }
+
+    /**
+     * Kirim email saat dokumen ditolak (Batch).
+     */
+    public static function sendBatchDocumentRejected(Spk $spk, $sectionName, User $rejector, User $recipient, $reason, $count)
+    {
+        if (!$recipient || empty($recipient->email)) return;
+
+        try {
+            // We reuse DocumentRejectedMail but adapt the "documentName" parameter to show count.
+            $docNameSummary = "{$count} Documents";
+            
+            \Illuminate\Support\Facades\Mail::to($recipient->email)->queue(new \App\Mail\DocumentRejectedMail($spk, $sectionName, $rejector, $recipient, $reason, $docNameSummary));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to queue BatchDocumentRejectedMail: " . $e->getMessage());
+        }
+    }
 }
