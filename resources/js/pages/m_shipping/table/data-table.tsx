@@ -547,117 +547,125 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                     </Button>
                 </div>
 
-                {/* Looping Data untuk Card View */}
-                {table.getRowModel().rows.length > 0 ? (
-                    table.getRowModel().rows.map((row) => {
-                        const original = row.original as any; // Cast ke any atau tipe data Shipping
+                <div className="flex flex-col gap-4">
+                    {/* Looping Data untuk Card View */}
+                    {table.getRowModel().rows.length > 0 ? (
+                        table.getRowModel().rows.map((row) => {
+                            const original = row.original as any; // Cast ke any atau tipe data Shipping
 
-                        // Formatting Tanggal
-                        const dateObj = original.tanggal_status ? new Date(original.tanggal_status) : null;
-                        const dateStr = dateObj
-                            ? dateObj.toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: '2-digit',
-                            })
-                            : '-';
-                        const timeStr = dateObj
-                            ? dateObj.toLocaleTimeString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false,
-                            })
-                            : '';
+                            // Formatting Tanggal
+                            const dateObj = original.tanggal_status ? new Date(original.tanggal_status) : null;
+                            const dateStr = dateObj
+                                ? dateObj.toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: '2-digit',
+                                  })
+                                : '-';
+                            const timeStr = dateObj
+                                ? dateObj.toLocaleTimeString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false,
+                                  })
+                                : '';
 
-                        // Logic Warna Jalur
-                        const jalur = original.jalur ? original.jalur.toLowerCase() : '';
-                        let jalurColor = 'text-gray-500';
-                        if (jalur === 'hijau') jalurColor = 'text-green-600';
-                        if (jalur === 'merah') jalurColor = 'text-red-600';
-                        if (jalur === 'kuning') jalurColor = 'text-yellow-600';
+                            // Logic Warna Jalur
+                            const jalur = original.jalur ? original.jalur.toLowerCase() : '';
+                            let jalurColor = 'text-gray-500';
+                            if (jalur === 'hijau') jalurColor = 'text-green-600';
+                            if (jalur === 'merah') jalurColor = 'text-red-600';
+                            if (jalur === 'kuning') jalurColor = 'text-yellow-600';
 
-                        return (
-                            <div
-                                key={row.id}
-                                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-                                onClick={() => router.visit(`/shipping/${original.id}`)}
-                            >
-                                {/* Header Card: No SPK & Jalur */}
-                                <div className="mb-2 flex items-center justify-between border-b pb-2">
-                                    <span className="font-mono text-base font-medium text-gray-900">{original.spk_code || '-'}</span>
-                                    <span className={`text-sm font-bold ${jalurColor}`}>{original.jalur || '-'}</span>
-                                </div>
-
-                                {/* Content Card */}
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-xs text-gray-500">{trans.customer_name}</p>
-                                        <p className="font-bold text-gray-900">{original.nama_customer || '-'}</p>
+                            return (
+                                <div
+                                    key={row.id}
+                                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                                    onClick={() => router.visit(`/shipping/${original.id}`)}
+                                >
+                                    {/* Header Card: No SPK & Jalur */}
+                                    <div className="mb-2 flex items-center justify-between border-b pb-2">
+                                        <span className="font-mono text-base font-medium text-gray-900">{original.spk_code || '-'}</span>
+                                        <span className={`text-sm font-bold ${jalurColor}`}>{original.jalur || '-'}</span>
                                     </div>
 
-                                    <div>
-                                        <p className="text-xs text-gray-500">{trans.status_description}</p>
-                                        <div className="text-sm text-gray-800">
-                                            <span className="font-medium">{original.status_label || '-'}</span>
-                                            {original.nama_user && (
-                                                <>
-                                                    {' '}
-                                                    {trans.by} <strong>{original.nama_user}</strong>
-                                                </>
-                                            )}
-                                            {dateObj && (
-                                                <>
-                                                    {' '}
-                                                    {trans.at}{' '}
-                                                    <strong>
-                                                        {dateStr} {timeStr} WIB
-                                                    </strong>
-                                                </>
-                                            )}
+                                    {/* Content Card */}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-xs text-gray-500">{trans.customer_name}</p>
+                                            <p className="font-bold text-gray-900">{original.nama_customer || '-'}</p>
                                         </div>
-                                    </div>
 
-                                    {/* PROGRESS BAR MOBILE */}
-                                    <div className="pt-1">
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                                {trans.progress}
-                                            </span>
-                                            <span className="text-[11px] font-extrabold text-slate-700">{original.progress || 0}%</span>
+                                        <div>
+                                            <p className="text-xs text-gray-500">{trans.status_description}</p>
+                                            <div className="text-sm text-gray-800">
+                                                <span className="font-medium">{original.status_label || '-'}</span>
+                                                {original.nama_user && (
+                                                    <>
+                                                        {' '}
+                                                        {trans.by} <strong>{original.nama_user}</strong>
+                                                    </>
+                                                )}
+                                                {dateObj && (
+                                                    <>
+                                                        {' '}
+                                                        {trans.at}{' '}
+                                                        <strong>
+                                                            {dateStr} {timeStr} WIB
+                                                        </strong>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 shadow-inner">
-                                            <div
-                                                className={`h-full transition-all duration-1000 ease-out ${original.progress === 100 ? 'bg-emerald-500' :
-                                                    (original.progress || 0) >= 80 ? 'bg-indigo-500' :
-                                                        (original.progress || 0) >= 40 ? 'bg-blue-500' :
-                                                            (original.progress || 0) > 0 ? 'bg-sky-400' : 'bg-slate-200'
+
+                                        {/* PROGRESS BAR MOBILE */}
+                                        <div className="pt-1">
+                                            <div className="mb-1 flex items-center justify-between gap-2">
+                                                <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                                                    {trans.progress}
+                                                </span>
+                                                <span className="text-[11px] font-extrabold text-slate-700">{original.progress || 0}%</span>
+                                            </div>
+                                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 shadow-inner">
+                                                <div
+                                                    className={`h-full transition-all duration-1000 ease-out ${
+                                                        original.progress === 100
+                                                            ? 'bg-emerald-500'
+                                                            : (original.progress || 0) >= 80
+                                                              ? 'bg-indigo-500'
+                                                              : (original.progress || 0) >= 40
+                                                                ? 'bg-blue-500'
+                                                                : (original.progress || 0) > 0
+                                                                  ? 'bg-sky-400'
+                                                                  : 'bg-slate-200'
                                                     }`}
-                                                style={{ width: `${original.progress || 0}%` }}
-                                            />
+                                                    style={{ width: `${original.progress || 0}%` }}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {isUserExternal && original.deadline_date && (
-                                        <div className="mt-1 flex items-center gap-1">
-                                            <span className="text-lg font-bold text-red-500">ⓘ</span>
-                                            <span className="text-xs font-bold text-red-500">
-                                                {trans.submit_before}{' '}
-                                                {new Date(original.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
-                                                    day: '2-digit',
-                                                    month: '2-digit',
-                                                    year: 'numeric',
-                                                })}{' '}
-                                                {trans.wib}
-                                            </span>
-                                        </div>
-                                    )}
+                                        {isUserExternal && original.deadline_date && (
+                                            <div className="mt-1 flex items-center gap-1">
+                                                <span className="text-lg font-bold text-red-500">ⓘ</span>
+                                                <span className="text-xs font-bold text-red-500">
+                                                    {trans.submit_before}{' '}
+                                                    {new Date(original.deadline_date).toLocaleDateString(currentLocale === 'id' ? 'id-ID' : 'en-GB', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: 'numeric',
+                                                    })}{' '}
+                                                    {trans.wib}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })
-                ) : (
-                    <div className="py-8 text-center text-gray-500">No results found.</div>
-                )}
+                            );
+                        })
+                    ) : (
+                        <div className="py-8 text-center text-gray-500">No results found.</div>
+                    )}
+                </div>
             </div>
 
             <div className="hidden rounded-md border md:block">
@@ -674,8 +682,8 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                                                     (header.column.getIsSorted() === 'asc'
                                                         ? '⬆️'
                                                         : header.column.getIsSorted() === 'desc'
-                                                            ? '⬇️'
-                                                            : '')}
+                                                          ? '⬇️'
+                                                          : '')}
                                             </button>
                                         ) : (
                                             flexRender(header.column.columnDef.header, header.getContext())

@@ -189,26 +189,32 @@ export default function ManageDocuments() {
 
             {/* --- MODAL EDIT --- */}
             <Dialog open={openEdit} onOpenChange={setOpenEdit}>
-                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                {/* UBAH: w-[95vw] agar di mobile hampir full width, tapi tetap ada margin */}
+                <DialogContent className="max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Edit Dokumen</DialogTitle>
                         <DialogDescription>
                             {isManager ? 'Mengubah dokumen internal perusahaan.' : 'Mengubah dokumen master global.'}
                         </DialogDescription>
                     </DialogHeader>
+
                     <form onSubmit={onConfirmEdit} className="space-y-4 py-2">
+                        {/* Nama Dokumen */}
                         <div>
                             <Label htmlFor="edit_nama_file">Nama Dokumen</Label>
                             <Input
                                 id="edit_nama_file"
                                 value={editForm.nama_file}
                                 onChange={(e) => setEditForm({ ...editForm, nama_file: e.target.value })}
+                                className="mt-1"
                             />
                         </div>
+
+                        {/* Section */}
                         <div>
                             <Label htmlFor="edit_id_section">Section</Label>
                             <Select value={editForm.id_section} onValueChange={(val) => setEditForm({ ...editForm, id_section: val })}>
-                                <SelectTrigger>
+                                <SelectTrigger className="mt-1 w-full">
                                     <SelectValue placeholder="Pilih Section" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -221,16 +227,18 @@ export default function ManageDocuments() {
                             </Select>
                         </div>
 
-                        <div className="flex gap-2">
+                        {/* Grid untuk Toggle Buttons agar rapi di mobile */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             {/* === INPUT EDIT: Is Internal? === */}
                             <div>
-                                <Label className="mb-2 block">Dokumen ini akan diupload oleh siapa</Label>
-                                <div className="flex gap-2">
+                                <Label className="mb-2 block text-xs font-semibold text-gray-500 uppercase">Akses Upload</Label>
+                                <div className="flex w-full gap-2">
+                                    {/* UBAH: flex-1 agar tombol memenuhi lebar container */}
                                     <Button
                                         type="button"
                                         variant={editForm.is_internal ? 'default' : 'outline'}
                                         onClick={() => handleEditBooleanChange('is_internal', true)}
-                                        className="w-20"
+                                        className="flex-1"
                                     >
                                         Internal
                                     </Button>
@@ -238,7 +246,7 @@ export default function ManageDocuments() {
                                         type="button"
                                         variant={!editForm.is_internal ? 'default' : 'outline'}
                                         onClick={() => handleEditBooleanChange('is_internal', false)}
-                                        className="w-20"
+                                        className="flex-1"
                                     >
                                         External
                                     </Button>
@@ -247,13 +255,13 @@ export default function ManageDocuments() {
 
                             {/* === INPUT EDIT: Attribute? === */}
                             <div>
-                                <Label className="mb-2 block">Mandatory atau tidak?</Label>
-                                <div className="flex gap-2">
+                                <Label className="mb-2 block text-xs font-semibold text-gray-500 uppercase">Mandatory?</Label>
+                                <div className="flex w-full gap-2">
                                     <Button
                                         type="button"
                                         variant={editForm.attribute ? 'default' : 'outline'}
                                         onClick={() => handleEditBooleanChange('attribute', true)}
-                                        className="w-20"
+                                        className="flex-1"
                                     >
                                         Ya
                                     </Button>
@@ -261,7 +269,7 @@ export default function ManageDocuments() {
                                         type="button"
                                         variant={!editForm.attribute ? 'default' : 'outline'}
                                         onClick={() => handleEditBooleanChange('attribute', false)}
-                                        className="w-20"
+                                        className="flex-1"
                                     >
                                         Tidak
                                     </Button>
@@ -271,66 +279,75 @@ export default function ManageDocuments() {
 
                         {/* Link Video */}
                         <div>
-                            <Label>Link Video</Label>
+                            <Label htmlFor="edit_video">Link Video</Label>
                             <Input
+                                id="edit_video"
                                 value={editForm.link_url_video_file}
                                 onChange={(e) => setEditForm({ ...editForm, link_url_video_file: e.target.value })}
                                 placeholder="https://youtube.com/..."
+                                className="mt-1"
                             />
                         </div>
 
-                        <div className="max-w-[250px] sm:max-w-[300px]">
-                            <Label className="mb-2">Ganti Contoh File</Label>
+                        {/* UBAH: Grid Layout untuk Upload File (Vertikal di Mobile, Horizontal di Desktop) */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {/* Kolom 1: Contoh File */}
                             <div className="w-full">
-                                {' '}
-                                {/* Wrapper untuk memastikan width penuh */}
-                                <ResettableDropzone
-                                    label="Upload Baru"
-                                    isRequired={false}
-                                    uploadConfig={{
-                                        url: '/document/upload-temp',
-                                        payload: { type: 'example', doc_name: editForm.nama_file },
-                                    }}
-                                    onFileChange={(file, response) => handleEditDropzoneChange('link_path_example_file', response)}
-                                    existingFile={editForm.existing_example}
-                                    // Tambahkan className jika komponen mendukung, untuk force align left
-                                    className="w-full items-start justify-start text-left"
-                                />
+                                <Label className="mb-2 block">Ganti Contoh File</Label>
+                                <div className="w-full">
+                                    <ResettableDropzone
+                                        label="Upload Baru"
+                                        isRequired={false}
+                                        uploadConfig={{
+                                            url: '/document/upload-temp',
+                                            payload: { type: 'example', doc_name: editForm.nama_file },
+                                        }}
+                                        onFileChange={(file, response) => handleEditDropzoneChange('link_path_example_file', response)}
+                                        existingFile={editForm.existing_example}
+                                        className="w-full items-start justify-start text-left"
+                                    />
+                                </div>
+                                <p className="mt-1 text-[10px] text-gray-500">*Upload untuk menimpa file lama</p>
                             </div>
-                            <p className="mt-1 text-[10px] text-gray-500">*Upload untuk mengganti file lama</p>
+
+                            {/* Kolom 2: Template File */}
+                            <div className="w-full">
+                                <Label className="mb-2 block">Ganti Template File</Label>
+                                <div className="w-full">
+                                    <ResettableDropzone
+                                        label="Upload Baru"
+                                        isRequired={false}
+                                        uploadConfig={{
+                                            url: '/document/upload-temp',
+                                            payload: { type: 'template', doc_name: editForm.nama_file },
+                                        }}
+                                        onFileChange={(file, response) => handleEditDropzoneChange('link_path_template_file', response)}
+                                        existingFile={editForm.existing_template}
+                                        className="w-full items-start justify-start text-left"
+                                    />
+                                </div>
+                                <p className="mt-1 text-[10px] text-gray-500">*Upload untuk menimpa file lama</p>
+                            </div>
                         </div>
 
-                        {/* Kolom 2: Template File */}
-                        <div className="max-w-[250px] sm:max-w-[300px]">
-                            <Label className="mb-2">Ganti Template File</Label>
-                            <div className="w-full">
-                                <ResettableDropzone
-                                    label="Upload Baru"
-                                    isRequired={false}
-                                    uploadConfig={{
-                                        url: '/document/upload-temp',
-                                        payload: { type: 'template', doc_name: editForm.nama_file },
-                                    }}
-                                    onFileChange={(file, response) => handleEditDropzoneChange('link_path_template_file', response)}
-                                    existingFile={editForm.existing_template}
-                                    className="w-full items-start justify-start text-left"
-                                />
-                            </div>
-                            <p className="mt-1 text-[10px] text-gray-500">*Upload untuk mengganti file lama</p>
-                        </div>
-
+                        {/* Deskripsi */}
                         <div>
                             <Label htmlFor="edit_desc">Deskripsi</Label>
                             <Textarea
                                 id="edit_desc"
                                 value={editForm.description_file}
                                 onChange={(e) => setEditForm({ ...editForm, description_file: e.target.value })}
+                                className="mt-1"
+                                rows={3}
                             />
                         </div>
-                        <DialogFooter>
-                            <Button type="submit">Simpan Perubahan</Button>
+
+                        <DialogFooter className="flex-col space-y-2 sm:flex-row sm:justify-end sm:space-y-0 sm:space-x-2">
+                            <Button type="submit" className="w-full sm:w-auto">
+                                Simpan Perubahan
+                            </Button>
                             <DialogClose asChild>
-                                <Button type="button" variant="secondary">
+                                <Button type="button" variant="secondary" className="w-full sm:w-auto">
                                     Batal
                                 </Button>
                             </DialogClose>

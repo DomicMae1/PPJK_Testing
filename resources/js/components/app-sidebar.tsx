@@ -30,6 +30,12 @@ export function AppSidebar() {
             supervisorManagerOnly: true,
         },
         {
+            title: trans_nav.manage_customer, // Translate
+            url: '/customer',
+            icon: BookUser,
+            supervisorManagerOnly: true,
+        },
+        {
             title: trans_nav.manage_role, // Translate
             url: '/role-manager',
             icon: Shield,
@@ -45,12 +51,6 @@ export function AppSidebar() {
             title: trans_nav.manage_document, // Translate
             url: '/document',
             icon: BookCheck,
-            supervisorManagerOnly: true,
-        },
-        {
-            title: trans_nav.manage_customer, // Translate
-            url: '/customer',
-            icon: BookUser,
             supervisorManagerOnly: true,
         },
     ];

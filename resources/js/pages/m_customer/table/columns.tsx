@@ -3,18 +3,13 @@
 
 import { Button } from '@/components/ui/button';
 import { ColumnDef } from '@tanstack/react-table';
-import { FileDown, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 // Pastikan path import Customer benar.
 // Jika terjadi circular dependency, pindahkan interface Customer ke @/types/index.ts
 import { Customer } from '../page';
 
 // PERBAIKAN: Ubah parameter callback menjadi (customer: Customer) bukan (id: number)
 export const columns = (onEditClick: (customer: Customer) => void, onDeleteClick: (customer: Customer) => void): ColumnDef<Customer>[] => {
-    const onGeneratePdf = (id: number) => {
-        // Asumsi route 'customer.generate-pdf' sudah ada di Laravel
-        window.open(route('customer.generate-pdf', id), '_blank');
-    };
-
     return [
         {
             accessorKey: 'nama_perusahaan',
@@ -48,21 +43,9 @@ export const columns = (onEditClick: (customer: Customer) => void, onDeleteClick
             cell: ({ row }) => {
                 const customer = row.original;
                 // Ambil ID yang benar (id_customer)
-                const validId = customer.id_customer || customer.id;
 
                 return (
                     <div className="flex items-center gap-2">
-                        {/* Tombol PDF */}
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 border-blue-200 text-blue-600 hover:bg-blue-50"
-                            onClick={() => validId && onGeneratePdf(validId)}
-                            title="Download PDF"
-                        >
-                            <FileDown className="h-4 w-4" />
-                        </Button>
-
                         {/* Tombol Edit */}
                         <Button
                             variant="outline"
