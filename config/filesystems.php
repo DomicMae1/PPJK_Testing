@@ -62,10 +62,10 @@ return [
 
         'customers_external' => [
             'driver' => 'local',
-            // 'root' => '/mnt/Ppjk',
-            // 'url' => env('APP_URL') . '/storage/external',
-            'root' => 'C:\Users\IT-Dev\Herd\customers',
-            'url' => env('APP_URL') . '/files',
+            'root' => '/mnt/Ppjk',
+            'url' => env('APP_URL') . '/storage/external',
+            // 'root' => 'C:\Users\IT\Herd\customers',
+            // 'url' => env('APP_URL') . '/files',
             'visibility' => 'public',
             'throw' => false,
         ],
