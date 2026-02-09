@@ -59,6 +59,8 @@ services:
     container_name: laravel-reverb
     restart: always
     working_dir: /var/www/html
+    env_file:
+      - .env
     # Mount code agar reverb bisa baca konfigurasi Laravel
     volumes:
       - ./:/var/www/html
@@ -85,6 +87,8 @@ services:
     container_name: laravel-queue
     restart: always
     working_dir: /var/www/html
+    env_file:
+      - .env
     volumes:
       - ./:/var/www/html
       - ./.env:/var/www/html/.env
