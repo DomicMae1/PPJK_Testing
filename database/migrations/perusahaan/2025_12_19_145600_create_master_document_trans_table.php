@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('id_section')->nullable();
             $table->string('nama_file');
             $table->boolean('is_internal')->default(false)->after('nama_file');
+            $table->boolean('is_verification')->nullable();
 
             // 3. Data File & Atribut
             $table->boolean('attribute')->default(0); // 1 = mandatory, 0 = optional

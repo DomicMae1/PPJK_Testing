@@ -55,7 +55,7 @@ services:
 
   # --- SERVICE REVERB (YANG SEBELUMNYA HILANG) ---
   reverb:
-    image: php:8.2-cli # Atau gunakan image custom Anda jika reverb butuh extension khusus
+    build: .
     container_name: laravel-reverb
     restart: always
     working_dir: /var/www/html
@@ -71,8 +71,11 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DB_CONNECTION=pgsql
-      - DB_HOST=db
-      # Masukkan env lain yang dibutuhkan Reverb
+      - DB_HOST=${DB_SECOND_HOST}
+      - DB_PORT=${DB_SECOND_PORT}
+      - DB_DATABASE=${DB_SECOND_DATABASE}
+      - DB_USERNAME=${DB_SECOND_USERNAME}
+      - DB_PASSWORD=${DB_SECOND_PASSWORD}
     networks:
       - app-network
     depends_on:
@@ -91,6 +94,10 @@ services:
       - REDIS_PORT=6379
       - DB_CONNECTION=pgsql
       - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_SECOND_DATABASE}
+      - DB_USERNAME=${DB_SECOND_USERNAME}
+      - DB_PASSWORD=${DB_SECOND_PASSWORD}
     networks:
       - app-network
     depends_on:

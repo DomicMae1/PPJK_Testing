@@ -6,4 +6,5 @@ return [
     'manage_role' => 'Kelola Role',
     'manage_company' => 'Kelola Perusahaan',
     'manage_document' => 'Kelola Dokumen',
+    'manage_customer' => 'Kelola Customer',
 ];

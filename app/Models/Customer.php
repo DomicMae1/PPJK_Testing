@@ -3,30 +3,36 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+// use Illuminate\Database\Eloquent\SoftDeletes; // Dihapus karena di list tabel tidak ada kolom 'deleted_at'
 use App\Models\User;
 use App\Models\Perusahaan;
-use App\Models\CustomerAttach;
 
 class Customer extends Model
 {
-    use SoftDeletes;
+    // use SoftDeletes; // Aktifkan ini HANYA jika Anda menambahkan kolom 'deleted_at' di database
 
     protected $connection = 'tako-user';
     protected $table = 'customers';
     protected $primaryKey = 'id_customer';
 
+    public $timestamps = true; 
+
     protected $fillable = [
+        'uid',              // Baru
         'nama_perusahaan',
         'type',
-        'ownership',
+        'ownership',        // FK
+        'created_by',
+        'no_npwp',          // Baru
+        'no_npwp_16',       // Baru
         'email',
         'nama',
-        'created_by',
     ];
 
     /**
      * Relasi ke perusahaan (dari database tako-perusahaan).
+     * Foreign Key: ownership
+     * Owner Key: id_perusahaan
      */
     public function perusahaan()
     {
@@ -35,13 +41,11 @@ class Customer extends Model
 
     public function creator()
     {
-        // Parameter 2: Foreign Key di table customers (created_by)
-        // Parameter 3: Primary Key di table users (id_user)
         return $this->belongsTo(User::class, 'created_by', 'id_user');
     }
 
     /**
-     * Relasi ke lampiran dokumen customer.
+     * Relasi ke users (Asumsi: Tabel users memiliki kolom id_customer)
      */
     public function users()
     {

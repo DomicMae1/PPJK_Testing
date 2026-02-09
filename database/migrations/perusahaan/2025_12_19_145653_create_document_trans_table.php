@@ -26,6 +26,7 @@ return new class extends Migration
 
             // 5. Data User & File
             $table->boolean('is_internal')->default(false);
+            $table->boolean('is_verification')->nullable();
             $table->string('nama_file');
             $table->string('url_path_file')->nullable(); // Lokasi file di storage
 

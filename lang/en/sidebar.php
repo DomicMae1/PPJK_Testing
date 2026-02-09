@@ -6,4 +6,5 @@ return [
     'manage_role' => 'Manage Role',
     'manage_company' => 'Manage Company',
     'manage_document' => 'Manage Document',
+    'manage_customer' => 'Manage Customer',
 ];

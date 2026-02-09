@@ -64,8 +64,10 @@ return [
             'driver' => 'local',
             'root' => '/mnt/Ppjk',
             'url' => env('APP_URL') . '/storage/external',
+            // 'root' => 'C:\Users\IT\Herd\customers',
+            // 'url' => env('APP_URL') . '/files',
             'visibility' => 'public',
-            'throw' => true,
+            'throw' => false,
         ],
 
     ],

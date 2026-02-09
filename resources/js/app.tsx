@@ -1,5 +1,6 @@
 import '../css/app.css';
 
+import { Toaster } from '@/components/ui/sonner';
 import { createInertiaApp } from '@inertiajs/react';
 import Echo from 'laravel-echo';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -7,7 +8,6 @@ import Pusher from 'pusher-js';
 import { createRoot } from 'react-dom/client';
 import { route as routeFn } from 'ziggy-js';
 import { initializeTheme } from './hooks/use-appearance';
-import { Toaster } from '@/components/ui/sonner';
 
 // Initialize Echo for WebSocket
 window.Pusher = Pusher;
@@ -41,7 +41,7 @@ createInertiaApp({
             <>
                 <Toaster />
                 <App {...props} />
-            </>
+            </>,
         );
     },
     progress: {
