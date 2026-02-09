@@ -18,6 +18,7 @@ import {
     useReactTable,
     VisibilityState,
 } from '@tanstack/react-table';
+import { Plus } from 'lucide-react';
 import * as React from 'react';
 import { DataTableViewOptions } from './data-table-view-options';
 import { DataTablePagination } from './pagination';
@@ -178,7 +179,7 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
 
     return (
         <div>
-            <div className="flex items-center gap-2 pb-4">
+            <div className="hidden items-center gap-2 pb-4 md:flex">
                 <div className="flex gap-2">
                     <Input
                         placeholder={trans_auth.filter_placeholder} // Translate
@@ -196,7 +197,65 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
                 </Button>
             </div>
 
-            <div className="rounded-md border">
+            {/* --- MOBILE HEADER (Compact) --- */}
+            <div className="flex items-center justify-between gap-2 pb-4 md:hidden">
+                <Input
+                    placeholder={trans_auth.filter_placeholder}
+                    value={filterValue}
+                    onChange={(event) => {
+                        setFilterValue(event.target.value);
+                    }}
+                    className="w-full"
+                />
+                <Button size="icon" className="shrink-0" onClick={() => setOpenCreate(true)}>
+                    <Plus className="h-4 w-4" />
+                </Button>
+            </div>
+
+            {/* --- MOBILE CARD VIEW --- */}
+            <div className="flex flex-col gap-4 md:hidden">
+                {table.getRowModel().rows.length > 0 ? (
+                    table.getRowModel().rows.map((row) => {
+                        const original = row.original as any; // Cast untuk akses properti
+
+                        // Render Cell Actions secara manual jika ada kolom 'actions'
+                        const actionsCell = row.getVisibleCells().find((cell) => cell.column.id === 'actions');
+
+                        return (
+                            <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                {/* Header Card: Name & Role/Type */}
+                                <div className="mb-3 flex items-start justify-between border-b pb-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-base font-bold text-gray-900">{original.name}</span>
+                                        <span className="text-xs font-medium text-gray-500">{original.role}</span>
+                                    </div>
+                                    {/* Jika ada kolom Actions di definisi kolom, render di sini */}
+                                    {actionsCell && <div>{flexRender(actionsCell.column.columnDef.cell, actionsCell.getContext())}</div>}
+                                </div>
+
+                                {/* Body Card: Details */}
+                                <div className="space-y-2 text-sm text-gray-700">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-500">{trans_auth.label_email}</span>
+                                        <span className="font-medium">{original.email}</span>
+                                    </div>
+
+                                    {original.nama_perusahaan && (
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-gray-500">{trans_auth.label_company}</span>
+                                            <span>{original.nama_perusahaan}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
+                ) : (
+                    <div className="py-8 text-center text-gray-500">{trans_auth.no_results}</div>
+                )}
+            </div>
+
+            <div className="hidden rounded-md border md:block">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (

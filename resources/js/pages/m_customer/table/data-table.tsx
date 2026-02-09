@@ -1,4 +1,4 @@
-// Users/table/data-table.tsx
+// Customer/table/data-table.tsx
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -58,29 +58,93 @@ export function DataTable<TData, TValue>({ columns, data, onCreateClick }: DataT
 
     return (
         <div>
-            <div className="flex items-center justify-between pb-4">
-                <div className="flex gap-2">
+            {/* --- HEADER --- */}
+            <div className="flex flex-col gap-4 pb-4 md:flex-row md:items-center md:justify-between">
+                {/* Input Pencarian (Full width di mobile, auto di desktop) */}
+                <div className="flex w-full items-center gap-2 md:w-auto">
                     <Input
                         placeholder="Cari Nama Perusahaan..."
                         value={filterValue}
                         onChange={(event) => setFilterValue(event.target.value)}
-                        className="max-w-sm"
+                        className="w-full md:w-[300px]"
                     />
+                    {/* Tombol Tambah di Mobile (Icon Only) */}
+                    {onCreateClick && (
+                        <Button size="icon" className="shrink-0 md:hidden" onClick={onCreateClick}>
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
-                <div className="flex gap-2">
+                {/* Tombol Aksi Desktop */}
+                <div className="hidden items-center gap-2 md:flex">
                     <DataTableViewOptions table={table} />
-
-                    {/* Tombol Create yang memanggil handler dari props */}
                     {onCreateClick && (
                         <Button className="h-9" onClick={onCreateClick}>
-                            <Plus className="mr-2 h-5 w-5" /> Tambah Customer
+                            <Plus className="mr-2 h-4 w-4" /> Tambah Customer
                         </Button>
                     )}
                 </div>
             </div>
 
-            <div className="rounded-md border">
+            {/* --- MOBILE VIEW (Card Layout) --- */}
+            <div className="flex flex-col gap-4 md:hidden">
+                {table.getRowModel().rows.length > 0 ? (
+                    table.getRowModel().rows.map((row) => {
+                        const original = row.original as any; // Cast ke any untuk akses properti customer
+
+                        // Cari kolom actions jika ada untuk dirender manual
+                        const actionsCell = row.getVisibleCells().find((cell) => cell.column.id === 'actions');
+
+                        return (
+                            <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                {/* Header Card: Nama Perusahaan & Actions */}
+                                <div className="mb-3 flex items-start justify-between border-b pb-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-base font-bold text-gray-900">{original.nama_perusahaan}</span>
+                                        {original.kode_perusahaan && (
+                                            <span className="mt-1 w-fit rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-500">
+                                                {original.kode_perusahaan}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {/* Render Actions Dropdown di pojok kanan atas */}
+                                    {actionsCell && <div>{flexRender(actionsCell.column.columnDef.cell, actionsCell.getContext())}</div>}
+                                </div>
+
+                                {/* Body Card: Informasi Kontak */}
+                                <div className="space-y-2 text-sm text-gray-700">
+                                    {original.email && (
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-gray-500">Email</span>
+                                            <span className="font-medium">{original.email}</span>
+                                        </div>
+                                    )}
+
+                                    {original.no_telp && (
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-gray-500">Telepon</span>
+                                            <span>{original.no_telp}</span>
+                                        </div>
+                                    )}
+
+                                    {original.alamat && (
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-gray-500">Alamat</span>
+                                            <span className="truncate">{original.alamat}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
+                ) : (
+                    <div className="py-8 text-center text-gray-500">Data tidak ditemukan.</div>
+                )}
+            </div>
+
+            {/* --- DESKTOP VIEW (Table Layout) --- */}
+            <div className="hidden rounded-md border md:block">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
@@ -118,9 +182,6 @@ export function DataTable<TData, TValue>({ columns, data, onCreateClick }: DataT
             <div className="py-4">
                 <DataTablePagination table={table} />
             </div>
-
-            {/* --- 3. HAPUS MODAL (DIALOG) CREATE DI BAWAH SINI --- */}
-            {/* Modal dihapus karena Controller Customer menggunakan halaman baru, bukan modal */}
         </div>
     );
 }

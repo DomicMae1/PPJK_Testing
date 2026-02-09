@@ -19,6 +19,7 @@ import {
     useReactTable,
     VisibilityState,
 } from '@tanstack/react-table';
+import { Plus } from 'lucide-react'; // Import Icon Plus
 import * as React from 'react';
 import { ChangeEvent, useState } from 'react';
 import { DataTableViewOptions } from './data-table-view-options';
@@ -152,18 +153,89 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_file
 
     return (
         <div className="w-full space-y-4">
-            <div className="flex items-center gap-2">
-                <Input
-                    placeholder="Filter nama dokumen..."
-                    value={(table.getColumn(filterKey)?.getFilterValue() as string) ?? ''}
-                    onChange={(event) => table.getColumn(filterKey)?.setFilterValue(event.target.value)}
-                    className="max-w-sm"
-                />
-                <DataTableViewOptions table={table} />
-                <Button onClick={() => setOpenCreate(true)}>Tambah Dokumen</Button>
+            {/* --- HEADER RESPONSIVE --- */}
+            <div className="flex flex-col gap-4 pb-2 md:flex-row md:items-center md:justify-between">
+                {/* Search Input */}
+                <div className="flex w-full items-center gap-2 md:w-auto">
+                    <Input
+                        placeholder="Filter nama dokumen..."
+                        value={(table.getColumn(filterKey)?.getFilterValue() as string) ?? ''}
+                        onChange={(event) => table.getColumn(filterKey)?.setFilterValue(event.target.value)}
+                        className="w-full md:w-[300px]"
+                    />
+                    {/* Mobile Add Button (Icon Only) */}
+                    <Button size="icon" className="shrink-0 md:hidden" onClick={() => setOpenCreate(true)}>
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {/* Desktop Buttons */}
+                <div className="hidden items-center gap-2 md:flex">
+                    <DataTableViewOptions table={table} />
+                    <Button onClick={() => setOpenCreate(true)}>
+                        <Plus className="mr-2 h-4 w-4" /> Tambah Dokumen
+                    </Button>
+                </div>
             </div>
 
-            <div className="rounded-md border">
+            {/* --- MOBILE VIEW (Card Layout) --- */}
+            <div className="flex flex-col gap-4 md:hidden">
+                {table.getRowModel().rows.length > 0 ? (
+                    table.getRowModel().rows.map((row) => {
+                        const original = row.original as unknown as DocumentData;
+
+                        // Render action column manually
+                        const actionsCell = row.getVisibleCells().find((cell) => cell.column.id === 'actions');
+
+                        return (
+                            <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                {/* Header: Name & Actions */}
+                                <div className="mb-2 flex items-start justify-between border-b pb-2">
+                                    <div>
+                                        <div className="text-base font-bold text-gray-900">{original.nama_file}</div>
+                                        {original.section && (
+                                            <span className="mt-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                                                {original.section.section_name}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {actionsCell && <div>{flexRender(actionsCell.column.columnDef.cell, actionsCell.getContext())}</div>}
+                                </div>
+
+                                {/* Body: Details */}
+                                <div className="space-y-3">
+                                    {/* Badges/Tags Status */}
+                                    <div className="flex flex-wrap gap-2">
+                                        <span
+                                            className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                                                original.is_internal ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                                            }`}
+                                        >
+                                            {original.is_internal ? 'INTERNAL' : 'EXTERNAL / PUBLIC'}
+                                        </span>
+                                        {original.attribute && (
+                                            <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">MANDATORY</span>
+                                        )}
+                                    </div>
+
+                                    {/* Description */}
+                                    {original.description_file && (
+                                        <div className="text-sm text-gray-600">
+                                            <span className="block text-xs font-semibold text-gray-400">Deskripsi:</span>
+                                            {original.description_file}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
+                ) : (
+                    <div className="py-8 text-center text-gray-500">Tidak ada data dokumen.</div>
+                )}
+            </div>
+
+            {/* --- DESKTOP VIEW (Table Layout) --- */}
+            <div className="hidden rounded-md border md:block">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
@@ -196,7 +268,9 @@ export function DataTable<TData, TValue>({ columns, data, filterKey = 'nama_file
                 </Table>
             </div>
 
-            <DataTablePagination table={table} />
+            <div className="py-4">
+                <DataTablePagination table={table} />
+            </div>
 
             {/* Dialog Tambah Dokumen */}
             <Dialog open={openCreate} onOpenChange={setOpenCreate}>
