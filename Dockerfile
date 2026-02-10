@@ -47,22 +47,14 @@ RUN echo '<VirtualHost *:80>\n\
     </Directory>\n\
     \n\
     # --- KONFIGURASI PROXY REVERB ---\n\
-    # Kita menggunakan "reverb" sebagai host karena itu nama service di docker-compose\n\
-    <IfModule mod_proxy.c>\n\
-        <IfModule mod_proxy_wstunnel.c>\n\
-            RewriteEngine On\n\
-            RewriteCond %{HTTP:Upgrade} =websocket [NC]\n\
-            RewriteCond %{HTTP:Connection} upgrade$ [NC]\n\
-            RewriteRule ^/app(.*)$ ws://reverb:8080/app$1 [P,L]\n\
-            \n\
-            ProxyPass /app ws://reverb:8080/app\n\
-            ProxyPassReverse /app ws://reverb:8080/app\n\
-        </IfModule>\n\
-        \n\
-        # Fallback HTTP\n\
-        ProxyPass /app http://reverb:8080/app\n\
-        ProxyPassReverse /app http://reverb:8080/app\n\
-    </IfModule>\n\
+    RewriteEngine On\n\
+    \n\
+    # 1. WebSocket upgrade: proxy via ws://\n\
+    RewriteCond %{HTTP:Upgrade} =websocket [NC]\n\
+    RewriteRule ^/app(.*)$ ws://reverb:8080/app$1 [P,L]\n\
+    \n\
+    # 2. Non-WebSocket requests ke /app: proxy via http://\n\
+    RewriteRule ^/app(.*)$ http://reverb:8080/app$1 [P,L]\n\
     # --------------------------------\n\
     \n\
     ErrorLog ${APACHE_LOG_DIR}/error.log\n\
