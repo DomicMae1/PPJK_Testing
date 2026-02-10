@@ -47,14 +47,12 @@ RUN echo '<VirtualHost *:80>\n\
     </Directory>\n\
     \n\
     # --- KONFIGURASI PROXY REVERB ---\n\
-    RewriteEngine On\n\
+    # Preserve Host header agar Reverb terima Host: ppjk.tako.co.id\n\
+    ProxyPreserveHost On\n\
     \n\
-    # 1. WebSocket upgrade: proxy via ws://\n\
-    RewriteCond %{HTTP:Upgrade} =websocket [NC]\n\
-    RewriteRule ^/app(.*)$ ws://reverb:8080/app$1 [P,L]\n\
-    \n\
-    # 2. Non-WebSocket requests ke /app: proxy via http://\n\
-    RewriteRule ^/app(.*)$ http://reverb:8080/app$1 [P,L]\n\
+    # Proxy /app/ ke Reverb WebSocket server\n\
+    ProxyPass "/app/" "ws://reverb:8080/app/"\n\
+    ProxyPassReverse "/app/" "ws://reverb:8080/app/"\n\
     # --------------------------------\n\
     \n\
     ErrorLog ${APACHE_LOG_DIR}/error.log\n\
