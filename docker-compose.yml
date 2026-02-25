@@ -1,4 +1,19 @@
 services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock # Agar Portainer bisa kontrol Docker engine
+      - portainer_data:/data # Agar settingan Portainer tidak hilang saat restart
+    ports:
+      - '9000:9000'
+    networks:
+      - app-network
+
   app:
     build: .
     container_name: laravel-app
@@ -150,3 +165,4 @@ networks:
 volumes:
   postgres_data:
   redis-data:
+  portainer_data:
