@@ -42,7 +42,6 @@ services:
       - FILESYSTEM_DISK=${FILESYSTEM_DISK:-public}
 
     volumes:
-      - ./:/var/www/html
       # Mounting storage public for consistency
       - ./storage/app/public:/var/www/html/storage/app/public
       - /mnt/Ppjk:/mnt/Ppjk
