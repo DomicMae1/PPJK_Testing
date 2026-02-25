@@ -75,6 +75,10 @@ WORKDIR /var/www/html
 # Copy semua file project
 COPY . .
 
+RUN touch .env
+
+RUN touch .env && chown www-data:www-data .env && chmod 664 .env
+
 # Install dependency PHP
 RUN composer install --optimize-autoloader --no-dev
 
