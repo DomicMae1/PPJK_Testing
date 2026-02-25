@@ -8,6 +8,9 @@ services:
       - '443:443'
     environment:
       # Database Configuration
+      - APP_KEY=${APP_KEY}
+      - APP_NAME=${APP_NAME}
+      - APP_ENV=${APP_ENV}
       - DB_CONNECTION=pgsql
       - DB_HOST=db
       - DB_PORT=5432

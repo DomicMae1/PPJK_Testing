@@ -112,6 +112,7 @@ if [ -f /tmp/hosts_external ]; then\n\
 fi\n\
 \n\
 # Jalankan storage:link\n\
+php artisan config:clear\n\
 php artisan storage:link\n\
 \n\
 # Jalankan Apache\n\
