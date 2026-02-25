@@ -75,12 +75,9 @@ services:
     container_name: laravel-reverb
     restart: always
     working_dir: /var/www/html
-    env_file:
-      - .env
     # Mount code agar reverb bisa baca konfigurasi Laravel
     volumes:
       - ./:/var/www/html
-      - ./.env:/var/www/html/.env
     # Command untuk menjalankan reverb
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     ports:
@@ -103,11 +100,8 @@ services:
     container_name: laravel-queue
     restart: always
     working_dir: /var/www/html
-    env_file:
-      - .env
     volumes:
       - ./:/var/www/html
-      - ./.env:/var/www/html/.env
     command: php artisan queue:work --sleep=1 --tries=3
     environment:
       - REDIS_HOST=redis
