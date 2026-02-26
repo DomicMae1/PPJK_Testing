@@ -16,7 +16,9 @@ jobs:
       - name: Deploy to Server via SSH
         run: |
           # Masuk ke direktori projek
-          cd /var/www/customer-ppjk
+          if [ -f /var/www/customer-ppjk/.env ]; then
+            cp /var/www/customer-ppjk/.env .
+          fi
 
           # Build ulang image jika ada perubahan Dockerfile/package.json/composer.json
           # Lalu jalankan container di background
