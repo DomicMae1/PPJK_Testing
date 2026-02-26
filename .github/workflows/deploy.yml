@@ -3,7 +3,7 @@ name: CI/CD Deployment
 on:
   push:
     branches:
-      - main # Ganti ke nama branch utama anda jika bukan 'main'
+      - main
 
 jobs:
   deploy:
