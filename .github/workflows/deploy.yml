@@ -22,7 +22,7 @@ jobs:
           port: 22 # Port SSH server anda
           script: |
             # Masuk ke direktori projek
-            cd /path/to/your/project/folder
+            cd /var/www/customer-ppjk
 
             # Tarik perubahan terbaru dari GitHub
             git pull origin main
