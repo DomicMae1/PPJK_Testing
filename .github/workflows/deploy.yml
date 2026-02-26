@@ -1,0 +1,40 @@
+name: CI/CD Deployment
+
+on:
+  push:
+    branches:
+      - main # Ganti ke nama branch utama anda jika bukan 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }} # IP Server anda
+          username: ${{ secrets.SERVER_USER }} # Username server (contoh: root atau ubuntu)
+          key: ${{ secrets.SSH_PRIVATE_KEY }} # Isi dengan PRIVATE KEY (bukan public key)
+          port: 22 # Port SSH server anda
+          script: |
+            # Masuk ke direktori projek
+            cd /path/to/your/project/folder
+
+            # Tarik perubahan terbaru dari GitHub
+            git pull origin main
+
+            # Build ulang image jika ada perubahan Dockerfile/package.json/composer.json
+            # Lalu jalankan container di background
+            docker compose up -d --build
+
+            # Jalankan perintah pembersihan di dalam container Laravel
+            docker exec laravel-app php artisan config:cache
+            docker exec laravel-app php artisan route:cache
+            docker exec laravel-app php artisan view:cache
+
+            # Jalankan migrasi database (opsional, hapus jika tidak ingin otomatis)
+            # docker exec laravel-app php artisan migrate --force
