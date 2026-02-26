@@ -20,6 +20,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }} # Username server (contoh: root atau ubuntu)
           key: ${{ secrets.SSH_PRIVATE_KEY }} # Isi dengan PRIVATE KEY (bukan public key)
           port: 22 # Port SSH server anda
+          debug: true
           script: |
             # Masuk ke direktori projek
             cd /var/www/customer-ppjk
