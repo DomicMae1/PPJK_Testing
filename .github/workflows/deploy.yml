@@ -18,9 +18,6 @@ jobs:
           # Masuk ke direktori projek
           cd /var/www/customer-ppjk
 
-          # Tarik perubahan terbaru dari GitHub
-          git pull origin main
-
           # Build ulang image jika ada perubahan Dockerfile/package.json/composer.json
           # Lalu jalankan container di background
           docker compose up -d --build
