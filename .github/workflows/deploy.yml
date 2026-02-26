@@ -15,6 +15,10 @@ jobs:
 
       - name: Deploy to Server via SSH
         run: |
+          whoami
+
+          docker ps
+
           # Masuk ke direktori projek
           if [ -f /var/www/customer-ppjk/.env ]; then
             cp /var/www/customer-ppjk/.env .
