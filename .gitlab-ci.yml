@@ -35,6 +35,8 @@ deploy-job:
     # Abaikan verifikasi host agar tidak stuck saat pertama kali konek
     - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
   script:
+    - apk add --no-cache netcat-openbsd # Tambahkan ini untuk cek port
+    - nc -zv $SERVER_IP 22 # Cek apakah port 22 terbuka
     - |
       ssh $SERVER_USER@$SERVER_IP "
         cd $DEPLOY_PATH &&
