@@ -23,7 +23,7 @@ jobs:
       - name: Add GitLab remote
         run: |
           git remote remove gitlab || true
-          git remote add gitlab https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.tako.co.id/ardon.yunors/customer-ppjk.git
+          git remote add gitlab https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.tako.co.id/ardon.yunors/PPJK_Testing.git
 
       - name: Push all branches to GitLab
         run: |
