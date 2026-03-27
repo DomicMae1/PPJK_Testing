@@ -1,0 +1,46 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  # Menggunakan Container Registry bawaan GitLab
+  IMAGE_NAME: $CI_REGISTRY_IMAGE:latest
+
+build-job:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  script:
+    # Login ke Registry GitLab
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    # Build image berdasarkan Dockerfile yang sudah Anda buat
+    - docker build -t $IMAGE_NAME .
+    # Push image ke registry agar bisa ditarik oleh server
+    - docker push $IMAGE_NAME
+  only:
+    - main # Hanya jalan jika ada push ke branch main
+
+deploy-job:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    # Install SSH client
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    # Masukkan SSH Key dari variabel GitLab
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    # Abaikan verifikasi host agar tidak stuck saat pertama kali konek
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - |
+      ssh $SERVER_USER@$SERVER_IP "
+        cd $DEPLOY_PATH &&
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY &&
+        docker pull $IMAGE_NAME &&
+        docker-compose up -d --remove-orphans
+      "
+  only:
+    - main

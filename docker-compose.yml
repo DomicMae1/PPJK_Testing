@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    image: my-laravel-app:latest
     container_name: laravel-app
     restart: always
     ports:
