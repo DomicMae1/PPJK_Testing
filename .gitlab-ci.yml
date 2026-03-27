@@ -19,7 +19,7 @@ build-job:
     # Push image ke registry agar bisa ditarik oleh server
     - docker push $IMAGE_NAME
   only:
-    - main # Hanya jalan jika ada push ke branch main
+    - main # Hanya jalan jika ada push
 
 deploy-job:
   stage: deploy
