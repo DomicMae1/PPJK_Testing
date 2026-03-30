@@ -4,15 +4,12 @@ stages:
 variables:
   HARBOR_REGISTRY: registry.tako.co.id
   APP_NAME: customer-ppjk
-  DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ''
 
 default:
-  image: docker:24.0.5
+  image: docker:27
   services:
-    - name: docker:24.0.5-dind
-      alias: docker
-      command: ['--tls=false']
+    - docker:27-dind
   before_script:
     - echo "$HARBOR_PASSWORD" | docker login "$HARBOR_REGISTRY" -u "$HARBOR_USERNAME" --password-stdin
 
