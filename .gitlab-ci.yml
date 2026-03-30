@@ -27,7 +27,7 @@ push-dev:
     - docker push $IMAGE_NAME:$IMAGE_TAG_PIPELINE
     - docker push $IMAGE_NAME:dev-latest
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev-v2"'
 
 push-production:
   stage: push
