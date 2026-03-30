@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '**'
+    tags:
+      - '*'
 
 jobs:
   sync:
@@ -13,7 +15,7 @@ jobs:
       - name: Checkout repository (full history)
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # 🔥 WAJIB biar gak kena shallow error
+          fetch-depth: 0
 
       - name: Set Git identity
         run: |
@@ -27,8 +29,8 @@ jobs:
 
       - name: Push all branches to GitLab
         run: |
-          git push gitlab --all --force
+          git push gitlab --all
 
       - name: Push tags to GitLab
         run: |
-          git push gitlab --tags --force
+          git push gitlab --tags
