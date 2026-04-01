@@ -7,8 +7,6 @@ services:
       - '80:80'
       - '443:443'
     environment:
-      - APP_NAME=${APP_NAME}
-      - APP_ENV=${APP_ENV}
       - DB_CONNECTION=pgsql
       - DB_HOST=db
       - DB_PORT=5432
@@ -18,7 +16,6 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REVERB_HOST=reverb
-      - APP_URL=${APP_URL}
       - FILESYSTEM_DISK=${FILESYSTEM_DISK:-public}
     volumes:
       - ./storage/app/public:/var/www/html/storage/app/public
