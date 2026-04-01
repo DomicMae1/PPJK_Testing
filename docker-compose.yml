@@ -1,14 +1,12 @@
 services:
   app:
-    build: .
-    image: my-laravel-app:latest
+    image: registry.tako.co.id/tako-apps-dev/customer-ppjk:dev-latest
     container_name: laravel-app
     restart: always
     ports:
       - '80:80'
       - '443:443'
     environment:
-      # Database Configuration
       - APP_KEY=${APP_KEY}
       - APP_NAME=${APP_NAME}
       - APP_ENV=${APP_ENV}
@@ -18,55 +16,26 @@ services:
       - DB_DATABASE=${DB_SECOND_DATABASE}
       - DB_USERNAME=${DB_SECOND_USERNAME}
       - DB_PASSWORD=${DB_SECOND_PASSWORD}
-
-      # Database Second & Tako (Mapped to same DB container)
-      - DB_SECOND_CONNECTION=pgsql
-      - DB_SECOND_HOST=db
-      - DB_SECOND_PORT=5432
-      - DB_SECOND_DATABASE=${DB_SECOND_DATABASE}
-      - DB_SECOND_USERNAME=${DB_SECOND_USERNAME}
-      - DB_SECOND_PASSWORD=${DB_SECOND_PASSWORD}
-
-      - DB_TAKO_CONNECTION=pgsql
-      - DB_TAKO_HOST=db
-      - DB_TAKO_PORT=5432
-      - DB_TAKO_DATABASE=${DB_TAKO_DATABASE:-${DB_SECOND_DATABASE}}
-      - DB_TAKO_USERNAME=${DB_TAKO_USERNAME:-${DB_SECOND_USERNAME}}
-      - DB_TAKO_PASSWORD=${DB_TAKO_PASSWORD:-${DB_SECOND_PASSWORD}}
-
-      # Redis Configuration (PENTING AGAR APP BISA KONEK KE REDIS)
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-
-      # Override REVERB_HOST agar PHP broadcast ke container reverb via Docker network
       - REVERB_HOST=reverb
-
-      # Setup URL
       - APP_URL=${APP_URL}
       - FILESYSTEM_DISK=${FILESYSTEM_DISK:-public}
-
     volumes:
-      # Mounting storage public for consistency
       - ./storage/app/public:/var/www/html/storage/app/public
       - /mnt/Ppjk:/mnt/Ppjk
       - /etc/hosts:/tmp/hosts_external:ro
-
     depends_on:
       - db
       - redis
     networks:
       - app-network
 
-  # --- SERVICE REVERB (YANG SEBELUMNYA HILANG) ---
   reverb:
-    build: .
+    image: registry.tako.co.id/tako-apps-dev/customer-ppjk:dev-latest
     container_name: laravel-reverb
     restart: always
     working_dir: /var/www/html
-    # Mount code agar reverb bisa baca konfigurasi Laravel
-    volumes:
-      - ./:/var/www/html
-    # Command untuk menjalankan reverb
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     ports:
       - '8080:8080'
@@ -74,54 +43,48 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DB_CONNECTION=pgsql
-      - DB_HOST=${DB_SECOND_HOST}
-      - DB_PORT=${DB_SECOND_PORT}
+      - DB_HOST=db
+      - DB_PORT=5432
       - DB_DATABASE=${DB_SECOND_DATABASE}
       - DB_USERNAME=${DB_SECOND_USERNAME}
       - DB_PASSWORD=${DB_SECOND_PASSWORD}
+    depends_on:
+      - redis
     networks:
       - app-network
-    depends_on:
-      - redis # INI YANG SEBELUMNYA ERROR, SEKARANG SUDAH AMAN KARENA ADA SERVICE REDIS DIBAWAH
+
   queue:
-    build: .
+    image: registry.tako.co.id/tako-apps-dev/customer-ppjk:dev-latest
     container_name: laravel-queue
     restart: always
     working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
     command: php artisan queue:work --sleep=1 --tries=3
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      # Override REVERB_HOST agar PHP broadcast ke container reverb via Docker network
       - REVERB_HOST=reverb
       - DB_CONNECTION=pgsql
-      - DB_HOST=${DB_SECOND_HOST}
-      - DB_PORT=${DB_SECOND_PORT}
+      - DB_HOST=db
+      - DB_PORT=5432
       - DB_DATABASE=${DB_SECOND_DATABASE}
       - DB_USERNAME=${DB_SECOND_USERNAME}
       - DB_PASSWORD=${DB_SECOND_PASSWORD}
-    networks:
-      - app-network
     depends_on:
       - redis
       - db
-  # --- SERVICE REDIS (YANG BARU ANDA TAMBAHKAN) ---
+    networks:
+      - app-network
+
   redis:
-    image: 'redis:alpine'
+    image: redis:alpine
     container_name: redis-cache
     restart: always
     ports:
       - '${FORWARD_REDIS_PORT:-6379}:6379'
     volumes:
-      - 'redis-data:/data'
+      - redis-data:/data
     networks:
       - app-network
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      retries: 3
-      timeout: 5s
 
   db:
     image: postgres:15
@@ -133,10 +96,10 @@ services:
       POSTGRES_PASSWORD: ${DB_SECOND_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
     ports:
       - '${DB_SECOND_PORT:-5432}:5432'
+    networks:
+      - app-network
 
 networks:
   app-network:
@@ -145,4 +108,3 @@ networks:
 volumes:
   postgres_data:
   redis-data:
-  portainer_data:

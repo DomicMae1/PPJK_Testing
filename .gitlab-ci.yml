@@ -20,7 +20,6 @@ push-dev:
     IMAGE_TAG_SHA: dev-$CI_COMMIT_SHORT_SHA
     IMAGE_TAG_PIPELINE: dev-$CI_PIPELINE_IID
   script:
-    - docker info
     - docker build -t $IMAGE_NAME:$IMAGE_TAG_SHA -t $IMAGE_NAME:$IMAGE_TAG_PIPELINE -t $IMAGE_NAME:dev-latest .
     - docker push $IMAGE_NAME:$IMAGE_TAG_SHA
     - docker push $IMAGE_NAME:$IMAGE_TAG_PIPELINE
