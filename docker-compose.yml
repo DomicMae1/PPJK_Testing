@@ -7,7 +7,6 @@ services:
       - '80:80'
       - '443:443'
     environment:
-      - APP_KEY=${APP_KEY}
       - APP_NAME=${APP_NAME}
       - APP_ENV=${APP_ENV}
       - DB_CONNECTION=pgsql
