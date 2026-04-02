@@ -29,6 +29,7 @@ post_max_size = 64M\n\
 max_execution_time = 600\n\
 " > /usr/local/etc/php/conf.d/uploads.ini
 
+# Aktifkan mod_rewrite
 RUN a2enmod rewrite ssl proxy proxy_http proxy_wstunnel
 
 # Ubah DocumentRoot Apache
