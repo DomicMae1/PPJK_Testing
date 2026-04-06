@@ -30,8 +30,6 @@ push-dev:
 deploy-dev:
   stage: deploy
   image: alpine:3.20
-  tags:
-    - internal-runner
   needs:
     - push-dev
   before_script:
