@@ -29,19 +29,27 @@ push-dev:
 
 deploy-dev:
   stage: deploy
-  image: alpine:latest
+  image: alpine:3.20
+  tags:
+    - internal-runner
+  needs:
+    - push-dev
   before_script:
     - apk add --no-cache openssh-client
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - eval "$(ssh-agent -s)"
+    - echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+    - tr -d '\r' < /tmp/deploy_key > /tmp/deploy_key_clean
+    - chmod 600 /tmp/deploy_key_clean
+    - ssh-add /tmp/deploy_key_clean
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - printf "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+    - ssh-keyscan -p "${SSH_PORT:-22}" "$SERVER_HOST" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SERVER_USER@$SERVER_HOST "
-        cd $DEPLOY_PATH &&
-        echo '$HARBOR_PASSWORD' | docker login $HARBOR_REGISTRY -u '$HARBOR_USERNAME' --password-stdin &&
+      ssh -p "${SSH_PORT:-22}" "$SERVER_USER@$SERVER_HOST" "
+        cd '$DEPLOY_PATH' &&
+        echo '$HARBOR_PASSWORD' | docker login '$HARBOR_REGISTRY' -u '$HARBOR_USERNAME' --password-stdin &&
         docker compose pull &&
         docker compose up -d --remove-orphans
       "
